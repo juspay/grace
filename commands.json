@@ -1,0 +1,56 @@
+{
+  "commands": [
+    {
+      "name": "research",
+      "description": "Deep research with AI analysis and web scraping",
+      "module_path": "modules/DeepResearchCLI",
+      "entry_point": "grace-research",
+      "main": "research",
+      "aliases": ["r", "deepresearch", "dr"],
+      "subcommands": ["research", "config", "history", "clear"],
+      "examples": [
+        "grace research",
+        "grace research \"worldpay\"",
+        "grace r \"finix authorise flow\"",
+        "grace research config"
+      ]
+    },
+    {
+      "name": "setup-d",
+      "description": "Run grace Deep research setup script",
+      "module_path": ".",
+      "entry_point": "bash",
+      "main": "./modules/DeepResearchCLI/setup.sh",
+      "aliases": [],
+      "subcommands": [],
+      "examples": [
+        "grace setup-d"
+      ]
+    },
+    {
+      "name": "setup-t",
+      "description": "Run grace TechSpecGenerator setup script",
+      "module_path": ".",
+      "entry_point": "bash",
+      "main": "./modules/TechSpecGenerator/setup.sh",
+      "aliases": [],
+      "subcommands": [],
+      "examples": [
+        "grace setup-t"
+      ]
+    },
+    {
+      "name": "techspec",
+      "description": "Run grace TechSpecGenerator",
+      "module_path": "./modules/TechSpecGenerator",
+      "entry_point": "api-doc-processor",
+      "main": "",
+      "aliases": ["ts"],
+      "subcommands": ["--create-config", "--test-only", "--verbose"],
+      "examples": [
+        "grace techspec",
+        "grace ts --create-config"
+      ]
+    }
+  ]
+}
