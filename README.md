@@ -53,16 +53,15 @@ To integrate a new connector using GRACE, you will need to use an AI model that 
     git clone https://github.com/juspay/grace.git
     ```
 4. **Adding Docs or Reference Docs for a Connector**
-To add reference documentation for a connector:
-
-- Place the files under the following path: `grace/references/{{connector_name}}/`
-- Supported file formats:
-    - .md (Markdown)
-    - .yaml
-    - .json
-
-- For each flow (e.g., payment, refund, webhook handling, etc.), name the files as:
-  doc1.md, doc2.yaml, doc3.json, etc., depending on the content and format.
+   
+    To add reference documentation for a connector:
+    - Place the files under the following path: `grace/references/{{connector_name}}/`
+        - Supported file formats:
+            - .md (Markdown)
+            - .yaml
+            - .json
+    - For each flow (e.g., payment, refund, webhook handling, etc.), name the files as:
+      doc1.md, doc2.yaml, doc3.json, etc., depending on the content and format.
 
 > 📌 This structure helps keep documentation organized and accessible per connector and flow.
 
