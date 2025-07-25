@@ -128,3 +128,26 @@ After presenting your plan, provide a brief summary of the overall approach and 
 Begin your response with your brainstorming analysis, then create the detailed implementation plan for the {{connector_name}} connector integration.
 
 Once complete, this plan will be passed to the AI code generation system for implementation.
+
+## Final Enhancement Phase
+
+After all implementation steps are completed, include the following mandatory final step:
+
+```md
+## Code Review and Optimization
+- [ ] Final Step: Enhancement Analysis and Optimization Plan
+  - **Task**: Execute the enhancement planner to review all implemented code and create an optimization plan for improvements and refinements
+  - **Files**: All implemented files will be analyzed
+    - Review all connector implementation files for optimization opportunities
+    - Analyze transformers.rs for potential improvements in request/response handling
+    - Examine test files for coverage and quality enhancements
+    - Check error handling patterns across all implemented code
+  - **Step Dependencies**: All previous implementation steps must be completed
+  - **User Instructions**: 
+    1. Execute the enhancement planner from `grace/enhancement_plan/enhancement_planner.md`
+    2. Provide all implemented code, project rules, technical specifications, and implementation plan as context
+    3. Review the generated optimization plan and prioritize improvements
+    4. Implement critical optimizations identified in the enhancement plan
+```
+
+This final step ensures that after the initial implementation is complete, a thorough code review and optimization process is performed to identify areas for improvement, maintainability enhancements, and code quality optimizations.
