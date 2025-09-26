@@ -1,0 +1,86 @@
+{
+  "name": "langgraph-api-doc-processor",
+  "version": "0.1.0",
+  "description": "TypeScript API Documentation Processor with Real LangGraph Workflow - Automates API integration research and planning",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && npm run fix-shebang",
+    "fix-shebang": "echo '#!/usr/bin/env node' | cat - dist/index.js > temp && mv temp dist/index.js && chmod +x dist/index.js",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "pack-test": "npm pack && npm install -g *.tgz"
+  },
+  "bin": {
+    "api-doc-processor": "./dist/index.js"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=7.0.0"
+  },
+  "keywords": [
+    "api",
+    "documentation",
+    "workflow",
+    "typescript",
+    "ai",
+    "langgraph",
+    "langchain",
+    "cli",
+    "automation",
+    "mock-server",
+    "openai",
+    "crawling"
+  ],
+  "author": {
+    "name": "Yashasvi Kapil",
+    "email": "iemyashasvi@gmail.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/juspay/grace.git"
+  },
+  "homepage": "https://github.com/juspay/grace",
+  "bugs": {
+    "url": "https://github.com/juspay/grace/issues"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.77",
+    "@langchain/langgraph": "^0.4.9",
+    "@types/inquirer": "^9.0.9",
+    "axios": "^1.6.0",
+    "chalk": "^4.1.2",
+    "commander": "^11.0.0",
+    "dotenv": "^16.3.0",
+    "fs-extra": "^11.1.1",
+    "inquirer": "^12.9.6",
+    "openai": "^4.0.0",
+    "path": "^0.12.7",
+    "readline-sync": "^1.4.10",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.0",
+    "@types/jest": "^29.0.0",
+    "@types/node": "^20.0.0",
+    "@types/readline-sync": "^1.4.8",
+    "@types/uuid": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0",
+    "rimraf": "^5.0.0",
+    "ts-jest": "^29.0.0",
+    "ts-node": "^10.0.0",
+    "typescript": "^5.0.0"
+  }
+}

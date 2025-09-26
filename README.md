@@ -15,7 +15,15 @@ The `modules/` directory contains different sets of tools and modules for variou
 Advanced research capabilities for connector analysis and discovery.
 
 ### 📋 TechSpecGenerator
-Automated technical specification generation for connector requirements.
+A powerful TypeScript CLI tool that automates API integration research and planning using real LangGraph workflows. This module crawls API documentation, extracts content, generates technical specifications using AI, and creates mock servers with an interactive command-line interface.
+
+**Key Features:**
+- Real LangGraph workflow management with @langchain/langgraph
+- Interactive CLI for API documentation processing
+- Web crawling and content extraction to markdown
+- AI-powered technical specification generation
+- Express.js mock server generation
+- Full TypeScript support with type safety
 
 ### 🔌 CodeGenForHSConnector
 Code generation tools specifically designed for Hyperswitch connector development.

@@ -1,0 +1,59 @@
+# Source files
+src/
+tsconfig.json
+.env.example
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+jest.config.js
+__tests__/
+*.test.ts
+*.spec.ts
+
+# Build artifacts
+node_modules/
+.DS_Store
+Thumbs.db
+
+# Configuration files with secrets
+config.json
+.env
+
+# Tool data directory
+api-doc-processor-data/
+
+# Development scripts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Package files
+*.tgz
+*.tar.gz
+
+# Documentation that shouldn't be in package
+docs/
+INSTALL.md
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Development dependencies
+.eslintrc*
+.prettierrc*
