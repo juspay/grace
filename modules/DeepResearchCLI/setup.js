@@ -8,8 +8,8 @@ const readline = require('readline');
 class MassSetup {
   constructor() {
     this.configPath = path.join(__dirname, 'searxng-config.yml');
-    this.containerName = 'mass-searxng';
-    this.dockerPort = 8080;
+    this.containerName = 'searxng';
+    this.dockerPort = 32768;
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout
