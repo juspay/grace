@@ -507,6 +507,71 @@ program
     }
   });
 
+program
+  .command('test-search')
+  .description('Test SearxNG connectivity and JSON API')
+  .option('-q, --query <query>', 'Test query to search for', 'test search')
+  .action(async (options) => {
+    try {
+      console.log(chalk.cyan.bold('🔍 Testing SearxNG Connectivity'));
+      console.log(chalk.gray('================================'));
+
+      const config = ConfigService.getInstance();
+      const { SearchService } = await import('../services/SearchService');
+
+      // Get SearxNG URL from env or use default
+      const searxngUrl = process.env.SEARXNG_BASE_URL || 'http://localhost:32768';
+      console.log(chalk.yellow(`SearxNG URL: ${searxngUrl}`));
+
+      const searchService = new SearchService(searxngUrl);
+
+      // Test basic connectivity
+      console.log(chalk.cyan('\n🌐 Testing basic connectivity...'));
+      try {
+        const axios = (await import('axios')).default;
+        const response = await axios.get(searxngUrl, { timeout: 5000 });
+        console.log(chalk.green(`✅ SearxNG responding (HTTP ${response.status})`));
+      } catch (error: any) {
+        console.log(chalk.red(`❌ SearxNG not accessible: ${error?.message || 'Unknown error'}`));
+        return;
+      }
+
+      // Test available engines
+      console.log(chalk.cyan('\n🔧 Testing available engines...'));
+      try {
+        const engines = await searchService.getAvailableEngines();
+        console.log(chalk.green(`✅ Found ${engines.length} available engines:`));
+        console.log(chalk.gray(`   ${engines.slice(0, 10).join(', ')}${engines.length > 10 ? '...' : ''}`));
+      } catch (error: any) {
+        console.log(chalk.yellow(`⚠️  Could not get engines: ${error?.message || 'Unknown error'}`));
+      }
+
+      // Test JSON search API
+      console.log(chalk.cyan(`\n🔍 Testing JSON search API with query: "${options.query}"`));
+      try {
+        const results = await searchService.search(options.query, { limit: 5 });
+
+        if (results.length > 0) {
+          console.log(chalk.green(`✅ Search successful! Found ${results.length} results:`));
+          results.forEach((result, index) => {
+            console.log(chalk.gray(`   ${index + 1}. ${result.title}`));
+            console.log(chalk.gray(`      ${result.url}`));
+            console.log(chalk.gray(`      Engine: ${result.engine}, Score: ${result.score.toFixed(2)}`));
+          });
+        } else {
+          console.log(chalk.yellow('⚠️  Search returned no results'));
+        }
+      } catch (error: any) {
+        console.log(chalk.red(`❌ Search failed: ${error?.message || 'Unknown error'}`));
+      }
+
+      console.log(chalk.green('\n✅ SearxNG test completed!'));
+
+    } catch (error) {
+      console.error(chalk.red('❌ Test failed:'), error instanceof Error ? error.message : 'Unknown error');
+    }
+  });
+
 // Default action
 if (process.argv.length === 2) {
   // No command provided, start interactive research

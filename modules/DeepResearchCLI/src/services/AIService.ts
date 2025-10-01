@@ -358,10 +358,45 @@ export class AIService {
       .map((item, index) => `[${index + 1}] ${item.title} (Relevance: ${item.relevanceScore.toFixed(2)}, Depth: ${item.depth})\nURL: ${item.url}\nContent: ${item.content.substring(0, 800)}...`)
       .join('\n\n---\n\n');
 
-    const messages: AIMessage[] = [
-      {
-        role: 'system',
-        content: `You are an expert research analyst. Provide a comprehensive analysis based on the collected research data.
+    // Check if custom instructions exist and determine output format
+    const hasCustomInstructions = this.config.customInstructions && this.config.customInstructions.trim().length > 0;
+
+    let systemPrompt: string;
+    let parseResponse: (content: string) => { answer: string; confidence: number; summary: string };
+
+    if (hasCustomInstructions) {
+      // Use custom instructions as primary directive
+      systemPrompt = `You are an expert research analyst. Based on the collected research data, provide a comprehensive analysis following the custom format requirements that will be provided.
+
+Important: The custom instructions contain the specific output format and requirements. Follow them exactly.
+
+Research Guidelines:
+1. Analyze all provided data thoroughly
+2. Extract relevant information for the requested format
+3. Ensure accuracy and completeness
+4. Include source references where applicable
+5. Maintain high attention to detail`;
+
+      // Parser for custom instruction responses
+      parseResponse = (content: string) => {
+        // For custom instructions, return the raw content as answer
+        // Extract confidence if present, otherwise default
+        const confidenceMatch = content.match(/confidence[:\s]+([0-9.]+)/i);
+        const confidence = confidenceMatch ? parseFloat(confidenceMatch[1]) : 0.8;
+
+        // Extract summary if present in a structured way
+        const summaryMatch = content.match(/(?:summary|executive summary)[:\s]*([^\n]{50,200})/i);
+        const summary = summaryMatch ? summaryMatch[1].trim() : 'Comprehensive analysis completed following custom instructions.';
+
+        return {
+          answer: content,
+          confidence: Math.max(0, Math.min(1, confidence)),
+          summary: summary
+        };
+      };
+    } else {
+      // Use default JSON format
+      systemPrompt = `You are an expert research analyst. Provide a comprehensive analysis based on the collected research data.
 
 Format your response as JSON with the following structure:
 {
@@ -378,7 +413,24 @@ The answer should be well-structured with:
 5. Implications
 6. Conclusion
 
-Include source references in the analysis. Rate your confidence from 0.0 to 1.0.`
+Include source references in the analysis. Rate your confidence from 0.0 to 1.0.`;
+
+      // Parser for JSON responses
+      parseResponse = (content: string) => {
+        const cleanedContent = this.cleanJsonResponse(content);
+        const result = JSON.parse(cleanedContent);
+        return {
+          answer: result.answer || 'No analysis available',
+          confidence: Math.max(0, Math.min(1, result.confidence || 0.5)),
+          summary: result.summary || 'No summary available'
+        };
+      };
+    }
+
+    const messages: AIMessage[] = [
+      {
+        role: 'system',
+        content: systemPrompt
       },
       {
         role: 'user',
@@ -392,13 +444,7 @@ Include source references in the analysis. Rate your confidence from 0.0 to 1.0.
         maxTokens: 8192
       });
 
-      const cleanedContent = this.cleanJsonResponse(response.content);
-      const result = JSON.parse(cleanedContent);
-      return {
-        answer: result.answer || 'No analysis available',
-        confidence: Math.max(0, Math.min(1, result.confidence || 0.5)),
-        summary: result.summary || 'No summary available'
-      };
+      return parseResponse(response.content);
     } catch (error) {
       console.warn('Failed to synthesize results:', error);
       return {

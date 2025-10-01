@@ -180,26 +180,44 @@ class MassSetup {
   async startSearxNG() {
     this.log('Starting SearxNG container...', 'info');
 
-    const configDir = path.dirname(this.configPath);
+    // Use absolute paths and ensure cross-platform compatibility
+    const configDir = path.resolve(path.dirname(this.configPath));
     const configFileName = path.basename(this.configPath);
+
+    // Convert Windows paths to Unix-style for Docker
+    const dockerConfigDir = process.platform === 'win32'
+      ? configDir.replace(/\\/g, '/').replace(/^([A-Z]):/, (match, drive) => `/${drive.toLowerCase()}`)
+      : configDir;
+
+    // Find an available port
+    const availablePort = await this.findAvailablePort();
 
     const dockerCommand = [
       'docker', 'run', '-d',
       '--name', this.containerName,
-      '-p', `${this.dockerPort}:8080`,
-      '-v', `${configDir}:/etc/searxng:ro`,
+      '-p', `${availablePort}:8080`,
+      '-v', `"${dockerConfigDir}":/etc/searxng:ro`,
       '-e', `SEARXNG_SETTINGS_PATH=/etc/searxng/${configFileName}`,
       '--restart', 'unless-stopped',
       'searxng/searxng:latest'
     ];
 
     try {
-      const containerId = execSync(dockerCommand.join(' '), {
+      // Join command with proper escaping for cross-platform
+      const commandString = dockerCommand.join(' ');
+      this.log(`Running: ${commandString}`, 'info');
+
+      const containerId = execSync(commandString, {
         encoding: 'utf8',
-        timeout: 30000
+        timeout: 30000,
+        shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/bash'
       }).trim();
 
+      // Update the port we're actually using
+      this.dockerPort = availablePort;
+
       this.log(`SearxNG container started! Container ID: ${containerId.substring(0, 12)}...`, 'success');
+      this.log(`SearxNG will be available at: http://localhost:${this.dockerPort}`, 'info');
 
       // Wait a moment for the container to fully start
       this.log('Waiting for SearxNG to initialize...', 'info');
@@ -208,6 +226,68 @@ class MassSetup {
       return true;
     } catch (error) {
       this.log('Failed to start SearxNG container!', 'error');
+      console.log('Error details:', error.message);
+
+      // Try alternative command format for Windows
+      if (process.platform === 'win32') {
+        this.log('Trying alternative Windows Docker command format...', 'warning');
+        return this.startSearxNGWindows(dockerConfigDir, configFileName, availablePort);
+      }
+
+      return false;
+    }
+  }
+
+  async findAvailablePort() {
+ 
+
+    const checkPort = (port) => {
+      return new Promise((resolve) => {
+        const server = net.createServer();
+        server.listen(port, () => {
+          server.once('close', () => resolve(true));
+          server.close();
+        });
+        server.on('error', () => resolve(false));
+      });
+    };
+
+    // Try ports starting from 32768
+    for (let port = 32768; port <= 32800; port++) {
+      if (await checkPort(port)) {
+        this.log(`Found available port: ${port}`, 'info');
+        return port;
+      }
+    }
+
+    // Fallback to original port
+    this.log('No available ports found, using default 32768', 'warning');
+    return 32768;
+  }
+
+  async startSearxNGWindows(configDir, configFileName, port) {
+    try {
+      // Windows-specific Docker command
+      const dockerArgs = [
+        'run', '-d',
+        '--name', this.containerName,
+        '-p', `${port}:8080`,
+        '-v', `${configDir}:/etc/searxng:ro`,
+        '-e', `SEARXNG_SETTINGS_PATH=/etc/searxng/${configFileName}`,
+        '--restart', 'unless-stopped',
+        'searxng/searxng:latest'
+      ];
+
+      const containerId = execSync(`docker ${dockerArgs.join(' ')}`, {
+        encoding: 'utf8',
+        timeout: 30000
+      }).trim();
+
+      this.dockerPort = port;
+      this.log(`SearxNG container started! Container ID: ${containerId.substring(0, 12)}...`, 'success');
+      return true;
+    } catch (error) {
+      this.log('Windows fallback also failed!', 'error');
       console.log('Error details:', error.message);
       return false;
     }
@@ -219,14 +299,15 @@ class MassSetup {
     const maxRetries = 10;
     let retries = 0;
 
+    // Test basic web interface
     while (retries < maxRetries) {
       try {
         const { default: fetch } = await import('node-fetch');
         const response = await fetch(`http://localhost:${this.dockerPort}/`);
 
         if (response.ok) {
-          this.log('SearxNG is responding correctly!', 'success');
-          return true;
+          this.log('SearxNG web interface is responding!', 'success');
+          break;
         }
 
         throw new Error(`HTTP ${response.status}`);
@@ -243,7 +324,59 @@ class MassSetup {
       }
     }
 
-    return false;
+    // Test JSON API functionality
+    this.log('Testing SearxNG JSON API...', 'info');
+    try {
+      const { default: fetch } = await import('node-fetch');
+
+      // Test search API with JSON format
+      const searchResponse = await fetch(
+        `http://localhost:${this.dockerPort}/search?q=test&format=json&engines=duckduckgo`,
+        {
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'MASS-CLI-Research/1.0'
+          }
+        }
+      );
+
+      if (searchResponse.ok) {
+        const data = await searchResponse.json();
+        if (data && typeof data === 'object' && Array.isArray(data.results)) {
+          this.log('JSON API is working correctly!', 'success');
+          this.log(`Test search returned ${data.results.length} results`, 'info');
+        } else {
+          this.log('JSON API returned unexpected format', 'warning');
+          console.log('Response data:', data);
+        }
+      } else {
+        this.log(`JSON API test failed: HTTP ${searchResponse.status}`, 'warning');
+      }
+
+      // Test config API
+      const configResponse = await fetch(`http://localhost:${this.dockerPort}/config`, {
+        timeout: 5000
+      });
+
+      if (configResponse.ok) {
+        const configData = await configResponse.json();
+        if (configData && configData.engines) {
+          this.log('Config API is working correctly!', 'success');
+          const enabledEngines = Object.keys(configData.engines).filter(
+            engine => configData.engines[engine].enabled
+          );
+          this.log(`Available search engines: ${enabledEngines.slice(0, 5).join(', ')}${enabledEngines.length > 5 ? '...' : ''}`, 'info');
+        }
+      } else {
+        this.log('Config API test failed', 'warning');
+      }
+
+    } catch (error) {
+      this.log('API testing failed, but basic web interface works', 'warning');
+      console.log('API test error:', error.message);
+    }
+
+    return true;
   }
 
   async createEnvTemplate() {
@@ -277,6 +410,9 @@ RESPECT_ROBOTS_TXT=true
 DATA_DIRECTORY=./data
 HISTORY_FILE=./data/research_history.json
 
+# Custom Instructions Configuration
+CUSTOM_INSTRUCTIONS_FILE=./custom_instructions.txt
+
 # Debug Configuration
 DEBUG_ENABLED=false
 DEBUG_LOG_FILE=./logs/debug.log
@@ -300,8 +436,8 @@ DEBUG_LOG_FILE=./logs/debug.log
 
     console.log('\n📋 Next Steps:');
     console.log('1. Copy .env.example to .env and configure your API keys');
-    console.log('2. Test SearxNG in your browser: http://localhost:8080');
-    console.log('3. Run your research CLI: npm start');
+    console.log(`2. Test SearxNG in your browser: http://localhost:${this.dockerPort}`);
+    console.log('3. Run your research CLI: npm start research "your query"');
 
     console.log('\n🔧 Management Commands:');
     console.log(`   • Stop SearxNG: docker stop ${this.containerName}`);

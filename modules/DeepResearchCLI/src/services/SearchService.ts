@@ -31,11 +31,31 @@ export class SearchService {
       const response = await axios.get(`${this.searxngBaseUrl}/search?${params}`, {
         timeout: 30000,
         headers: {
-          'User-Agent': 'MASS-CLI-Research/1.0'
+          'User-Agent': 'MASS-CLI-Research/1.0',
+          'Accept': 'application/json'
         }
       });
 
+      // Check if response is JSON
+      if (response.headers['content-type']?.includes('text/html')) {
+        console.warn('SearxNG returned HTML instead of JSON. Check configuration.');
+        console.log('Response headers:', response.headers);
+        throw new Error('SearxNG returned HTML instead of JSON - configuration issue');
+      }
+
+      if (!response.data || typeof response.data !== 'object') {
+        console.warn('SearxNG returned invalid JSON format');
+        console.log('Response data type:', typeof response.data);
+        throw new Error('Invalid JSON response from SearxNG');
+      }
+
       const results = response.data.results || [];
+
+      if (!Array.isArray(results)) {
+        console.warn('SearxNG response.results is not an array:', typeof results);
+        console.log('Full response:', JSON.stringify(response.data, null, 2));
+        throw new Error('Invalid results format from SearxNG');
+      }
 
       const searchResults = results
         .filter((result: any) => result.url && result.title)
@@ -51,9 +71,22 @@ export class SearchService {
       const duration = Date.now() - startTime;
       this.debugLogger.logSearchResult(query, searchResults, duration);
 
+      console.log(`Search completed: ${searchResults.length} results for "${query}"`);
       return searchResults;
-    } catch (error) {
-      console.warn('Search failed, using fallback:', error);
+    } catch (error: any) {
+      console.warn('Search failed:', error?.message || 'Unknown error');
+      if (error?.response) {
+        console.warn('Response status:', error.response.status);
+        console.warn('Response headers:', error.response.headers);
+        if (error.response.data) {
+          console.warn('Response data (first 500 chars):',
+            typeof error.response.data === 'string'
+              ? error.response.data.substring(0, 500)
+              : JSON.stringify(error.response.data).substring(0, 500)
+          );
+        }
+      }
+      console.log('Using fallback search...');
       return this.fallbackSearch(query, options?.limit || 20);
     }
   }

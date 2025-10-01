@@ -60,37 +60,42 @@ A powerful command-line interface for conducting comprehensive, AI-driven web re
 - npm or yarn
 - Docker Desktop or OrbStack (for SearxNG search engine)
 
-### Installation & Setup
+### ⚡ Fast Setup (3 steps)
 
-1. **Clone and install dependencies**:
+1. **Install dependencies**:
 ```bash
-cd cli
 npm install
-# or
-yarn install
 ```
 
-2. **Run automated setup** (sets up SearxNG with Docker):
+2. **Run automated setup** (configures SearxNG JSON API):
 ```bash
 npm run setup
 ```
 This will:
 - ✅ Check Docker/OrbStack installation
-- ✅ Pull and start SearxNG search engine
-- ✅ Test the installation
-- ✅ Create `.env.example` template
+- ✅ Configure and start SearxNG with optimized JSON API settings
+- ✅ Test both web interface and JSON API functionality
+- ✅ Find available ports automatically (cross-platform)
+- ✅ Create `.env.example` with correct configuration
 
-3. **Configure environment**:
+3. **Configure AI and start researching**:
 ```bash
+# Copy and edit environment file
 cp .env.example .env
-# Edit .env with your AI API keys
+# Add your AI API keys to .env
+
+# Build the project
+npm run build
+
+# Start researching (follows your custom_instructions.txt)
+npm start research "your research query"
 ```
 
-4. **Build and run**:
-```bash
-npm run build
-npm start
-```
+### ✨ What You Get
+- **Custom instruction support** - Research outputs in your specified format (OpenAPI, JSON, etc.)
+- **Real web search** - Powered by SearxNG with Google, Bing, DuckDuckGo engines
+- **Cross-platform compatibility** - Works on Windows, Mac, and Linux
+- **Intelligent depth control** - AI decides when to stop researching for optimal results
 
 ### Alternative Manual Setup
 
@@ -164,11 +169,19 @@ RESULT_OUTPUT_DIR=./cli/result
 
 ### 📝 Custom Instructions
 
-The CLI supports custom instructions that allow you to personalize the AI's research behavior and analysis style.
+The CLI now properly supports custom instructions that allow you to personalize the AI's research behavior and output format. **Recent fixes ensure instructions are consistently followed.**
+
+#### Recent Fixes Applied
+- ✅ **Fixed conflicting format requirements** - No more JSON vs custom format conflicts
+- ✅ **Removed duplicate loading logic** - Single source of truth for instructions
+- ✅ **Enhanced format detection** - AI now respects custom output formats (OpenAPI YAML, etc.)
+- ✅ **Improved content passing** - Full research data available for custom formatting
 
 #### Setting Up Custom Instructions
 
 1. **Create an instructions file** (e.g., `custom_instructions.txt`):
+
+**Example: General Research Instructions**
 ```txt
 You are an expert AI research assistant specializing in deep web research and analysis.
 
@@ -185,6 +198,37 @@ You are an expert AI research assistant specializing in deep web research and an
 - Consider multiple perspectives on controversial topics
 ```
 
+**Example: OpenAPI Specification Instructions (for Payment Gateway Integration)**
+```txt
+You are an expert AI agent to do deep research to gather technical information for integrating payment gateways. Your goal is to produce a detailed, structured OpenAPI spec for the connector in the specified format.
+
+Format of the OUTPUT:
+
+openapi: 3.0.3
+info:
+  title: "{{CONNECTOR_NAME}} Connector Integration Specification"
+  description: |
+    Minimal specification for perfect codegen of a {{CONNECTOR_NAME}} connector.
+  version: 1.0.0
+
+components:
+  schemas:
+    CONNECTOR_NAME\ConnectorSpec:
+      type: object
+      required:
+        - connector_name
+        - auth_type
+        - supported_flows
+        - api_endpoints
+      properties:
+        connector_name:
+          type: string
+          example: "{{CONNECTOR_NAME}}"
+        auth_type:
+          $ref: '#/components/schemas/AuthConfig'
+        # ... (continue with your specific format)
+```
+
 2. **Add to your .env file**:
 ```env
 CUSTOM_INSTRUCTIONS_FILE=./custom_instructions.txt
@@ -195,43 +239,90 @@ CUSTOM_INSTRUCTIONS_FILE=./custom_instructions.txt
 npm start config
 ```
 
+#### How to Use Custom Instructions
+
+**✅ Correct way (follows custom instructions):**
+```bash
+npm start research "stripe payment gateway integration"
+```
+
+**❌ Wrong way (ignores custom instructions):**
+```bash
+npm run dev  # This is for interactive mode, prompts for custom instructions
+```
+
 #### Features
-- ✅ **Automatic integration** - Instructions are prepended to all AI prompts
-- ✅ **File validation** - CLI validates file exists and is readable
+- ✅ **Fixed format conflicts** - No more JSON vs custom format issues
+- ✅ **Consistent application** - Instructions applied to all research phases
+- ✅ **Full data access** - Custom instructions receive complete research data
+- ✅ **Format detection** - AI detects and follows output format requirements
 - ✅ **Error handling** - Graceful fallback if file is missing
-- ✅ **Real-time loading** - Instructions loaded at startup
 - ✅ **Configuration display** - See loaded instructions in config command
+
+#### Troubleshooting Custom Instructions
+
+**Instructions not being followed:**
+1. Ensure using `npm start research "query"` (not `npm run dev`)
+2. Check file exists: `ls -la custom_instructions.txt`
+3. Verify configuration: `npm start config`
+4. Check file permissions: `chmod 644 custom_instructions.txt`
+
+**Format conflicts:**
+- The recent fixes eliminate JSON vs custom format conflicts
+- AI now prioritizes custom instructions over default formatting
+- Full research data is passed to custom instruction processing
 
 For detailed examples and best practices, see [CUSTOM_INSTRUCTIONS.md](./CUSTOM_INSTRUCTIONS.md).
 
 ## 💻 Usage
 
-### Interactive Mode (Default)
+### 🔧 Setup (One-time)
 
-Simply run the CLI without arguments to start interactive mode:
+Before using the CLI, run the automated setup to configure SearxNG:
 
 ```bash
-npm start
+npm run setup
 ```
 
 This will:
-1. Prompt you for a research query
-2. Allow you to set custom instructions
-3. Configure research parameters
-4. Start the beautiful terminal UI
-5. Show real-time progress and logs
+- ✅ Check Docker/OrbStack installation
+- ✅ Configure and start SearxNG with optimized JSON API settings
+- ✅ Test both web interface and JSON API functionality
+- ✅ Find available ports automatically (cross-platform support)
+- ✅ Create `.env.example` template with correct SearxNG URL
 
-### Command Line Options
+### 🎯 Research Commands
+
+#### Direct Research (Recommended)
+Use this for research following your custom instructions:
 
 ```bash
-# Run setup (install SearxNG)
-npm run setup
+# Research with custom instructions from file
+npm start research "stripe payment gateway integration"
 
-# Start interactive research
-npm start research
+# Research with specific query
+npm start research "GraphQL vs REST performance comparison"
+```
 
-# Direct research mode
-npm start direct "your research query"
+#### Interactive Mode
+For guided research with prompts:
+
+```bash
+# Start interactive mode (no arguments)
+npm run dev
+
+# Or explicit interactive mode
+npm start
+```
+
+#### Testing & Diagnostics
+
+```bash
+# Test SearxNG connectivity and JSON API
+npm start test-search
+
+# Test with custom query
+npm start test-search -q "payment gateways"
 
 # Show current configuration
 npm start config
@@ -239,12 +330,23 @@ npm start config
 # View research history
 npm start history
 
-# Show statistics
+# Show research statistics
 npm start stats
 
 # Clean up old data
 npm start clean --days 30
 ```
+
+### 🚨 Important Usage Notes
+
+**For Custom Instructions (OpenAPI, specific formats):**
+- Use `npm start research "your query"` - this follows your `custom_instructions.txt`
+- Avoid `npm run dev` for formatted output - this is for interactive/general research
+
+**SearxNG JSON API:**
+- The setup automatically configures SearxNG for proper JSON API responses
+- If you see "Search failed, using fallback" - run `npm start test-search` to diagnose
+- SearxNG must be running for real web search (fallback provides limited mock results)
 
 ### Terminal UI Controls
 
@@ -442,41 +544,130 @@ Links Extracted: 78 links from market reports and news sources
 Results: Market analysis with statistical data, forecasts, and competitive landscape
 ```
 
+## 🔧 SearxNG JSON API Configuration
+
+The CLI now includes enhanced SearxNG configuration for reliable JSON API responses across different environments.
+
+### What's Included
+- ✅ **Optimized `searxng-config.yml`** with JSON API focus
+- ✅ **Cross-platform Docker setup** (Windows/Mac/Linux)
+- ✅ **Dynamic port allocation** (32768-32800 range)
+- ✅ **API response validation** with detailed error reporting
+- ✅ **Comprehensive testing tools** for connectivity diagnosis
+
+### Key Configuration Features
+
+**JSON API Optimization:**
+```yaml
+search:
+  formats:
+    - html
+    - json  # ✅ Properly configured for API use
+    - rss
+
+engines:
+  # ✅ Reliable engines for API responses
+  - name: google
+  - name: bing
+  - name: duckduckgo
+  - name: startpage
+
+disabled_engines:
+  # ✅ Disabled problematic engines
+  - wikidata
+  - mediawiki
+```
+
+**Docker Improvements:**
+- ✅ **Windows path conversion** for Docker volume mounting
+- ✅ **Port conflict resolution** with automatic fallback
+- ✅ **Cross-platform shell execution** (cmd.exe/bash)
+- ✅ **Enhanced error handling** with Windows-specific fallbacks
+
+### Troubleshooting SearxNG Issues
+
+**Test SearxNG connectivity:**
+```bash
+npm start test-search -q "test query"
+```
+
+**Common SearxNG issues and fixes:**
+
+1. **"SearxNG returned HTML instead of JSON"**
+   ```bash
+   # Restart SearxNG with correct config
+   docker stop searxng && docker rm searxng
+   npm run setup
+   ```
+
+2. **"Port already in use"**
+   - Setup automatically finds available ports (32768-32800)
+   - Check current port: `npm start config`
+   - Restart setup if needed: `npm run setup`
+
+3. **"Docker volume mounting failed"**
+   ```bash
+   # On Windows, ensure Docker Desktop is running
+   # On Mac, ensure OrbStack/Docker Desktop is running
+   # Check Docker status
+   docker info
+   ```
+
+4. **"Container starts but API doesn't work"**
+   ```bash
+   # Check container logs
+   docker logs searxng
+
+   # Test API directly
+   curl "http://localhost:$(grep SEARXNG_BASE_URL .env | cut -d: -f3)/search?q=test&format=json"
+   ```
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
 **"Configuration errors" on startup**
-- Check your `.env` file
-- Ensure all required AI API keys are set
+- Check your `.env` file exists and has AI API keys
+- Ensure `CUSTOM_INSTRUCTIONS_FILE` points to existing file
 - Verify AI provider configuration
-- Run `npm run setup` if SearxNG not configured
+- Run `npm start config` to see current settings
+
+**"Custom instructions not being followed"**
+- Ensure you're using `npm start research "query"` (not `npm run dev`)
+- Verify `CUSTOM_INSTRUCTIONS_FILE` in `.env` points to correct file
+- Check file permissions - must be readable
+- Run `npm start config` to verify instructions are loaded
 
 **"Docker not found" during setup**
 - Install Docker Desktop or OrbStack
 - Make sure Docker daemon is running
 - Try `docker --version` to verify installation
+- On Windows: Ensure Docker Desktop is configured for Linux containers
 
 **"SearxNG not responding"**
-- Run `npm run setup` to reinstall SearxNG
+- Run `npm start test-search` to diagnose API issues
 - Check if container is running: `docker ps`
-- Restart container: `docker restart mass-searxng`
-- Check logs: `docker logs mass-searxng`
+- Restart container: `docker restart searxng`
+- Check logs: `docker logs searxng`
+- Re-run setup: `npm run setup`
 
 **"Search failed, using fallback"**
-- Check SearxNG instance is running at http://localhost:8080
-- Verify SEARXNG_BASE_URL is correct in `.env`
-- Ensure network connectivity
+- This means SearxNG isn't returning valid JSON
+- Run `npm start test-search` for detailed diagnosis
+- Check SearxNG URL: `npm start config`
+- Verify container status: `docker ps | grep searxng`
 
 **"Failed to fetch page" errors**
-- Check proxy configuration
-- Verify target sites are accessible
-- Increase timeout values if needed
+- Check proxy configuration in `.env`
+- Verify target sites are accessible from your network
+- Increase timeout values: `TIMEOUT_PER_PAGE=60000`
+- Check if sites block automated requests
 
 **"AI service error"**
-- Verify API key is valid
-- Check model availability
-- Ensure sufficient API credits
+- Verify API key is valid and has credits
+- Check model availability (some models have regional restrictions)
+- Test connection: run research with simple query first
+- Check AI provider status/documentation
 
 ### Debug Mode
 

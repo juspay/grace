@@ -74,13 +74,14 @@ export class DeepResearchOrchestrator extends EventEmitter {
     const sessionId = uuidv4();
     const config = this.config.getResearchConfig();
 
-    // Load and incorporate custom instructions
-    const customInstructions = await this.loadCustomInstructions();
-    if (customInstructions) {
+    // Get custom instructions from config (already loaded)
+    const aiConfig = this.config.getAIConfig();
+    this.customInstructions = aiConfig.customInstructions || '';
+    if (this.customInstructions) {
       this.emitLogEntry({
         timestamp: Date.now(),
         type: 'info',
-        message: 'Loading custom research instructions...',
+        message: 'Custom research instructions loaded from configuration',
         expandable: false
       });
     }
@@ -852,22 +853,6 @@ Respond with JSON:
     return url.substring(0, maxLength - 3) + '...';
   }
 
-  private async loadCustomInstructions(): Promise<string> {
-    try {
-      const instructionsPath = path.join(process.cwd(), 'custom_instructions.txt');
-      if (fs.existsSync(instructionsPath)) {
-        this.customInstructions = fs.readFileSync(instructionsPath, 'utf8');
-        return this.customInstructions;
-      }
-    } catch (error) {
-      this.emitLogEntry({
-        timestamp: Date.now(),
-        type: 'warning',
-        message: 'Could not load custom instructions file'
-      });
-    }
-    return '';
-  }
 
   private async processPageContent(pageData: PageData, query: string): Promise<PageData> {
     try {
