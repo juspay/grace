@@ -5,9 +5,11 @@ import { AIService } from './AIService';
 import { SearchService } from './SearchService';
 import { WebScrapingService } from './WebScrapingService';
 import { StorageService } from './StorageService';
+import { IntelligentSearchCoordinator } from './IntelligentSearchCoordinator';
 import { ResearchSession, PageData, ExtractedLink, UserAction, LogEntry } from '../types';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 export interface DeepResearchOptions {
   query: string;
@@ -25,6 +27,7 @@ export class DeepResearchOrchestrator extends EventEmitter {
   private searchService: SearchService;
   private webScrapingService: WebScrapingService;
   private storageService: StorageService;
+  private intelligentCoordinator: IntelligentSearchCoordinator;
   private currentSession: ResearchSession | null = null;
   private visitedUrls: Set<string> = new Set();
   private allPageData: PageData[] = [];
@@ -34,13 +37,31 @@ export class DeepResearchOrchestrator extends EventEmitter {
   private shouldSkip: boolean = false;
   private userInstructions: string = '';
   private customInstructions: string = '';
+  private debugContentDir: string = '';
+  private isDebugMode: boolean = false;
 
   constructor() {
     super();
     this.config = ConfigService.getInstance();
 
+    // Initialize debug mode and content directory
+    this.isDebugMode = process.env.IS_DEBUG === 'true';
+    if (this.isDebugMode) {
+      this.debugContentDir = path.join(os.tmpdir(), 'deepresearch-debug', 'content');
+      this.ensureDebugDirectory();
+    }
+
     const aiConfig = this.config.getAIConfig();
     this.aiService = new AIService(aiConfig);
+
+    // Load custom instructions
+    this.customInstructions = aiConfig.customInstructions || '';
+
+    // Initialize intelligent search coordinator
+    this.intelligentCoordinator = new IntelligentSearchCoordinator(
+      this.aiService,
+      this.customInstructions
+    );
 
     this.searchService = new SearchService(process.env.SEARXNG_BASE_URL);
 
@@ -128,10 +149,76 @@ export class DeepResearchOrchestrator extends EventEmitter {
 
         if (this.shouldStop) break;
 
-        // AI-driven decision: Should we continue deeper?
-        const shouldContinue = await this.aiDecideContinueResearch(currentDepth, options);
+        // 🤖 AI DECISION POINT 2: Assess content quality and decide on depth progression
+        const contentAssessment = await this.intelligentCoordinator.assessContentQuality(
+          options.query,
+          this.allPageData,
+          currentDepth
+        );
 
-        if (!shouldContinue.continue) {
+        this.emitLogEntry({
+          timestamp: Date.now(),
+          type: 'analysis',
+          message: `🤖 AI Content Assessment at depth ${currentDepth}`,
+          expandable: true,
+          expanded: false,
+          children: [
+            {
+              timestamp: Date.now(),
+              type: 'info',
+              message: `Relevance: ${(contentAssessment.relevanceScore * 100).toFixed(1)}%`
+            },
+            {
+              timestamp: Date.now(),
+              type: 'info',
+              message: `Completeness: ${(contentAssessment.completenessScore * 100).toFixed(1)}%`
+            },
+            {
+              timestamp: Date.now(),
+              type: 'info',
+              message: `Quality: ${(contentAssessment.qualityScore * 100).toFixed(1)}%`
+            },
+            {
+              timestamp: Date.now(),
+              type: 'info',
+              message: `Missing: ${contentAssessment.missingAspects.join(', ')}`
+            },
+            {
+              timestamp: Date.now(),
+              type: 'info',
+              message: `Next Actions: ${contentAssessment.nextActions.join(', ')}`
+            }
+          ]
+        });
+
+        // Check if we should stop due to sufficient information
+        if (contentAssessment.nextActions.includes('stop_sufficient')) {
+          this.emitLogEntry({
+            timestamp: Date.now(),
+            type: 'info',
+            message: `🤖 AI Decision: Stopping research - sufficient information collected`
+          });
+          break;
+        }
+
+        // 🤖 AI DECISION POINT 3: Decide on depth progression
+        const pendingLinks = this.linkQueue
+          .filter(link => link.depth > currentDepth)
+          .map(link => ({ url: link.url, relevance: link.relevance }));
+
+        const depthDecision = await this.intelligentCoordinator.decideDepthProgression(
+          contentAssessment.nextActions.includes('change_query') ?
+            (await this.intelligentCoordinator.generateRefinedQueries(
+              options.query,
+              contentAssessment.missingAspects,
+              this.allPageData.map(p => p.content).join('\n').substring(0, 2000)
+            ))[0] || options.query : options.query,
+          this.allPageData,
+          currentDepth,
+          pendingLinks
+        );
+
+        if (!depthDecision.continueToNextDepth) {
           this.emitLogEntry({
             timestamp: Date.now(),
             type: 'info',
@@ -142,17 +229,17 @@ export class DeepResearchOrchestrator extends EventEmitter {
               {
                 timestamp: Date.now(),
                 type: 'info',
-                message: `Reason: ${shouldContinue.reason}`
+                message: `Reason: ${depthDecision.reason}`
               },
               {
                 timestamp: Date.now(),
                 type: 'info',
-                message: `Confidence: ${(shouldContinue.confidence * 100).toFixed(1)}%`
+                message: `Confidence: ${(depthDecision.confidence * 100).toFixed(1)}%`
               },
               {
                 timestamp: Date.now(),
                 type: 'info',
-                message: `Information Quality: ${shouldContinue.informationQuality}`
+                message: `Focus Areas: ${depthDecision.focusAreas.join(', ')}`
               }
             ]
           });
@@ -162,8 +249,69 @@ export class DeepResearchOrchestrator extends EventEmitter {
         this.emitLogEntry({
           timestamp: Date.now(),
           type: 'info',
-          message: `🤖 AI Decision: Continue to depth ${currentDepth + 1} (${shouldContinue.reason})`
+          message: `🤖 AI Decision: Continue to depth ${currentDepth + 1}`,
+          expandable: true,
+          expanded: false,
+          children: [
+            {
+              timestamp: Date.now(),
+              type: 'info',
+              message: `Reason: ${depthDecision.reason}`
+            },
+            {
+              timestamp: Date.now(),
+              type: 'info',
+              message: `Max additional pages: ${depthDecision.maxAdditionalPages}`
+            },
+            {
+              timestamp: Date.now(),
+              type: 'info',
+              message: `Focus areas: ${depthDecision.focusAreas.join(', ')}`
+            }
+          ]
         });
+
+        // Apply refined query if suggested
+        if (depthDecision.newQuery && depthDecision.newQuery !== options.query) {
+          this.emitLogEntry({
+            timestamp: Date.now(),
+            type: 'info',
+            message: `🤖 Query refined: "${depthDecision.newQuery}"`
+          });
+
+          // Perform additional search with refined query
+          const refinedSearchResults = await this.searchService.searchMultipleQueries([depthDecision.newQuery], {
+            maxResultsPerQuery: 10
+          });
+
+          const refinedDecision = await this.intelligentCoordinator.analyzeSearchResults(
+            depthDecision.newQuery,
+            refinedSearchResults,
+            currentDepth + 1
+          );
+
+          // Add refined search results to queue
+          const selectedRefinedResults = refinedSearchResults.filter(result =>
+            refinedDecision.selectedLinks.includes(result.url)
+          );
+
+          for (const result of selectedRefinedResults) {
+            if (!this.visitedUrls.has(result.url)) {
+              this.linkQueue.push({
+                url: result.url,
+                relevance: result.score,
+                depth: currentDepth + 1,
+                source: 'ai_refined_search'
+              });
+            }
+          }
+
+          this.emitLogEntry({
+            timestamp: Date.now(),
+            type: 'info',
+            message: `├── Added ${selectedRefinedResults.length} links from refined search`
+          });
+        }
 
         currentDepth++;
 
@@ -208,7 +356,7 @@ export class DeepResearchOrchestrator extends EventEmitter {
     this.emitLogEntry({
       timestamp: Date.now(),
       type: 'search',
-      message: `Search → "${options.query}"`,
+      message: `🔍 Search → "${options.query}"`,
       expandable: true,
       expanded: false,
       children: []
@@ -250,15 +398,63 @@ export class DeepResearchOrchestrator extends EventEmitter {
       }))
     });
 
-    options.onProgress?.(30, 'Processing search result pages...');
+    options.onProgress?.(25, 'AI analyzing search results...');
+
+    // 🤖 AI DECISION POINT 1: Analyze search results and select best links
+    const searchDecision = await this.intelligentCoordinator.analyzeSearchResults(
+      options.query,
+      searchResults,
+      0
+    );
+
+    this.emitLogEntry({
+      timestamp: Date.now(),
+      type: 'analysis',
+      message: `🤖 AI Search Analysis: ${searchDecision.proceed ? 'Proceed' : 'Skip'} with ${searchDecision.selectedLinks.length} links`,
+      expandable: true,
+      expanded: false,
+      children: [
+        {
+          timestamp: Date.now(),
+          type: 'info',
+          message: `Strategy: ${searchDecision.searchStrategy}`
+        },
+        {
+          timestamp: Date.now(),
+          type: 'info',
+          message: `Reason: ${searchDecision.reason}`
+        },
+        {
+          timestamp: Date.now(),
+          type: 'info',
+          message: `Confidence: ${(searchDecision.confidence * 100).toFixed(1)}%`
+        }
+      ]
+    });
+
+    if (!searchDecision.proceed) {
+      this.emitLogEntry({
+        timestamp: Date.now(),
+        type: 'warning',
+        message: '🤖 AI decided to skip initial search results - may need query refinement'
+      });
+      return;
+    }
+
+    // Filter search results based on AI decision
+    const selectedResults = searchResults.filter(result =>
+      searchDecision.selectedLinks.includes(result.url)
+    );
+
+    options.onProgress?.(30, 'Processing selected search result pages...');
 
     // Process search result pages to extract additional links
-    const extractedLinks = await this.extractLinksFromSearchResults(searchResults, options.query);
+    const extractedLinks = await this.extractLinksFromSearchResults(selectedResults, options.query);
 
     this.emitLogEntry({
       timestamp: Date.now(),
       type: 'info',
-      message: `├── Extracted ${extractedLinks.length} links from search result pages`,
+      message: `├── Extracted ${extractedLinks.length} links from ${selectedResults.length} selected search pages`,
       expandable: true,
       expanded: false,
       children: extractedLinks.slice(0, 5).map(link => ({
@@ -268,13 +464,13 @@ export class DeepResearchOrchestrator extends EventEmitter {
       }))
     });
 
-    // Add search results and extracted links to queue
-    for (const result of searchResults) {
+    // Add selected search results and extracted links to queue
+    for (const result of selectedResults) {
       this.linkQueue.push({
         url: result.url,
         relevance: result.score,
         depth: 1,
-        source: 'search_result'
+        source: 'ai_selected_search'
       });
     }
 
@@ -287,13 +483,70 @@ export class DeepResearchOrchestrator extends EventEmitter {
       });
     }
 
-    this.currentSession!.metadata.totalLinksFound += searchResults.length + extractedLinks.length;
+    this.currentSession!.metadata.totalLinksFound += selectedResults.length + extractedLinks.length;
 
     this.emitLogEntry({
       timestamp: Date.now(),
       type: 'info',
-      message: `└── Total ${this.linkQueue.length} links queued for processing`
+      message: `└── Total ${this.linkQueue.length} links queued for intelligent processing`
     });
+  }
+
+  private ensureDebugDirectory(): void {
+    if (!this.isDebugMode) return;
+
+    try {
+      if (!fs.existsSync(this.debugContentDir)) {
+        fs.mkdirSync(this.debugContentDir, { recursive: true });
+        console.log(`📁 Debug content directory created: ${this.debugContentDir}`);
+      }
+    } catch (error) {
+      console.warn('Failed to create debug directory:', error);
+      this.isDebugMode = false; // Disable debug mode if directory creation fails
+    }
+  }
+
+  private async saveDebugContent(pageData: PageData, depth: number): Promise<void> {
+    if (!this.isDebugMode || !this.debugContentDir) return;
+
+    try {
+      const sessionId = this.currentSession?.id || 'unknown';
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const urlHash = Buffer.from(pageData.url).toString('base64').replace(/[/+=]/g, '');
+      const filename = `${sessionId}_depth${depth}_${timestamp}_${urlHash.substring(0, 20)}.json`;
+      const filepath = path.join(this.debugContentDir, filename);
+
+      const debugData = {
+        sessionId,
+        timestamp: new Date().toISOString(),
+        depth,
+        url: pageData.url,
+        title: pageData.title,
+        contentLength: pageData.content.length,
+        relevanceScore: pageData.relevanceScore,
+        content: pageData.content,
+        links: pageData.links?.slice(0, 10), // Limit links to first 10
+        metadata: {
+          fetchTime: pageData.fetchTime,
+          processingTime: pageData.processingTime,
+          error: pageData.error
+        }
+      };
+
+      await fs.promises.writeFile(filepath, JSON.stringify(debugData, null, 2), 'utf8');
+
+      this.emitLogEntry({
+        timestamp: Date.now(),
+        type: 'debug',
+        message: `    📁 Debug content saved: ${filename}`
+      });
+    } catch (error) {
+      this.emitLogEntry({
+        timestamp: Date.now(),
+        type: 'warning',
+        message: `Failed to save debug content: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+    }
   }
 
   private async processDepthLevel(depth: number, options: DeepResearchOptions): Promise<void> {
@@ -395,13 +648,18 @@ export class DeepResearchOrchestrator extends EventEmitter {
       // Process and summarize content following custom instructions
       const processedPageData = await this.processPageContent(pageData, options.query);
 
+      // Save debug content if enabled
+      if (this.isDebugMode) {
+        await this.saveDebugContent(processedPageData, depth);
+      }
+
       // Extract key insights from processed content
       const insights = await this.aiService.extractKeyInsights(processedPageData.content, options.query);
 
       this.emitLogEntry({
         timestamp: Date.now(),
         type: 'analysis',
-        message: `    ├── Relevance: ${(relevanceScore * 100).toFixed(1)}% | Insights: ${insights.length} | Processed: ✓`,
+        message: `    ├── Relevance: ${(relevanceScore * 100).toFixed(1)}% | Insights: ${insights.length} | Processed: ✓${this.isDebugMode ? ' | Debug: ✓' : ''}`,
         url: link.url
       });
 
