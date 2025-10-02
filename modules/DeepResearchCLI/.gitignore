@@ -91,3 +91,6 @@ logs
 environments/
 *.backup
 .mass/
+
+
+data/*

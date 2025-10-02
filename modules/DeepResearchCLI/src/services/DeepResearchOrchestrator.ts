@@ -6,6 +6,7 @@ import { SearchService } from './SearchService';
 import { WebScrapingService } from './WebScrapingService';
 import { StorageService } from './StorageService';
 import { IntelligentSearchCoordinator } from './IntelligentSearchCoordinator';
+import { AIBrowserService } from './AIBrowserService';
 import { ResearchSession, PageData, ExtractedLink, UserAction, LogEntry } from '../types';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -28,6 +29,7 @@ export class DeepResearchOrchestrator extends EventEmitter {
   private webScrapingService: WebScrapingService;
   private storageService: StorageService;
   private intelligentCoordinator: IntelligentSearchCoordinator;
+  private aiBrowserService: AIBrowserService | null = null;
   private currentSession: ResearchSession | null = null;
   private visitedUrls: Set<string> = new Set();
   private allPageData: PageData[] = [];
@@ -47,7 +49,7 @@ export class DeepResearchOrchestrator extends EventEmitter {
     // Initialize debug mode and content directory
     this.isDebugMode = process.env.IS_DEBUG === 'true';
     if (this.isDebugMode) {
-      this.debugContentDir = path.join(os.tmpdir(), 'deepresearch-debug', 'content');
+      this.debugContentDir = path.join(process.cwd(), 'temp', 'debug', 'content');
       this.ensureDebugDirectory();
     }
 
@@ -62,6 +64,17 @@ export class DeepResearchOrchestrator extends EventEmitter {
       this.aiService,
       this.customInstructions
     );
+
+    // Initialize AI Browser Service if enabled
+    if (process.env.AI_BROWSER_ENABLED === 'true') {
+      this.aiBrowserService = new AIBrowserService(this.aiService);
+      this.emitLogEntry({
+        timestamp: Date.now(),
+        type: 'info',
+        message: '🤖 AI Browser Mode: Available for interactive content extraction',
+        expandable: false
+      });
+    }
 
     this.searchService = new SearchService(process.env.SEARXNG_BASE_URL);
 
@@ -348,6 +361,12 @@ export class DeepResearchOrchestrator extends EventEmitter {
 
     } finally {
       await this.webScrapingService.dispose();
+
+      // Cleanup AI Browser service if it was used
+      if (this.aiBrowserService) {
+        await this.aiBrowserService.dispose();
+      }
+
       this.isRunning = false;
     }
   }
@@ -627,8 +646,22 @@ export class DeepResearchOrchestrator extends EventEmitter {
     });
 
     try {
-      // Scrape the page
-      const pageData = await this.webScrapingService.scrapePage(link.url, depth);
+      // Decide whether to use AI Browser or standard scraping
+      let pageData: PageData;
+
+      if (this.aiBrowserService && this.shouldUseAIBrowser(link.url)) {
+        this.emitLogEntry({
+          timestamp: Date.now(),
+          type: 'info',
+          message: `    🤖 Using AI Browser Mode for: ${this.truncateUrl(link.url)}`,
+          url: link.url
+        });
+
+        pageData = await this.aiBrowserService.intelligentScrape(link.url, this.customInstructions);
+      } else {
+        // Use standard scraping
+        pageData = await this.webScrapingService.scrapePage(link.url, depth);
+      }
 
       if (pageData.error) {
         throw new Error(pageData.error);
@@ -1099,6 +1132,64 @@ Respond with JSON:
 
   public provideGuidance(guidance: string): void {
     this.userInstructions = guidance;
+  }
+
+  private shouldUseAIBrowser(url: string): boolean {
+    if (!this.aiBrowserService) return false;
+
+    // Use AI Browser for potentially interactive websites
+    const interactiveDomains = [
+      'docs.',           // Documentation sites often have interactive elements
+      'developer.',      // Developer portals with expandable sections
+      'api.',           // API documentation with interactive examples
+      'reference.',     // Reference docs with collapsible sections
+      'guide.',         // Guides with step-by-step interactions
+      'help.',          // Help pages with accordions
+      'support.',       // Support pages with FAQ accordions
+      'portal.',        // Developer portals
+      'console.',       // Web consoles
+      'dashboard.',     // Dashboards with interactive elements
+      'admin.',         // Admin interfaces
+      'app.',           // Web applications
+      'my.',            // User portals
+      'account.',       // Account pages
+      'settings.'       // Settings pages
+    ];
+
+    // Use AI Browser for React/SPA indicators in URL
+    const spaIndicators = [
+      '/app/',
+      '/dashboard/',
+      '/console/',
+      '#/',
+      '?tab=',
+      '?section=',
+      'react',
+      'angular',
+      'vue'
+    ];
+
+    // Check domain patterns
+    const domain = url.toLowerCase();
+    if (interactiveDomains.some(pattern => domain.includes(pattern))) {
+      return true;
+    }
+
+    // Check URL patterns
+    if (spaIndicators.some(pattern => url.toLowerCase().includes(pattern))) {
+      return true;
+    }
+
+    // Use AI Browser for sites that commonly have interactive content
+    if (this.customInstructions.toLowerCase().includes('api') ||
+        this.customInstructions.toLowerCase().includes('documentation') ||
+        this.customInstructions.toLowerCase().includes('connector') ||
+        this.customInstructions.toLowerCase().includes('integration')) {
+      // For API/integration research, be more aggressive with AI Browser
+      return Math.random() < 0.3; // 30% chance for thorough investigation
+    }
+
+    return false;
   }
 
   // Utility methods

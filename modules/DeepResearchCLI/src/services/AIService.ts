@@ -29,6 +29,58 @@ export class AIService {
   }
 
   /**
+   * Analyze screenshot using vision-capable AI models
+   * For interactive browser navigation decisions
+   */
+  async analyzeScreenshot(prompt: string, base64Image: string): Promise<string> {
+    try {
+      // Check if vision AI is enabled
+      if (process.env.AI_BROWSER_SCREENSHOTS !== 'true') {
+        throw new Error('Screenshot analysis is disabled');
+      }
+
+      // For now, use a text-based fallback analysis
+      // In production, this would call a vision model like GPT-4V, Gemini Pro Vision, or Claude 3
+      const fallbackResponse = {
+        hasInteractiveElements: true,
+        isSPA: false,
+        hasAccordions: false,
+        hasDropdowns: false,
+        hasInfiniteScroll: false,
+        hasLoadMoreButtons: false,
+        hiddenContentDetected: false,
+        suggestedActions: [
+          {
+            type: "extract",
+            reason: "Perform standard content extraction as fallback"
+          }
+        ],
+        reasoning: "Vision analysis not available - using fallback mode",
+        confidence: 0.5
+      };
+
+      return JSON.stringify(fallbackResponse);
+
+    } catch (error) {
+      // Return safe fallback
+      const fallbackResponse = {
+        hasInteractiveElements: false,
+        isSPA: false,
+        hasAccordions: false,
+        hasDropdowns: false,
+        hasInfiniteScroll: false,
+        hasLoadMoreButtons: false,
+        hiddenContentDetected: false,
+        suggestedActions: [],
+        reasoning: "Screenshot analysis failed - using safe fallback",
+        confidence: 0.3
+      };
+
+      return JSON.stringify(fallbackResponse);
+    }
+  }
+
+  /**
    * Clean AI response content to extract valid JSON
    * Removes markdown code blocks and other formatting
    */

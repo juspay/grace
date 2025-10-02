@@ -43,6 +43,7 @@ export interface PageData {
   fetchTime: number;
   processingTime: number;
   error?: string;
+  metadata?: any;
 }
 
 export interface ExtractedLink {
@@ -71,7 +72,7 @@ export interface ResearchSession {
 
 export interface LogEntry {
   timestamp: number;
-  type: 'search' | 'fetch' | 'process' | 'analysis' | 'error' | 'info' | 'warning';
+  type: 'search' | 'fetch' | 'process' | 'analysis' | 'error' | 'info' | 'warning' | 'debug';
   message: string;
   data?: any;
   depth?: number;
