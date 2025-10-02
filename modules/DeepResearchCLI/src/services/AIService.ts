@@ -121,6 +121,8 @@ export class AIService {
         return await this.callLiteLLM(enhancedMessages, options);
       } else if (this.config.provider === 'vertex') {
         return await this.callVertexAI(enhancedMessages, options);
+      } else if (this.config.provider === 'anthropic') {
+        return await this.callAnthropicDirect(enhancedMessages, options);
       } else {
         throw new AIConfigurationError(`Unsupported AI provider: ${this.config.provider}`, this.getConfigHelp());
       }
@@ -244,9 +246,328 @@ export class AIService {
     temperature?: number;
     maxTokens?: number;
   }): Promise<AIResponse> {
-    // Vertex AI implementation
-    // This would require Google Cloud authentication and vertex AI SDK
-    throw new Error('Vertex AI implementation not yet available in CLI version');
+    try {
+      const projectId = this.config.projectId;
+      const location = this.config.location || 'us-central1';
+
+      if (!projectId) {
+        throw new Error('Project ID not found. Set VERTEX_AI_PROJECT_ID or configure gcloud CLI.');
+      }
+
+      // Determine model and API format based on model ID
+      const modelId = this.config.modelId || 'gemini-1.5-pro-001';
+
+      if (modelId.includes('claude') || modelId.includes('anthropic')) {
+        return await this.callVertexAnthropicSDK(projectId, location, modelId, messages, options);
+      } else {
+        return await this.callVertexGemini(projectId, location, modelId, messages, options);
+      }
+
+    } catch (error: any) {
+      console.error('Vertex AI call failed:', error);
+
+      if (error.message?.includes('authentication') || error.message?.includes('unauthorized')) {
+        throw new AIConfigurationError(
+          'Vertex AI authentication failed',
+          `Please ensure you have valid Google Cloud credentials:
+1. Run 'gcloud auth application-default login'
+2. Or set GOOGLE_APPLICATION_CREDENTIALS environment variable
+3. Ensure the Vertex AI API is enabled in your project
+4. Check permissions: gcloud auth list`
+        );
+      }
+
+      if (error.message?.includes('Project ID')) {
+        throw new AIConfigurationError(
+          error.message,
+          `Please set your project ID:
+1. Set VERTEX_AI_PROJECT_ID in .env file
+2. Or run 'gcloud config set project YOUR_PROJECT_ID'`
+        );
+      }
+
+      throw new AIConfigurationError(
+        `Vertex AI error: ${error.message}`,
+        `Troubleshooting steps:
+1. Ensure Vertex AI API is enabled: gcloud services enable aiplatform.googleapis.com
+2. Check authentication: gcloud auth list
+3. Verify project access: gcloud config get-value project
+4. Try: gcloud auth application-default login`
+      );
+    }
+  }
+
+  /**
+   * Get access token for Vertex AI API calls
+   */
+  private async getVertexAIAccessToken(): Promise<string> {
+    try {
+      const { GoogleAuth } = await import('google-auth-library');
+
+      const auth = new GoogleAuth({
+        scopes: ['https://www.googleapis.com/auth/cloud-platform']
+      });
+
+      const authClient = await auth.getClient();
+      const accessTokenResponse = await authClient.getAccessToken();
+
+      if (!accessTokenResponse.token) {
+        throw new Error('Failed to get access token');
+      }
+
+      return accessTokenResponse.token;
+    } catch (error: any) {
+      throw new Error(`Authentication failed: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Call Vertex AI with Anthropic Claude models using official SDK
+   */
+  private async callVertexAnthropicSDK(
+    projectId: string,
+    location: string,
+    modelId: string,
+    messages: AIMessage[],
+    options?: { temperature?: number; maxTokens?: number }
+  ): Promise<AIResponse> {
+
+    try {
+      const { AnthropicVertex } = await import('@anthropic-ai/vertex-sdk');
+
+      const client = new AnthropicVertex({
+        projectId: projectId,
+        region: location,
+      });
+
+      // Convert messages to Anthropic format
+      const anthropicMessages = messages
+        .filter(msg => msg.role !== 'system')
+        .map(msg => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content
+        }));
+
+      const systemMessage = messages.find(msg => msg.role === 'system')?.content;
+
+      const response = await client.messages.create({
+        model: modelId,
+        max_tokens: options?.maxTokens || 4096,
+        temperature: options?.temperature || 0.7,
+        messages: anthropicMessages,
+        ...(systemMessage && { system: systemMessage })
+      });
+
+      if (!response.content || response.content.length === 0) {
+        throw new Error('No content in Anthropic Vertex response');
+      }
+
+      const textContent = response.content.find((block: any) => block.type === 'text');
+      if (!textContent || textContent.type !== 'text') {
+        throw new Error('No text content found in Anthropic Vertex response');
+      }
+
+      return {
+        content: textContent.text,
+        tokensUsed: response.usage.input_tokens + response.usage.output_tokens
+      };
+
+    } catch (error: any) {
+      console.error('Anthropic Vertex AI call failed:', error);
+
+      if (error.message?.includes('not found') || error.message?.includes('404')) {
+        throw new AIConfigurationError(
+          'Anthropic model not found in Vertex AI',
+          `Please ensure:
+1. The model "${modelId}" is available in Vertex AI
+2. Your project has access to Anthropic models
+3. The model is available in the "${location}" region
+4. Try using a valid Anthropic model like: claude-3-5-sonnet-v2@20241022`
+        );
+      }
+
+      if (error.message?.includes('permission') || error.message?.includes('403')) {
+        throw new AIConfigurationError(
+          'Permission denied for Anthropic models in Vertex AI',
+          `Please ensure:
+1. Your project has permission to use Anthropic models
+2. The Vertex AI API is enabled
+3. You have proper IAM permissions for AI Platform
+4. Try: gcloud auth application-default login`
+        );
+      }
+
+      if (error.message?.includes('authentication') || error.message?.includes('401')) {
+        throw new AIConfigurationError(
+          'Vertex AI authentication failed',
+          `Please ensure you have valid Google Cloud credentials:
+1. Run 'gcloud auth application-default login'
+2. Or set GOOGLE_APPLICATION_CREDENTIALS environment variable
+3. Ensure the Vertex AI API is enabled in your project`
+        );
+      }
+
+      throw new Error(`Anthropic via Vertex AI error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Call Vertex AI with Google Gemini models
+   */
+  private async callVertexGemini(
+    projectId: string,
+    location: string,
+    modelId: string,
+    messages: AIMessage[],
+    options?: { temperature?: number; maxTokens?: number }
+  ): Promise<AIResponse> {
+
+    try {
+      // Use Google Cloud Vertex AI SDK
+      const { PredictionServiceClient } = await import('@google-cloud/aiplatform');
+      const { GoogleAuth } = await import('google-auth-library');
+
+      // Initialize authentication
+      const auth = new GoogleAuth({
+        scopes: ['https://www.googleapis.com/auth/cloud-platform']
+      });
+
+      const authClient = await auth.getClient();
+      const accessToken = await authClient.getAccessToken();
+
+      if (!accessToken.token) {
+        throw new Error('Failed to get access token for Gemini');
+      }
+
+      // Convert messages to Gemini format
+      const contents = [];
+      let systemInstruction = '';
+
+      for (const message of messages) {
+        if (message.role === 'system') {
+          systemInstruction = message.content;
+        } else {
+          contents.push({
+            role: message.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: message.content }]
+          });
+        }
+      }
+
+      const requestBody = {
+        contents,
+        generationConfig: {
+          temperature: options?.temperature || 0.7,
+          maxOutputTokens: options?.maxTokens || 4096,
+          topP: 0.8,
+          topK: 40
+        },
+        safetySettings: [
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
+        ],
+        ...(systemInstruction && { systemInstruction: { parts: [{ text: systemInstruction }] } })
+      };
+
+      const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:generateContent`;
+
+      const response = await axios.post(url, requestBody, {
+        headers: {
+          'Authorization': `Bearer ${accessToken.token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 60000
+      });
+
+      if (!response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        throw new Error('Invalid response format from Gemini via Vertex AI');
+      }
+
+      const content = response.data.candidates[0].content.parts[0].text;
+      const tokensUsed = response.data.usageMetadata?.totalTokenCount || Math.ceil(content.length / 4);
+
+      return {
+        content,
+        tokensUsed
+      };
+
+    } catch (error: any) {
+      console.error('Gemini Vertex AI call failed:', error);
+      throw new Error(`Gemini via Vertex AI error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Call Anthropic API directly using official SDK
+   */
+  private async callAnthropicDirect(messages: AIMessage[], options?: {
+    temperature?: number;
+    maxTokens?: number;
+  }): Promise<AIResponse> {
+    try {
+      const Anthropic = (await import('@anthropic-ai/sdk')).default;
+
+      if (!this.config.apiKey) {
+        throw new Error('Anthropic API key is required. Set ANTHROPIC_API_KEY in your .env file.');
+      }
+
+      const anthropic = new Anthropic({
+        apiKey: this.config.apiKey,
+      });
+
+      // Convert messages to Anthropic format
+      const anthropicMessages = messages
+        .filter(msg => msg.role !== 'system')
+        .map(msg => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content
+        }));
+
+      const systemMessage = messages.find(msg => msg.role === 'system')?.content;
+
+      const response = await anthropic.messages.create({
+        model: this.config.modelId || 'claude-3-5-sonnet-20241022',
+        max_tokens: options?.maxTokens || 4096,
+        temperature: options?.temperature || 0.7,
+        messages: anthropicMessages,
+        ...(systemMessage && { system: systemMessage })
+      });
+
+      if (!response.content || response.content.length === 0) {
+        throw new Error('No content in Anthropic response');
+      }
+
+      const textContent = response.content.find(block => block.type === 'text');
+      if (!textContent || textContent.type !== 'text') {
+        throw new Error('No text content found in Anthropic response');
+      }
+
+      return {
+        content: textContent.text,
+        tokensUsed: response.usage.input_tokens + response.usage.output_tokens
+      };
+
+    } catch (error: any) {
+      console.error('Anthropic API call failed:', error);
+
+      if (error.message?.includes('API key')) {
+        throw new AIConfigurationError(
+          'Anthropic API key error',
+          `Please check your Anthropic API key:
+1. Set ANTHROPIC_API_KEY in your .env file
+2. Ensure the key is valid and has sufficient credits
+3. Check https://console.anthropic.com/ for account status`
+        );
+      }
+
+      throw new AIConfigurationError(
+        `Anthropic API error: ${error.message}`,
+        `Please check your Anthropic configuration and try again.
+Error details: ${error.message}`
+      );
+    }
   }
 
   async generateResponse(prompt: string, options?: {

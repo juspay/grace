@@ -15,7 +15,7 @@ export interface ResearchConfig {
 }
 
 export interface AIConfig {
-  provider: 'litellm' | 'vertex';
+  provider: 'litellm' | 'vertex' | 'anthropic';
   apiKey?: string;
   baseUrl?: string;
   modelId: string;

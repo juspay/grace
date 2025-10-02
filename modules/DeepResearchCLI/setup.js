@@ -383,16 +383,21 @@ class MassSetup {
     const envPath = path.join(__dirname, '.env.example');
     const envContent = `# MASS Research CLI Configuration
 
-# AI Service Configuration
+# Choose your AI provider (will auto-fallback if not configured)
+# Options: litellm | vertex
 AI_PROVIDER=litellm
+
+# LiteLLM Configuration (if AI_PROVIDER=litellm)
 LITELLM_API_KEY=your_api_key_here
 LITELLM_BASE_URL=http://localhost:4000/v1
 LITELLM_MODEL_ID=gpt-4
 
-# Alternative: Vertex AI (Google Cloud)
-# AI_PROVIDER=vertex
+# Vertex AI Configuration (if AI_PROVIDER=vertex)
 # VERTEX_AI_PROJECT_ID=your_project_id
 # VERTEX_AI_LOCATION=us-central1
+
+# Note: If LITELLM_API_KEY is missing, will automatically try Vertex AI
+# Vertex AI can use: VERTEX_AI_PROJECT_ID, gcloud config, or ADC credentials
 
 # SearxNG Configuration
 SEARXNG_BASE_URL=http://localhost:${this.dockerPort}
@@ -401,20 +406,29 @@ SEARXNG_BASE_URL=http://localhost:${this.dockerPort}
 MAX_DEPTH=5
 MAX_PAGES_PER_DEPTH=10
 MAX_TOTAL_PAGES=50
-MAX_CONCURRENT_PAGES=3
-LINK_RELEVANCE_THRESHOLD=0.5
-TIMEOUT_PER_PAGE=30000
+CONCURRENT_PAGES=3
+LINK_RELEVANCE_THRESHOLD=0.6
+TIMEOUT_PER_PAGE_MS=30000
 RESPECT_ROBOTS_TXT=true
 
+# Research Mode Configuration
+INTERACTIVE_MODE=true
+ENABLE_DEEP_LINK_CRAWLING=true
+MAX_LINKS_PER_PAGE=10
+DEEP_CRAWL_DEPTH=2
+
 # Storage Configuration
-DATA_DIRECTORY=./data
+RESEARCH_DATA_DIR=./data
 HISTORY_FILE=./data/research_history.json
 
 # Custom Instructions Configuration
 CUSTOM_INSTRUCTIONS_FILE=./custom_instructions.txt
 
+# Output Configuration
+RESULT_OUTPUT_DIR=./cli/result
+
 # Debug Configuration
-DEBUG_ENABLED=false
+IS_DEBUG=false
 DEBUG_LOG_FILE=./logs/debug.log
 
 # Optional: Proxy Configuration
