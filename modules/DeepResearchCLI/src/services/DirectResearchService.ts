@@ -5,8 +5,11 @@ import { SearchService } from './SearchService';
 import { WebScrapingService } from './WebScrapingService';
 import { ResultOutputService } from './ResultOutputService';
 import { StorageService } from './StorageService';
+import { DebugLogger } from '../utils/DebugLogger';
 import { ResearchSession, PageData, ExtractedLink } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Direct Research Service
@@ -19,9 +22,11 @@ export class DirectResearchService {
   private webScrapingService: WebScrapingService;
   private resultOutputService: ResultOutputService;
   private storageService: StorageService;
+  private debugLogger: DebugLogger;
 
   constructor() {
     this.config = ConfigService.getInstance();
+    this.debugLogger = DebugLogger.getInstance();
 
     const aiConfig = this.config.getAIConfig();
     this.aiService = new AIService(aiConfig);
@@ -67,6 +72,22 @@ export class DirectResearchService {
       }
     };
 
+    // Global URL tracker to avoid duplicates across all steps
+    const globalVisitedUrls = new Set<string>();
+
+    // Load custom instructions and generate link quality prompt
+    let linkQualityPrompt: string | null = null;
+    try {
+      const customInstructions = this.loadCustomInstructions();
+      if (customInstructions) {
+        console.log(chalk.cyan('📋 Custom instructions loaded, generating link quality criteria...'));
+        linkQualityPrompt = await this.aiService.generateLinkQualityPrompt(customInstructions);
+        console.log(chalk.gray(`   ✓ Link quality criteria: "${linkQualityPrompt.substring(0, 100)}..."`));
+      }
+    } catch (error) {
+      console.log(chalk.yellow('   ⚠️  Custom instructions not found, using default link evaluation'));
+    }
+
     try {
       // Step 1: Generate search queries
       console.log(chalk.yellow('📋 Step 1: Generating search queries...'));
@@ -88,7 +109,12 @@ export class DirectResearchService {
       const researchConfig = this.config.getResearchConfig();
       const initialUrls = allSearchResults
         .slice(0, researchConfig.maxPagesPerDepth)
-        .map(result => result.url);
+        .map(result => result.url)
+        .filter(url => {
+          if (globalVisitedUrls.has(url)) return false;
+          globalVisitedUrls.add(url);
+          return true;
+        });
 
       const initialPages = await this.webScrapingService.scrapeMultiplePages(initialUrls);
       const validPages = initialPages.filter((page: any) => page.content.length > 100);
@@ -98,14 +124,114 @@ export class DirectResearchService {
       let allPages = validPages;
       if (researchConfig.enableDeepLinkCrawling) {
         console.log(chalk.yellow('🔗 Step 4: Deep link crawling...'));
-        const deepPages = await this.performDeepLinkCrawling(validPages);
+
+        const deepPages = await this.performDeepLinkCrawling(validPages, query, globalVisitedUrls, linkQualityPrompt);
         allPages = [...validPages, ...deepPages];
         console.log(chalk.green(`   ✓ Found ${deepPages.length} additional pages through deep crawling`));
+
+        if (this.debugLogger.isEnabled()) {
+          this.debugLogger.log(`Deep crawling complete: ${deepPages.length} pages added`);
+          this.debugLogger.log(`Total pages after deep crawl: ${allPages.length}`);
+        }
       } else {
-        console.log(chalk.gray('   • Deep link crawling disabled'));
+        console.log(chalk.gray('   ⚠️  Deep link crawling DISABLED (ENABLE_DEEP_LINK_CRAWLING=false)'));
+        if (this.debugLogger.isEnabled()) {
+          this.debugLogger.log('Deep link crawling skipped - disabled in config');
+        }
       }
 
-      // Step 5: AI Analysis
+      // Step 4.5: Iterative AI completeness check with additional searches
+      if (researchConfig.aiCompletenessCheck) {
+        const maxIterations = 3; // Maximum number of additional search iterations
+        let iteration = 0;
+
+        while (iteration < maxIterations) {
+          iteration++;
+          console.log(chalk.yellow(`\n🔍 Step 4.5.${iteration}: AI completeness check (iteration ${iteration}/${maxIterations})...`));
+
+          const insights = allPages.map(p => p.title + ': ' + p.content.substring(0, 200)).filter(Boolean);
+          const completenessCheck = await this.aiService.assessInformationCompleteness(
+            query,
+            allPages.length,
+            insights
+          );
+
+          console.log(chalk.gray(`   • Information complete: ${completenessCheck.isComplete ? '✅ YES' : '❌ NO'}`));
+          console.log(chalk.gray(`   • Confidence: ${(completenessCheck.confidence * 100).toFixed(0)}%`));
+
+          if (completenessCheck.customInstructionsMet !== undefined) {
+            console.log(chalk.gray(`   • Custom instructions met: ${completenessCheck.customInstructionsMet ? '✅ YES' : '❌ NO'}`));
+          }
+
+          // Check if we should stop
+          if (completenessCheck.isComplete && (completenessCheck.customInstructionsMet !== false)) {
+            console.log(chalk.green(`   ✅ All required information gathered!`));
+            break;
+          }
+
+          if (completenessCheck.missingAspects.length > 0) {
+            console.log(chalk.yellow(`   ⚠️  Missing aspects detected:`));
+            completenessCheck.missingAspects.forEach(aspect => {
+              console.log(chalk.gray(`      • ${aspect}`));
+            });
+
+            console.log(chalk.cyan(`\n   🔍 Performing additional targeted searches (iteration ${iteration})...`));
+
+            const additionalSearchQueries = completenessCheck.missingAspects
+              .slice(0, 2) // Top 2 missing aspects per iteration
+              .map(aspect => `${query} ${aspect}`);
+
+            let newPagesAdded = 0;
+
+            for (const searchQuery of additionalSearchQueries) {
+              console.log(chalk.gray(`      • Searching: "${searchQuery}"`));
+              const results = await this.searchService.search(searchQuery, { limit: 5 });
+
+              if (results.length > 0) {
+                // Filter out already visited URLs
+                const newUrls = results
+                  .map(r => r.url)
+                  .filter(url => !globalVisitedUrls.has(url))
+                  .slice(0, 3);
+
+                if (newUrls.length === 0) {
+                  console.log(chalk.gray(`        All results already visited, skipping...`));
+                  continue;
+                }
+
+                console.log(chalk.gray(`        Found ${results.length} results, ${newUrls.length} new URLs to scrape...`));
+
+                // Mark as visited
+                newUrls.forEach(url => globalVisitedUrls.add(url));
+
+                const additionalPages = await this.webScrapingService.scrapeMultiplePages(newUrls);
+                const validAdditionalPages = additionalPages.filter((page: any) => page.content.length > 100);
+
+                allPages.push(...validAdditionalPages);
+                newPagesAdded += validAdditionalPages.length;
+                console.log(chalk.green(`        ✓ Added ${validAdditionalPages.length} pages`));
+              }
+            }
+
+            if (newPagesAdded === 0) {
+              console.log(chalk.yellow(`   ⚠️  No new pages found, stopping additional searches`));
+              break;
+            }
+
+            console.log(chalk.green(`   ✓ Iteration ${iteration} complete, total pages: ${allPages.length}, new: ${newPagesAdded}`));
+
+          } else {
+            console.log(chalk.green(`   ✅ No missing aspects identified`));
+            break;
+          }
+        }
+
+        if (iteration >= maxIterations) {
+          console.log(chalk.yellow(`   ⚠️  Reached maximum iterations (${maxIterations}), proceeding with analysis...`));
+        }
+      }
+
+      // Step 5: AI Analysis - Break into chunks to avoid timeout
       console.log(chalk.yellow('🤖 Step 5: AI analysis and synthesis...'));
       const pageDataForAI = allPages.map((page: any) => ({
         url: page.url,
@@ -115,8 +241,47 @@ export class DirectResearchService {
         depth: page.depth || 0
       }));
 
-      const analysis = await this.aiService.synthesizeResults(query, pageDataForAI);
-      console.log(chalk.green(`   ✓ Analysis complete (confidence: ${Math.round(analysis.confidence * 100)}%)`));
+      // Break pages into chunks to avoid timeout
+      const CHUNK_SIZE = 20; // Process 20 pages at a time
+      const chunks: any[][] = [];
+      for (let i = 0; i < pageDataForAI.length; i += CHUNK_SIZE) {
+        chunks.push(pageDataForAI.slice(i, i + CHUNK_SIZE));
+      }
+
+      console.log(chalk.gray(`   📦 Processing ${pageDataForAI.length} pages in ${chunks.length} chunks...`));
+
+      // Process each chunk and collect insights
+      const chunkInsights: string[] = [];
+      for (let i = 0; i < chunks.length; i++) {
+        console.log(chalk.cyan(`   🔄 Analyzing chunk ${i + 1}/${chunks.length} (${chunks[i].length} pages)...`));
+
+        const chunkAnalysis = await this.aiService.synthesizeResults(query, chunks[i]);
+        chunkInsights.push(chunkAnalysis.answer);
+
+        console.log(chalk.green(`   ✓ Chunk ${i + 1}/${chunks.length} complete`));
+      }
+
+      // Final synthesis: combine all chunk insights
+      console.log(chalk.cyan(`   🔄 Performing final synthesis of ${chunks.length} chunk results...`));
+
+      let finalAnalysis;
+      if (chunks.length > 1) {
+        // Synthesize the chunk insights into a final answer
+        const combinedPages = chunkInsights.map((insight, idx) => ({
+          url: `chunk-${idx + 1}`,
+          title: `Analysis Chunk ${idx + 1}`,
+          content: insight,
+          relevanceScore: 1.0,
+          depth: 0
+        }));
+        finalAnalysis = await this.aiService.synthesizeResults(query, combinedPages);
+      } else {
+        // Single chunk, use its result directly
+        finalAnalysis = { answer: chunkInsights[0], confidence: 0.8 };
+      }
+
+      const analysis = finalAnalysis;
+      console.log(chalk.green(`   ✓ Final analysis complete (confidence: ${Math.round(analysis.confidence * 100)}%)`));
 
       // Step 6: Save results
       console.log(chalk.yellow('💾 Step 6: Saving results...'));
@@ -155,56 +320,241 @@ export class DirectResearchService {
   }
 
   /**
-   * Perform deep link crawling on pages
+   * Perform deep link crawling on pages with AI-driven decisions
    */
-  private async performDeepLinkCrawling(initialPages: PageData[]): Promise<PageData[]> {
+  private async performDeepLinkCrawling(
+    initialPages: PageData[],
+    query: string,
+    globalVisitedUrls: Set<string>,
+    linkQualityPrompt: string | null
+  ): Promise<PageData[]> {
     const researchConfig = this.config.getResearchConfig();
     const deepPages: PageData[] = [];
-    const visitedUrls = new Set(initialPages.map(page => page.url));
+    const visitedUrls = globalVisitedUrls; // Use global tracker instead of local
+
+    console.log(chalk.cyan(`\n   🔗 Deep Link Crawling Configuration:`));
+    console.log(chalk.gray(`      • Starting pages: ${initialPages.length}`));
+    console.log(chalk.gray(`      • Maximum depth: ${researchConfig.deepCrawlDepth}`));
+    console.log(chalk.gray(`      • AI-driven crawling: ${researchConfig.aiDrivenCrawling ? '✅ ENABLED' : '❌ DISABLED'}`));
+    console.log(chalk.gray(`      • AI link ranking: ${researchConfig.aiLinkRanking ? '✅ ENABLED' : '❌ DISABLED'}`));
+    console.log(chalk.gray(`      • Max pages per depth: ${researchConfig.maxPagesPerDepth}\n`));
+
+    if (this.debugLogger.isEnabled()) {
+      this.debugLogger.log('=== DEEP LINK CRAWLING START ===');
+      this.debugLogger.log(`Initial pages: ${initialPages.length}`);
+      this.debugLogger.log(`Max depth: ${researchConfig.deepCrawlDepth}`);
+      this.debugLogger.log(`AI-driven: ${researchConfig.aiDrivenCrawling}`);
+    }
 
     for (let depth = 1; depth <= researchConfig.deepCrawlDepth; depth++) {
-      console.log(chalk.gray(`   • Crawling depth ${depth}...`));
+      console.log(chalk.yellow(`\n   📊 Depth ${depth}/${researchConfig.deepCrawlDepth}:`));
 
       const pagesToCrawl = depth === 1 ? initialPages : deepPages.filter(p => p.depth === depth - 1);
-      const urlsToCrawl: string[] = [];
+      console.log(chalk.gray(`      • Processing ${pagesToCrawl.length} pages from previous depth`));
 
-      // Extract links from pages at current depth
-      for (const page of pagesToCrawl) {
-        if (page.links) {
-          const relevantLinks = page.links
-            .filter(link => link.relevanceScore > researchConfig.linkRelevanceThreshold)
-            .slice(0, researchConfig.maxLinksPerPage)
-            .map(link => link.url)
-            .filter(url => !visitedUrls.has(url));
+      // Check if AI wants to continue
+      if (researchConfig.aiDrivenCrawling && depth > 1) {
+        console.log(chalk.cyan(`      🤖 AI evaluating whether to continue...`));
 
-          urlsToCrawl.push(...relevantLinks);
-          relevantLinks.forEach(url => visitedUrls.add(url));
+        const currentInsights = [...initialPages, ...deepPages]
+          .map(p => p.title)
+          .filter(Boolean);
+
+        const aiDecision = await this.aiService.shouldContinueCrawling(
+          query,
+          depth - 1,
+          researchConfig.deepCrawlDepth,
+          initialPages.length + deepPages.length,
+          currentInsights
+        );
+
+        console.log(chalk.gray(`      • AI decision: ${aiDecision.shouldContinue ? '✅ CONTINUE' : '🛑 STOP'}`));
+        console.log(chalk.gray(`      • Reason: ${aiDecision.reason}`));
+        console.log(chalk.gray(`      • Confidence: ${(aiDecision.confidence * 100).toFixed(0)}%`));
+
+        if (!aiDecision.shouldContinue) {
+          console.log(chalk.yellow(`      ⚠️  AI recommends stopping at depth ${depth - 1}`));
+          break;
         }
       }
 
-      if (urlsToCrawl.length === 0) {
-        console.log(chalk.gray(`   • No more relevant links found at depth ${depth}`));
+      // Collect all links from current depth pages
+      let allLinks: Array<{ url: string; text: string; context?: string }> = [];
+      let totalLinksFound = 0;
+
+      for (const page of pagesToCrawl) {
+        if (page.links) {
+          totalLinksFound += page.links.length;
+
+          const pageLinks = page.links
+            .filter(link => !visitedUrls.has(link.url))
+            .map(link => ({
+              url: link.url,
+              text: link.text,
+              context: link.context
+            }));
+
+          allLinks.push(...pageLinks);
+        }
+      }
+
+      console.log(chalk.gray(`      • Total links found: ${totalLinksFound}`));
+      console.log(chalk.gray(`      • New unique URLs available: ${allLinks.length}`));
+
+      if (allLinks.length === 0) {
+        console.log(chalk.yellow(`      ⚠️  No more links found at depth ${depth}, stopping early`));
         break;
       }
 
-      // Limit URLs per depth
-      const limitedUrls = urlsToCrawl.slice(0, researchConfig.maxPagesPerDepth);
-      console.log(chalk.gray(`   • Crawling ${limitedUrls.length} URLs at depth ${depth}`));
+      // Step 1: Filter links by quality using AI if custom instructions are available
+      if (linkQualityPrompt && allLinks.length > 0) {
+        console.log(chalk.cyan(`      🔍 AI filtering links by quality (${allLinks.length} links)...`));
+
+        const filteredLinks = await this.aiService.filterLinksByQuality(
+          allLinks,
+          linkQualityPrompt,
+          query
+        );
+
+        console.log(chalk.gray(`      • Quality filtering: ${allLinks.length} → ${filteredLinks.length} links`));
+        console.log(chalk.gray(`      • Removed ${allLinks.length - filteredLinks.length} low-quality links`));
+
+        // Update allLinks with filtered results
+        allLinks = filteredLinks.map(link => ({
+          url: link.url,
+          text: link.text,
+          context: link.context
+        }));
+
+        if (allLinks.length === 0) {
+          console.log(chalk.yellow(`      ⚠️  No quality links remaining at depth ${depth}, stopping early`));
+          break;
+        }
+      }
+
+      // Step 2: Use AI to rank links if enabled
+      let urlsToCrawl: string[] = [];
+
+      if (researchConfig.aiLinkRanking && allLinks.length > 0) {
+        console.log(chalk.cyan(`      🤖 AI ranking ${Math.min(allLinks.length, 20)} links...`));
+
+        const currentContext = [...initialPages, ...deepPages]
+          .map(p => p.title + ': ' + p.content.substring(0, 200))
+          .join(' ');
+
+        const rankedLinks = await this.aiService.rankLinksForCrawling(
+          query,
+          allLinks.slice(0, 20),
+          currentContext
+        );
+
+        console.log(chalk.gray(`      • AI ranked ${rankedLinks.length} links`));
+
+        // Take top-ranked links
+        urlsToCrawl = rankedLinks
+          .slice(0, researchConfig.maxPagesPerDepth)
+          .map(l => l.url);
+
+        if (this.debugLogger.isEnabled() && rankedLinks.length > 0) {
+          this.debugLogger.log(`Top 3 AI-ranked links:`);
+          rankedLinks.slice(0, 3).forEach((link, idx) => {
+            this.debugLogger.log(`  ${idx + 1}. [${link.score.toFixed(2)}] ${link.url}`);
+            this.debugLogger.log(`     Reason: ${link.reason}`);
+          });
+        }
+
+        // Show top links in console
+        if (rankedLinks.length > 0) {
+          console.log(chalk.gray(`      • Top link score: ${(rankedLinks[0].score * 100).toFixed(0)}% - ${rankedLinks[0].reason}`));
+        }
+
+      } else {
+        // Fallback: use threshold-based filtering
+        console.log(chalk.gray(`      • Using threshold-based filtering (${researchConfig.linkRelevanceThreshold})`));
+
+        urlsToCrawl = allLinks
+          .slice(0, researchConfig.maxPagesPerDepth)
+          .map(link => link.url);
+      }
+
+      // Mark URLs as visited
+      urlsToCrawl.forEach(url => visitedUrls.add(url));
+
+      if (urlsToCrawl.length === 0) {
+        console.log(chalk.yellow(`      ⚠️  No links to crawl at depth ${depth}`));
+        break;
+      }
+
+      console.log(chalk.cyan(`      🌐 Scraping ${urlsToCrawl.length} pages at depth ${depth}...`));
 
       try {
-        const newPages = await this.webScrapingService.scrapeMultiplePages(limitedUrls);
+        const scrapeStartTime = Date.now();
+
+        if (this.debugLogger.isEnabled()) {
+          this.debugLogger.log(`Starting scrape of ${urlsToCrawl.length} URLs at depth ${depth}:`);
+          urlsToCrawl.forEach((url, idx) => {
+            this.debugLogger.log(`  ${idx + 1}. ${url}`);
+          });
+        }
+
+        const newPages = await this.webScrapingService.scrapeMultiplePages(urlsToCrawl, depth);
+        const scrapeDuration = ((Date.now() - scrapeStartTime) / 1000).toFixed(1);
+
         const validNewPages = newPages
           .filter((page: any) => page.content.length > 100)
           .map((page: any) => ({ ...page, depth }));
 
+        const invalidPages = newPages.length - validNewPages.length;
+
         deepPages.push(...validNewPages);
-        console.log(chalk.gray(`   • Found ${validNewPages.length} valid pages at depth ${depth}`));
+
+        console.log(chalk.green(`      ✓ Depth ${depth} complete: ${validNewPages.length} valid pages in ${scrapeDuration}s`));
+        if (invalidPages > 0) {
+          console.log(chalk.yellow(`      ⚠️  Skipped ${invalidPages} pages (content too short)`));
+        }
+
+        console.log(chalk.gray(`         Total deep pages collected so far: ${deepPages.length}`));
+
+        if (this.debugLogger.isEnabled()) {
+          this.debugLogger.log(`Depth ${depth} - Completed in ${scrapeDuration}s`);
+          this.debugLogger.log(`  Scraped: ${validNewPages.length} valid, ${invalidPages} invalid`);
+        }
 
       } catch (error) {
-        console.warn(chalk.yellow(`   ⚠️  Error crawling depth ${depth}:`, error));
+        console.warn(chalk.red(`      ❌ Error at depth ${depth}:`), error);
+        if (this.debugLogger.isEnabled()) {
+          this.debugLogger.log(`Depth ${depth} - Error: ${error}`);
+        }
       }
     }
 
+    console.log(chalk.green(`\n   ✓ Deep crawling complete: ${deepPages.length} additional pages found`));
+
+    if (this.debugLogger.isEnabled()) {
+      this.debugLogger.log('=== DEEP LINK CRAWLING COMPLETE ===');
+      this.debugLogger.log(`Total deep pages: ${deepPages.length}`);
+      const depthBreakdown = deepPages.reduce((acc: any, page: any) => {
+        acc[page.depth] = (acc[page.depth] || 0) + 1;
+        return acc;
+      }, {});
+      this.debugLogger.log(`Pages by depth: ${JSON.stringify(depthBreakdown)}`);
+    }
+
     return deepPages;
+  }
+
+  /**
+   * Load custom instructions from custom_instructions.txt
+   */
+  private loadCustomInstructions(): string | null {
+    try {
+      const instructionsPath = path.join(process.cwd(), 'custom_instructions.txt');
+      if (fs.existsSync(instructionsPath)) {
+        return fs.readFileSync(instructionsPath, 'utf-8');
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
   }
 }

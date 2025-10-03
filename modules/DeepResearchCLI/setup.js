@@ -4,6 +4,7 @@ const { execSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const net = require('net');
 
 class MassSetup {
   constructor() {

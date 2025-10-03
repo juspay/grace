@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { AIConfig } from '../types';
+import { DebugLogger } from '../utils/DebugLogger';
 
 export interface AIMessage {
   role: 'system' | 'user' | 'assistant';
@@ -23,9 +24,11 @@ export class AIConfigurationError extends Error {
 
 export class AIService {
   private config: AIConfig;
+  private debugLogger: DebugLogger;
 
   constructor(config: AIConfig) {
     this.config = config;
+    this.debugLogger = DebugLogger.getInstance();
   }
 
   /**
@@ -670,6 +673,236 @@ Error details: ${error.message}`
     }
   }
 
+  /**
+   * AI decides whether to continue deep crawling based on current information
+   */
+  async shouldContinueCrawling(
+    query: string,
+    currentDepth: number,
+    maxDepth: number,
+    pagesCollected: number,
+    currentInsights: string[]
+  ): Promise<{ shouldContinue: boolean; reason: string; confidence: number }> {
+    const messages: AIMessage[] = [
+      {
+        role: 'system',
+        content: `You are a research strategist. Decide if we should continue crawling deeper for more information.
+Consider: information completeness, depth vs quality trade-off, and whether we have enough data.
+
+Respond in JSON format:
+{
+  "shouldContinue": true/false,
+  "reason": "Brief explanation (1 sentence)",
+  "confidence": 0.0-1.0
+}`
+      },
+      {
+        role: 'user',
+        content: `Research Query: "${query}"
+
+Current Status:
+- Depth: ${currentDepth}/${maxDepth}
+- Pages Collected: ${pagesCollected}
+- Key Insights Found: ${currentInsights.length > 0 ? currentInsights.slice(0, 5).join('; ') : 'None yet'}
+
+Should we continue to depth ${currentDepth + 1}?`
+      }
+    ];
+
+    try {
+      if (this.debugLogger.isEnabled()) {
+        this.debugLogger.log(`AI evaluating whether to continue crawling (depth ${currentDepth}/${maxDepth})`);
+      }
+
+      const response = await this.generateText(messages, { temperature: 0.3, maxTokens: 150 });
+      const cleanedContent = this.cleanJsonResponse(response.content);
+      const result = JSON.parse(cleanedContent);
+
+      if (this.debugLogger.isEnabled()) {
+        this.debugLogger.log(`AI decision: ${result.shouldContinue ? 'CONTINUE' : 'STOP'} - ${result.reason}`);
+      }
+
+      return {
+        shouldContinue: result.shouldContinue ?? true,
+        reason: result.reason || 'No reason provided',
+        confidence: Math.max(0, Math.min(1, result.confidence || 0.5))
+      };
+    } catch (error) {
+      console.warn('Failed to get AI crawling decision, defaulting to continue:', error);
+      return {
+        shouldContinue: currentDepth < maxDepth,
+        reason: 'AI decision failed, using depth limit',
+        confidence: 0.5
+      };
+    }
+  }
+
+  /**
+   * AI evaluates and ranks links for crawling
+   */
+  async rankLinksForCrawling(
+    query: string,
+    links: Array<{ url: string; text: string; context?: string }>,
+    currentContext: string
+  ): Promise<Array<{ url: string; score: number; reason: string }>> {
+    if (links.length === 0) return [];
+
+    // Limit to top 20 links for AI evaluation
+    const linksToEvaluate = links.slice(0, 20);
+
+    const linksList = linksToEvaluate
+      .map((link, idx) => `${idx + 1}. ${link.text} (${link.url})\n   Context: ${link.context?.substring(0, 100) || 'N/A'}`)
+      .join('\n\n');
+
+    const messages: AIMessage[] = [
+      {
+        role: 'system',
+        content: `You are a research link evaluator. Score each link's potential value for the research query.
+
+Return JSON array with this format:
+[
+  {"index": 1, "score": 0.9, "reason": "Directly addresses main topic"},
+  {"index": 2, "score": 0.3, "reason": "Tangentially related"}
+]
+
+Score 0.0-1.0 based on:
+- Relevance to query
+- Likely information quality
+- Uniqueness (avoid redundant sources)
+
+IMPORTANT: PDF files (.pdf) can be processed and should be ranked normally if they contain valuable information.
+However, prioritize HTML pages when both have similar relevance, as they typically have better structure.`
+      },
+      {
+        role: 'user',
+        content: `Research Query: "${query}"
+
+Current Context: ${currentContext.substring(0, 500)}
+
+Links to Evaluate:
+${linksList}
+
+Rank these links:`
+      }
+    ];
+
+    try {
+      if (this.debugLogger.isEnabled()) {
+        this.debugLogger.log(`AI ranking ${linksToEvaluate.length} links for crawling`);
+      }
+
+      const response = await this.generateText(messages, { temperature: 0.2, maxTokens: 1000 });
+      const cleanedContent = this.cleanJsonResponse(response.content);
+      const rankings = JSON.parse(cleanedContent);
+
+      if (!Array.isArray(rankings)) {
+        throw new Error('Invalid rankings format');
+      }
+
+      // Map rankings back to URLs
+      const rankedLinks = rankings
+        .filter((r: any) => r.index && r.score !== undefined)
+        .map((r: any) => ({
+          url: linksToEvaluate[r.index - 1]?.url || '',
+          score: Math.max(0, Math.min(1, r.score)),
+          reason: r.reason || ''
+        }))
+        .filter((r: any) => r.url)
+        .sort((a, b) => b.score - a.score);
+
+      if (this.debugLogger.isEnabled()) {
+        this.debugLogger.log(`AI ranked ${rankedLinks.length} links, top score: ${rankedLinks[0]?.score || 0}`);
+      }
+
+      return rankedLinks;
+    } catch (error) {
+      console.warn('Failed to rank links with AI, using default scoring:', error);
+      // Fallback: return all links with default score
+      return linksToEvaluate.map(link => ({
+        url: link.url,
+        score: 0.5,
+        reason: 'AI ranking failed, using default score'
+      }));
+    }
+  }
+
+  /**
+   * AI assesses if we have enough information to answer the query
+   * Also checks if custom instructions requirements are met
+   */
+  async assessInformationCompleteness(
+    query: string,
+    pagesCollected: number,
+    insights: string[]
+  ): Promise<{ isComplete: boolean; missingAspects: string[]; confidence: number; customInstructionsMet?: boolean }> {
+    const hasCustomInstructions = this.config.customInstructions && this.config.customInstructions.trim().length > 0;
+
+    let systemContent = `You are a research completeness evaluator. Assess if we have enough information to comprehensively answer the query.`;
+
+    if (hasCustomInstructions) {
+      systemContent += `\n\nIMPORTANT: Also check if we have gathered sufficient information to meet the CUSTOM INSTRUCTIONS requirements.
+The custom instructions will be provided and you must verify if the collected data is sufficient to fulfill them.`;
+    }
+
+    systemContent += `\n\nRespond in JSON:
+{
+  "isComplete": true/false,
+  "missingAspects": ["aspect1", "aspect2"],
+  "confidence": 0.0-1.0${hasCustomInstructions ? ',\n  "customInstructionsMet": true/false,\n  "missingRequirements": ["requirement1"]' : ''}
+}`;
+
+    const userContent = `Research Query: "${query}"
+
+Information Gathered:
+- Pages Collected: ${pagesCollected}
+- Key Insights: ${insights.length > 0 ? insights.join('; ') : 'None'}
+
+Is this information sufficient?${hasCustomInstructions ? '\n\nCheck if we can fulfill the custom instructions with this data.' : ''}`;
+
+    const messages: AIMessage[] = [
+      {
+        role: 'system',
+        content: systemContent
+      },
+      {
+        role: 'user',
+        content: userContent
+      }
+    ];
+
+    try {
+      if (this.debugLogger.isEnabled()) {
+        this.debugLogger.log(`AI assessing information completeness (custom instructions: ${hasCustomInstructions})`);
+      }
+
+      const response = await this.generateText(messages, { temperature: 0.3, maxTokens: 300 });
+      const cleanedContent = this.cleanJsonResponse(response.content);
+      const result = JSON.parse(cleanedContent);
+
+      if (this.debugLogger.isEnabled()) {
+        this.debugLogger.log(`Completeness: ${result.isComplete}, Custom met: ${result.customInstructionsMet ?? 'N/A'}`);
+        if (result.missingAspects?.length > 0) {
+          this.debugLogger.log(`Missing: ${result.missingAspects.join(', ')}`);
+        }
+      }
+
+      return {
+        isComplete: result.isComplete ?? false,
+        missingAspects: Array.isArray(result.missingAspects) ? result.missingAspects : [],
+        confidence: Math.max(0, Math.min(1, result.confidence || 0.5)),
+        customInstructionsMet: hasCustomInstructions ? (result.customInstructionsMet ?? false) : undefined
+      };
+    } catch (error) {
+      console.warn('Failed to assess information completeness:', error);
+      return {
+        isComplete: false,
+        missingAspects: [],
+        confidence: 0.3,
+        customInstructionsMet: hasCustomInstructions ? false : undefined
+      };
+    }
+  }
+
   async synthesizeResults(query: string, allContent: Array<{ url: string; title: string; content: string; relevanceScore: number; depth: number }>): Promise<{ answer: string; confidence: number; summary: string }> {
     const sortedContent = allContent
       .sort((a, b) => b.relevanceScore - a.relevanceScore)
@@ -700,20 +933,32 @@ Research Guidelines:
 
       // Parser for custom instruction responses
       parseResponse = (content: string) => {
-        // For custom instructions, return the raw content as answer
-        // Extract confidence if present, otherwise default
-        const confidenceMatch = content.match(/confidence[:\s]+([0-9.]+)/i);
-        const confidence = confidenceMatch ? parseFloat(confidenceMatch[1]) : 0.8;
+        try {
+          if (this.debugLogger.isEnabled()) {
+            this.debugLogger.log('Parsing custom instruction response...');
+          }
 
-        // Extract summary if present in a structured way
-        const summaryMatch = content.match(/(?:summary|executive summary)[:\s]*([^\n]{50,200})/i);
-        const summary = summaryMatch ? summaryMatch[1].trim() : 'Comprehensive analysis completed following custom instructions.';
+          // For custom instructions, return the raw content as answer
+          // Extract confidence if present, otherwise default
+          const confidenceMatch = content.match(/confidence[:\s]+([0-9.]+)/i);
+          const confidence = confidenceMatch ? parseFloat(confidenceMatch[1]) : 0.8;
 
-        return {
-          answer: content,
-          confidence: Math.max(0, Math.min(1, confidence)),
-          summary: summary
-        };
+          // Extract summary if present in a structured way
+          const summaryMatch = content.match(/(?:summary|executive summary)[:\s]*([^\n]{50,200})/i);
+          const summary = summaryMatch ? summaryMatch[1].trim() : 'Comprehensive analysis completed following custom instructions.';
+
+          return {
+            answer: content,
+            confidence: Math.max(0, Math.min(1, confidence)),
+            summary: summary
+          };
+        } catch (error) {
+          console.error('❌ Error parsing custom instruction response:', error);
+          if (this.debugLogger.isEnabled()) {
+            this.debugLogger.log(`Parse error: ${error}`);
+          }
+          throw error;
+        }
       };
     } else {
       // Use default JSON format
@@ -738,13 +983,38 @@ Include source references in the analysis. Rate your confidence from 0.0 to 1.0.
 
       // Parser for JSON responses
       parseResponse = (content: string) => {
-        const cleanedContent = this.cleanJsonResponse(content);
-        const result = JSON.parse(cleanedContent);
-        return {
-          answer: result.answer || 'No analysis available',
-          confidence: Math.max(0, Math.min(1, result.confidence || 0.5)),
-          summary: result.summary || 'No summary available'
-        };
+        try {
+          if (this.debugLogger.isEnabled()) {
+            this.debugLogger.log('Parsing JSON response...');
+            this.debugLogger.log(`  Raw content length: ${content.length} chars`);
+          }
+
+          const cleanedContent = this.cleanJsonResponse(content);
+
+          if (this.debugLogger.isEnabled()) {
+            this.debugLogger.log(`  Cleaned content length: ${cleanedContent.length} chars`);
+            this.debugLogger.log(`  First 200 chars: ${cleanedContent.substring(0, 200)}`);
+          }
+
+          const result = JSON.parse(cleanedContent);
+
+          if (this.debugLogger.isEnabled()) {
+            this.debugLogger.log('  JSON parsed successfully');
+          }
+
+          return {
+            answer: result.answer || 'No analysis available',
+            confidence: Math.max(0, Math.min(1, result.confidence || 0.5)),
+            summary: result.summary || 'No summary available'
+          };
+        } catch (error) {
+          console.error('❌ Error parsing JSON response:', error);
+          if (this.debugLogger.isEnabled()) {
+            this.debugLogger.log(`Parse error: ${error}`);
+            this.debugLogger.log(`Content preview: ${content.substring(0, 500)}`);
+          }
+          throw error;
+        }
       };
     }
 
@@ -760,19 +1030,173 @@ Include source references in the analysis. Rate your confidence from 0.0 to 1.0.
     ];
 
     try {
+      if (this.debugLogger.isEnabled()) {
+        this.debugLogger.log('=== AI SYNTHESIS START ===');
+        this.debugLogger.log(`Using ${sortedContent.length} content sources`);
+        this.debugLogger.log(`Custom instructions: ${hasCustomInstructions ? 'ENABLED' : 'DISABLED'}`);
+      }
+
       const response = await this.generateText(messages, {
         temperature: 0.3,
         maxTokens: 8192
       });
 
-      return parseResponse(response.content);
+      if (this.debugLogger.isEnabled()) {
+        this.debugLogger.log(`AI response received: ${response.content.length} chars`);
+        this.debugLogger.log(`Tokens used: ${response.tokensUsed}`);
+      }
+
+      const parsedResult = parseResponse(response.content);
+
+      if (this.debugLogger.isEnabled()) {
+        this.debugLogger.log('Analysis synthesized successfully');
+        this.debugLogger.log(`Confidence: ${(parsedResult.confidence * 100).toFixed(1)}%`);
+        this.debugLogger.log(`Answer length: ${parsedResult.answer.length} chars`);
+        this.debugLogger.log('=== AI SYNTHESIS COMPLETE ===');
+      }
+
+      return parsedResult;
     } catch (error) {
-      console.warn('Failed to synthesize results:', error);
+      console.error('❌ Failed to synthesize results:', error);
+
+      // Detailed error logging only in debug mode
+      if (this.debugLogger.isEnabled()) {
+        if (error instanceof Error) {
+          this.debugLogger.log(`Error message: ${error.message}`);
+          this.debugLogger.log(`Error stack: ${error.stack}`);
+        }
+
+        if (error instanceof SyntaxError) {
+          this.debugLogger.log('JSON parsing failed - attempting fallback');
+        }
+      }
+
       return {
-        answer: 'Failed to generate comprehensive analysis due to processing error.',
+        answer: `Failed to generate comprehensive analysis due to error: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check your AI configuration and try again.`,
         confidence: 0.1,
         summary: 'Analysis could not be completed.'
       };
+    }
+  }
+
+  /**
+   * Generate link quality evaluation prompt based on custom instructions
+   */
+  async generateLinkQualityPrompt(customInstructions: string): Promise<string> {
+    const messages: AIMessage[] = [
+      {
+        role: 'system',
+        content: `You are an AI that generates concise, focused prompts for link quality evaluation.
+Based on custom research instructions, create a prompt that helps another AI determine if a link is valuable for the research goal.
+
+Your output should be a single paragraph (2-4 sentences) that captures the CORE criteria for link quality.`
+      },
+      {
+        role: 'user',
+        content: `Custom Instructions:\n\n${customInstructions}\n\nGenerate a concise prompt for evaluating if a link is valuable for this research:`
+      }
+    ];
+
+    try {
+      const response = await this.generateText(messages, { temperature: 0.3, maxTokens: 300 });
+      return response.content.trim();
+    } catch (error) {
+      // Fallback to generic prompt
+      return `Evaluate if this link provides technical documentation, API references, authentication details, endpoint information, or implementation examples relevant to payment gateway integration.`;
+    }
+  }
+
+  /**
+   * Filter links based on quality using AI and custom instructions context
+   */
+  async filterLinksByQuality(
+    links: Array<{ url: string; text: string; context?: string }>,
+    qualityPrompt: string,
+    query: string
+  ): Promise<Array<{ url: string; text: string; context?: string; quality: 'high' | 'medium' | 'low'; reason: string }>> {
+    if (links.length === 0) return [];
+
+    // Limit to 30 links for AI evaluation
+    const linksToEvaluate = links.slice(0, 30);
+
+    const linksList = linksToEvaluate
+      .map((link, idx) => `${idx + 1}. [${link.text}](${link.url})\n   Context: ${link.context?.substring(0, 150) || 'N/A'}`)
+      .join('\n\n');
+
+    const messages: AIMessage[] = [
+      {
+        role: 'system',
+        content: `You are a link quality evaluator for research. ${qualityPrompt}
+
+Return JSON array with this format:
+[
+  {"index": 1, "quality": "high", "reason": "Official API documentation"},
+  {"index": 2, "quality": "low", "reason": "Unrelated marketing page"}
+]
+
+Quality levels:
+- high: Directly valuable, official docs, technical content
+- medium: Potentially useful, needs verification
+- low: Skip this - marketing, unrelated, or low value
+
+Be strict: Mark as LOW if the link appears to be navigation, footer links, login pages, generic pages, or clearly off-topic.`
+      },
+      {
+        role: 'user',
+        content: `Research Query: "${query}"
+
+Links to Evaluate:
+${linksList}
+
+Evaluate each link's quality:`
+      }
+    ];
+
+    try {
+      if (this.debugLogger.isEnabled()) {
+        this.debugLogger.log(`AI evaluating quality of ${linksToEvaluate.length} links`);
+      }
+
+      const response = await this.generateText(messages, { temperature: 0.2, maxTokens: 2000 });
+      const cleanedContent = this.cleanJsonResponse(response.content);
+
+      const evaluations = JSON.parse(cleanedContent);
+
+      if (!Array.isArray(evaluations)) {
+        throw new Error('Invalid response format');
+      }
+
+      // Map evaluations back to links
+      const evaluatedLinks = linksToEvaluate.map((link, idx) => {
+        const evaluation = evaluations.find((e: any) => e.index === idx + 1);
+        return {
+          ...link,
+          quality: (evaluation?.quality || 'medium') as 'high' | 'medium' | 'low',
+          reason: evaluation?.reason || 'No evaluation provided'
+        };
+      });
+
+      // Filter out LOW quality links
+      const filteredLinks = evaluatedLinks.filter(link => link.quality !== 'low');
+
+      if (this.debugLogger.isEnabled()) {
+        this.debugLogger.log(`Link quality filtering: ${linksToEvaluate.length} -> ${filteredLinks.length} (removed ${linksToEvaluate.length - filteredLinks.length} low-quality links)`);
+        this.debugLogger.log(`High quality: ${filteredLinks.filter(l => l.quality === 'high').length}, Medium: ${filteredLinks.filter(l => l.quality === 'medium').length}`);
+      }
+
+      return filteredLinks;
+
+    } catch (error) {
+      if (this.debugLogger.isEnabled()) {
+        this.debugLogger.log(`Link quality filtering failed: ${error}. Returning all links.`);
+      }
+
+      // On error, return all links with medium quality
+      return linksToEvaluate.map(link => ({
+        ...link,
+        quality: 'medium' as const,
+        reason: 'Quality evaluation failed'
+      }));
     }
   }
 }

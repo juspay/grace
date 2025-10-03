@@ -98,6 +98,8 @@
     "keypress": "^0.2.1",
     "node-fetch": "^3.3.2",
     "ora": "^7.0.1",
+    "pdf2json": "^3.2.2",
+    "pdfjs-dist": "^5.4.149",
     "playwright": ">=1.40.0",
     "terminal-kit": "^3.0.1",
     "uuid": "^10.0.0"

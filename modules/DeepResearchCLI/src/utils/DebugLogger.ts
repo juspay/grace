@@ -164,6 +164,16 @@ export class DebugLogger {
     this.writeToStream('\n');
   }
 
+  /**
+   * Generic logging method for any message
+   */
+  public log(message: string): void {
+    if (!this.isDebugEnabled) return;
+
+    const timestamp = new Date().toISOString();
+    this.writeToStream(`[${timestamp}] ${message}\n`);
+  }
+
   public close(): void {
     if (this.logStream && !this.logStream.destroyed) {
       const timestamp = new Date().toISOString();

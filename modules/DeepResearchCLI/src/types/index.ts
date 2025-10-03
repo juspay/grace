@@ -12,6 +12,9 @@ export interface ResearchConfig {
   enableDeepLinkCrawling: boolean;
   maxLinksPerPage: number;
   deepCrawlDepth: number;
+  aiDrivenCrawling: boolean;
+  aiLinkRanking: boolean;
+  aiCompletenessCheck: boolean;
 }
 
 export interface AIConfig {
@@ -43,6 +46,13 @@ export interface PageData {
   fetchTime: number;
   processingTime: number;
   error?: string;
+  metadata?: {
+    duration?: number;
+    isPdf?: boolean;
+    pdfPages?: number;
+    pdfInfo?: any;
+    [key: string]: any;
+  };
 }
 
 export interface ExtractedLink {

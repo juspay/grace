@@ -25,7 +25,10 @@ export class ConfigService {
       interactiveMode: process.env.INTERACTIVE_MODE !== 'false',
       enableDeepLinkCrawling: process.env.ENABLE_DEEP_LINK_CRAWLING !== 'false',
       maxLinksPerPage: parseInt(process.env.MAX_LINKS_PER_PAGE || '10'),
-      deepCrawlDepth: parseInt(process.env.DEEP_CRAWL_DEPTH || '2')
+      deepCrawlDepth: parseInt(process.env.DEEP_CRAWL_DEPTH || '2'),
+      aiDrivenCrawling: process.env.AI_DRIVEN_CRAWLING === 'true',
+      aiLinkRanking: process.env.AI_LINK_RANKING === 'true',
+      aiCompletenessCheck: process.env.AI_COMPLETENESS_CHECK === 'true'
     };
 
     // Determine AI provider with intelligent fallback
