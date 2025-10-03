@@ -1,6 +1,12 @@
 import { chromium, Browser, Page } from 'playwright';
 import * as cheerio from 'cheerio';
 import { PageData, ExtractedLink } from '../types';
+import * as https from 'https';
+import * as http from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+const PDFParser = require('pdf2json');
 
 export class WebScrapingService {
   private browser: Browser | null = null;
@@ -190,10 +196,21 @@ export class WebScrapingService {
     let page: Page | null = null;
 
     try {
+      console.log(`\n🌐 [WebScraping] Fetching: ${url}`);
+      console.log(`   Depth: ${depth}, Timeout: ${this.timeout}ms`);
+
+      // Check if URL is a downloadable document (PDF, YAML, JSON, XML, etc.)
+      const docType = this.getDocumentType(url);
+      if (docType) {
+        console.log(`   📄 ${docType.toUpperCase()} file detected, downloading and extracting content...`);
+        return await this.scrapeDocument(url, depth, docType);
+      }
+
       // Check robots.txt if enabled
       if (this.respectRobotsTxt && depth > 0) {
         const isAllowed = await this.checkRobotsTxt(url);
         if (!isAllowed) {
+          console.log(`   ❌ Blocked by robots.txt`);
           throw new Error('Blocked by robots.txt');
         }
       }
@@ -211,11 +228,21 @@ export class WebScrapingService {
       // Add random delay to appear more human-like
       await page.waitForTimeout(500 + Math.random() * 1000);
 
+       console.log(`   ⏳ Navigating to page...`);
+
+      // Detect if page uses JavaScript frameworks
+      const isJavaScriptApp = await this.detectJavaScriptApp(page, url);
+
       // Navigate to page with timeout
       await page.goto(url, {
         waitUntil: 'domcontentloaded',
         timeout: this.timeout
       });
+
+      if (isJavaScriptApp.detected) {
+        console.log(`   ⚡ JavaScript framework detected: ${isJavaScriptApp.frameworks.join(', ')}`);
+        console.log(`   ⏳ Waiting for dynamic content to load...`);
+      }
 
       // Wait for dynamic content and any lazy loading
       await page.waitForTimeout(3000);
@@ -227,10 +254,37 @@ export class WebScrapingService {
       const content = await page.content();
       const title = await page.title();
 
+      console.log(`   📄 Page loaded: "${title}"`);
+      console.log(`   📏 HTML size: ${content.length} chars`);
+
+      if (isJavaScriptApp.detected) {
+        console.log(`   🔧 JS-rendered content processed`);
+      }
+
+      // Check if page is JavaScript-rendered after loading
+      const jsCheck = await this.checkJavaScriptRendering(page);
+      if (jsCheck.isJSRendered) {
+        console.log(`   🔍 JavaScript-rendered page confirmed: ${jsCheck.indicators.join(', ')}`);
+      }
+
       // Extract comprehensive content and links
       const { textContent, links } = this.extractContentAndLinks(content, url);
 
+      console.log(`   📝 Extracted content: ${textContent.length} chars`);
+      console.log(`   🔗 Found links: ${links.length}`);
+
+      if (textContent.length < 100) {
+        console.log(`   ⚠️  WARNING: Very short content extracted!`);
+        if (jsCheck.isJSRendered) {
+          console.log(`   💡 This is a JS-rendered page - content may be loading dynamically`);
+        }
+        console.log(`   Content preview: "${textContent.substring(0, 200)}"`);
+      } else {
+        console.log(`   ✅ Content preview: "${textContent.substring(0, 200)}..."`);
+      }
+
       const fetchTime = Date.now() - startTime;
+      console.log(`   ⏱️  Fetch time: ${fetchTime}ms`);
 
       return {
         url,
@@ -245,6 +299,10 @@ export class WebScrapingService {
 
     } catch (error) {
       const fetchTime = Date.now() - startTime;
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+
+      console.log(`   ❌ Error scraping page: ${errorMsg}`);
+      console.log(`   ⏱️  Failed after: ${fetchTime}ms`);
 
       return {
         url,
@@ -255,7 +313,7 @@ export class WebScrapingService {
         relevanceScore: 0.1,
         fetchTime,
         processingTime: 0,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: errorMsg
       };
 
     } finally {
@@ -287,6 +345,7 @@ export class WebScrapingService {
     textContent: string;
     links: ExtractedLink[];
   } {
+    console.log(`   🔍 [ContentExtraction] Starting extraction for ${baseUrl}`);
     const $ = cheerio.load(html);
 
     // Remove script, style, and other non-content elements
@@ -295,9 +354,13 @@ export class WebScrapingService {
     // Extract comprehensive content - not just from main areas
     // Get the title first
     const title = $('title').text().trim();
+    console.log(`      Title: "${title}"`);
 
     // Extract meta description for additional context
     const metaDescription = $('meta[name="description"]').attr('content') || '';
+    if (metaDescription) {
+      console.log(`      Meta description: "${metaDescription.substring(0, 100)}..."`);
+    }
 
     // Extract structured content sections
     const contentSections = [];
@@ -319,12 +382,15 @@ export class WebScrapingService {
     ];
 
     let primaryContent = '';
+    let matchedSelector = '';
     for (const selector of contentSelectors) {
       const element = $(selector).first();
       if (element.length > 0) {
         const content = element.text().trim();
         if (content.length > 200) {
           primaryContent = content;
+          matchedSelector = selector;
+          console.log(`      ✅ Found content using selector: "${selector}" (${content.length} chars)`);
           break;
         }
       }
@@ -332,18 +398,24 @@ export class WebScrapingService {
 
     // If no primary content found, extract from body but be smarter about it
     if (!primaryContent) {
+      console.log(`      ⚠️  No content found with standard selectors, trying fallback...`);
       // Try to get paragraph content
       const paragraphs = $('p').map((_, el) => $(el).text().trim()).get().join(' ');
       if (paragraphs.length > 200) {
         primaryContent = paragraphs;
+        console.log(`      ✅ Found content from paragraphs (${paragraphs.length} chars)`);
       } else {
         primaryContent = $('body').text().trim();
+        console.log(`      ⚠️  Using body text as last resort (${primaryContent.length} chars)`);
       }
     }
 
     // Extract additional structured content
     const headings = $('h1, h2, h3, h4').map((_, el) => $(el).text().trim()).get().join('. ');
     const lists = $('ul li, ol li').map((_, el) => $(el).text().trim()).get().join('. ');
+
+    console.log(`      Headings: ${headings.length} chars`);
+    console.log(`      Lists: ${lists.length} chars`);
 
     // Combine all content with structure preservation
     let fullContent = '';
@@ -353,6 +425,8 @@ export class WebScrapingService {
     if (primaryContent) fullContent += `Content: ${primaryContent}`;
     if (lists) fullContent += `\n\nKey Points: ${lists}`;
 
+    console.log(`      Combined content: ${fullContent.length} chars (before cleanup)`);
+
     // Clean up text content but preserve more structure
     const textContent = fullContent
       .replace(/\s+/g, ' ')
@@ -360,9 +434,14 @@ export class WebScrapingService {
       .trim()
       .substring(0, 15000); // Increased limit for better content capture
 
+    console.log(`      Final content: ${textContent.length} chars (after cleanup, limit 15000)`);
+
     // Extract links
     const links: ExtractedLink[] = [];
     const seenUrls = new Set<string>();
+
+    const allLinks = $('a[href]').length;
+    console.log(`      🔗 Total anchor tags found: ${allLinks}`);
 
     $('a[href]').each((_, element) => {
       const href = $(element).attr('href');
@@ -391,6 +470,8 @@ export class WebScrapingService {
         }
       }
     });
+
+    console.log(`      ✅ Valid unique links extracted: ${links.length} (limited to 50)`);
 
     return { textContent, links: links.slice(0, 50) }; // Limit to 50 links
   }
@@ -480,6 +561,99 @@ export class WebScrapingService {
     return disallowed;
   }
 
+  /**
+   * Detect if the page is a JavaScript-based application
+   */
+  private async detectJavaScriptApp(page: Page, url: string): Promise<{ detected: boolean; frameworks: string[] }> {
+    try {
+      // Check common indicators of JS frameworks before navigation
+      const frameworks: string[] = [];
+
+      // Common JS framework indicators in URL or initial HTML
+      const urlLower = url.toLowerCase();
+
+      // React indicators
+      if (urlLower.includes('react') || urlLower.includes('next')) {
+        frameworks.push('React/Next.js');
+      }
+
+      // Vue indicators
+      if (urlLower.includes('vue') || urlLower.includes('nuxt')) {
+        frameworks.push('Vue/Nuxt.js');
+      }
+
+      // Angular indicators
+      if (urlLower.includes('angular')) {
+        frameworks.push('Angular');
+      }
+
+      return {
+        detected: frameworks.length > 0,
+        frameworks
+      };
+    } catch (error) {
+      return { detected: false, frameworks: [] };
+    }
+  }
+
+  /**
+   * Check if page content is primarily JavaScript-rendered
+   */
+  private async checkJavaScriptRendering(page: Page): Promise<{ isJSRendered: boolean; indicators: string[] }> {
+    try {
+      const indicators: string[] = [];
+
+      // Check for common JS framework signatures in the page
+      const hasReact = await page.evaluate(() => {
+        return !!(window as any).React ||
+               !!document.querySelector('[data-reactroot]') ||
+               !!document.querySelector('[data-reactid]');
+      });
+
+      const hasVue = await page.evaluate(() => {
+        return !!(window as any).Vue ||
+               !!document.querySelector('[data-v-]') ||
+               !!document.querySelector('[id^="app"]');
+      });
+
+      const hasAngular = await page.evaluate(() => {
+        return !!(window as any).angular ||
+               !!document.querySelector('[ng-app]') ||
+               !!document.querySelector('[ng-version]');
+      });
+
+      const hasNext = await page.evaluate(() => {
+        return !!(window as any).__NEXT_DATA__;
+      });
+
+      const hasNuxt = await page.evaluate(() => {
+        return !!(window as any).__NUXT__;
+      });
+
+      if (hasReact) indicators.push('React');
+      if (hasVue) indicators.push('Vue');
+      if (hasAngular) indicators.push('Angular');
+      if (hasNext) indicators.push('Next.js');
+      if (hasNuxt) indicators.push('Nuxt.js');
+
+      // Check if page has minimal server-rendered content
+      const bodyText = await page.evaluate(() => document.body.innerText);
+      const bodyTextLength = bodyText.trim().length;
+
+      // If body has very little text, likely JS-rendered
+      if (bodyTextLength < 100 && indicators.length > 0) {
+        indicators.push('Minimal SSR');
+      }
+
+      return {
+        isJSRendered: indicators.length > 0,
+        indicators
+      };
+    } catch (error) {
+      return { isJSRendered: false, indicators: [] };
+    }
+  }
+
   private extractTitleFromUrl(url: string): string {
     try {
       const urlObj = new URL(url);
@@ -495,6 +669,191 @@ export class WebScrapingService {
       await this.browser.close();
       this.browser = null;
     }
+  }
+
+  /**
+   * Get document type from URL if it's a downloadable document
+   * Returns: 'pdf', 'yaml', 'yml', 'json', 'xml', 'txt', 'md', 'csv' or null
+   */
+  private getDocumentType(url: string): string | null {
+    const urlLower = url.toLowerCase();
+
+    // Remove query params and hash for extension detection
+    const urlPath = urlLower.split('?')[0].split('#')[0];
+
+    const documentTypes = ['pdf', 'yaml', 'yml', 'json', 'xml', 'txt', 'md', 'csv', 'openapi', 'swagger'];
+
+    for (const type of documentTypes) {
+      if (urlPath.endsWith(`.${type}`)) {
+        return type;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Scrape document files (PDF, YAML, JSON, XML, etc.)
+   */
+  private async scrapeDocument(url: string, depth: number, docType: string): Promise<PageData> {
+    if (docType === 'pdf') {
+      return await this.scrapePdf(url, depth);
+    } else {
+      return await this.scrapeTextDocument(url, depth, docType);
+    }
+  }
+
+  /**
+   * Download and extract text from PDF
+   */
+  private async scrapePdf(url: string, depth: number): Promise<PageData> {
+    const startTime = Date.now();
+
+    try {
+      // Download PDF
+      const buffer = await this.downloadFile(url);
+
+      console.log(`   📥 Downloaded PDF: ${buffer.length} bytes`);
+
+      // Save to temp file for pdf2json
+      const tempPath = path.join(os.tmpdir(), `pdf-${Date.now()}.pdf`);
+      fs.writeFileSync(tempPath, buffer);
+
+      // Extract text from PDF using pdf2json
+      const textContent = await new Promise<string>((resolve, reject) => {
+        const pdfParser = new PDFParser();
+
+        pdfParser.on('pdfParser_dataError', (errData: any) => {
+          reject(new Error(errData.parserError));
+        });
+
+        pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
+          try {
+            // Extract text from all pages
+            const text = pdfParser.getRawTextContent();
+            resolve(text || '');
+          } catch (err) {
+            reject(err);
+          }
+        });
+
+        pdfParser.loadPDF(tempPath);
+      });
+
+      // Clean up temp file
+      try {
+        fs.unlinkSync(tempPath);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+
+      const title = `PDF: ${url.split('/').pop()}`;
+
+      console.log(`   📝 Extracted text: ${textContent.length} chars`);
+
+      const duration = Date.now() - startTime;
+
+      return {
+        url,
+        title,
+        content: textContent,
+        links: [], // PDFs don't have clickable links in our context
+        depth,
+        relevanceScore: 0.8, // Default score for PDFs
+        fetchTime: duration,
+        processingTime: 0,
+        metadata: {
+          duration,
+          isPdf: true
+        }
+      };
+    } catch (error) {
+      console.error(`   ❌ Failed to extract PDF: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Download and extract text from text-based documents (YAML, JSON, XML, TXT, etc.)
+   */
+  private async scrapeTextDocument(url: string, depth: number, docType: string): Promise<PageData> {
+    const startTime = Date.now();
+
+    try {
+      // Download document
+      const buffer = await this.downloadFile(url);
+
+      console.log(`   📥 Downloaded ${docType.toUpperCase()}: ${buffer.length} bytes`);
+
+      // Convert buffer to text
+      let textContent = buffer.toString('utf-8');
+
+      // Pretty format based on type for better readability
+      if (docType === 'json') {
+        try {
+          const jsonObj = JSON.parse(textContent);
+          textContent = JSON.stringify(jsonObj, null, 2);
+        } catch (e) {
+          // Keep original if JSON parsing fails
+        }
+      }
+
+      const title = `${docType.toUpperCase()}: ${url.split('/').pop()}`;
+
+      console.log(`   📝 Extracted content: ${textContent.length} chars`);
+
+      const duration = Date.now() - startTime;
+
+      return {
+        url,
+        title,
+        content: textContent,
+        links: [], // Document files don't have clickable links
+        depth,
+        relevanceScore: 0.9, // High score for structured documents
+        fetchTime: duration,
+        processingTime: 0,
+        metadata: {
+          duration,
+          isDocument: true,
+          documentType: docType,
+          fileSize: buffer.length
+        }
+      };
+    } catch (error) {
+      console.error(`   ❌ Failed to extract ${docType.toUpperCase()}: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Download file from URL
+   */
+  private async downloadFile(url: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const client = url.startsWith('https') ? https : http;
+
+      client.get(url, (response) => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`Failed to download: ${response.statusCode}`));
+          return;
+        }
+
+        const chunks: Buffer[] = [];
+
+        response.on('data', (chunk) => {
+          chunks.push(chunk);
+        });
+
+        response.on('end', () => {
+          resolve(Buffer.concat(chunks));
+        });
+
+        response.on('error', (err) => {
+          reject(err);
+        });
+      });
+    });
   }
 }
 

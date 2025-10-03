@@ -1,34 +1,22 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { TerminalUI } from '../ui/TerminalUI';
-import { DeepResearchOrchestrator } from '../services/DeepResearchOrchestrator';
 import { DirectResearchService } from '../services/DirectResearchService';
 import { ConfigService } from '../services/ConfigService';
 import { StorageService } from '../services/StorageService';
-import { ResultOutputService } from '../services/ResultOutputService';
 import { DebugLogger } from '../utils/DebugLogger';
-import { UserAction, ResearchSession } from '../types';
-import * as path from 'path';
 
 class MassResearchCLI {
-  private ui: TerminalUI | null = null;
-  private orchestrator: DeepResearchOrchestrator;
   private directResearch: DirectResearchService;
   private config: ConfigService;
   private storageService: StorageService;
-  private resultOutputService: ResultOutputService;
   private debugLogger: DebugLogger;
-  private currentSession: ResearchSession | null = null;
 
   constructor() {
     this.config = ConfigService.getInstance();
-    this.orchestrator = new DeepResearchOrchestrator();
     this.directResearch = new DirectResearchService();
     this.debugLogger = DebugLogger.getInstance();
-    this.resultOutputService = new ResultOutputService();
 
     const researchConfig = this.config.getResearchConfig();
     this.storageService = new StorageService(
@@ -50,253 +38,12 @@ class MassResearchCLI {
       this.cleanup();
       process.exit(0);
     });
-
-    // Research orchestrator events
-    this.orchestrator.on('logEntry', (entry) => {
-      if (this.ui) {
-        this.ui.addLogEntry(entry);
-      }
-    });
   }
 
   private cleanup(): void {
-    if (this.ui) {
-      this.ui.destroy();
-    }
     this.debugLogger.close();
   }
 
-  async startInteractiveResearch(): Promise<void> {
-    try {
-      // Validate configuration
-      const configErrors = this.config.validate();
-      if (configErrors.length > 0) {
-        console.error(chalk.red('❌ Configuration errors:'));
-        configErrors.forEach(error => console.error(chalk.red(`  • ${error}`)));
-        console.log(chalk.yellow('\n💡 Please check your .env file and fix the configuration.'));
-        return;
-      }
-
-      // Test AI connection
-      console.log(chalk.cyan('🤖 Testing AI service connection...'));
-      const aiConfig = this.config.getAIConfig();
-      const { AIService, AIConfigurationError } = await import('../services/AIService');
-      const aiService = new AIService(aiConfig);
-
-      const aiTest = await aiService.testConnection();
-      if (!aiTest.success) {
-        console.error(chalk.red(`❌ AI service test failed: ${aiTest.error}`));
-        console.log(chalk.yellow('\n💡 AI Configuration Help:'));
-        console.log(aiTest.configHelp);
-
-        const { continueAnyway } = await inquirer.prompt([
-          {
-            type: 'confirm',
-            name: 'continueAnyway',
-            message: 'Would you like to continue anyway? (Research will fail without AI)',
-            default: false
-          }
-        ]);
-
-        if (!continueAnyway) {
-          return;
-        }
-      } else {
-        console.log(chalk.green('✅ AI service connection successful'));
-      }
-
-      // Get research query
-      const { query } = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'query',
-          message: 'What would you like to research?',
-          validate: (input: string) => input.trim().length > 0 || 'Please enter a research query'
-        }
-      ]);
-
-      // Get optional custom instructions
-      const { customInstructions } = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'customInstructions',
-          message: 'Any specific instructions for the research? (optional)',
-          default: ''
-        }
-      ]);
-
-      // Get research parameters
-      const researchConfig = this.config.getResearchConfig();
-      const { maxDepth, maxPagesPerDepth } = await inquirer.prompt([
-        {
-          type: 'number',
-          name: 'maxDepth',
-          message: 'Maximum research depth:',
-          default: researchConfig.maxDepth,
-          validate: (input: number) => input >= 1 && input <= 10 || 'Depth must be between 1 and 10'
-        },
-        {
-          type: 'number',
-          name: 'maxPagesPerDepth',
-          message: 'Maximum pages per depth level:',
-          default: researchConfig.maxPagesPerDepth,
-          validate: (input: number) => input >= 1 && input <= 50 || 'Pages must be between 1 and 50'
-        }
-      ]);
-
-      // Initialize UI
-      this.ui = new TerminalUI({
-        title: 'MASS Deep Research CLI',
-        onUserAction: this.handleUserAction.bind(this)
-      });
-
-      this.ui.updateStatus('Starting deep research...', 'info');
-
-      // Start research
-      this.currentSession = await this.orchestrator.startResearch({
-        query: query.trim(),
-        customInstructions: customInstructions.trim() || undefined,
-        maxDepth,
-        maxPagesPerDepth,
-        onProgress: (progress, status) => {
-          if (this.ui) {
-            this.ui.updateProgress(progress, status);
-            this.ui.updateStatus(status, 'info');
-          }
-        },
-        onUserActionNeeded: async (question) => {
-          if (this.ui) {
-            return await this.ui.prompt(question);
-          }
-          return '';
-        }
-      });
-
-      // Save and display results
-      await this.handleResearchComplete();
-
-    } catch (error) {
-      // Import AIConfigurationError for type checking
-      const { AIConfigurationError } = await import('../services/AIService');
-
-      if (error instanceof AIConfigurationError) {
-        if (this.ui) {
-          this.ui.showAIError(error.message, error.configHelp);
-        } else {
-          console.error(chalk.red('❌ AI Configuration Error:'), error.message);
-          console.log(chalk.yellow('\n💡 Configuration Help:'));
-          console.log(error.configHelp);
-        }
-      } else {
-        if (this.ui) {
-          this.ui.updateStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
-        } else {
-          console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
-        }
-      }
-    }
-  }
-
-  private async handleUserAction(action: UserAction): Promise<void> {
-    this.debugLogger.logUserAction(action.type, action.data);
-
-    switch (action.type) {
-      case 'skip':
-        if (action.data?.showHistory) {
-          await this.showHistory();
-        } else {
-          this.orchestrator.skip();
-          this.ui?.updateStatus('Skipping current operation...', 'warning');
-        }
-        break;
-
-      case 'cancel':
-        this.orchestrator.stop();
-        this.ui?.updateStatus('Cancelling research...', 'warning');
-        break;
-
-      case 'input':
-        if (action.data?.message) {
-          this.orchestrator.provideGuidance(action.data.message);
-          this.ui?.updateStatus(`Guidance provided: "${action.data.message}"`, 'info');
-        }
-        break;
-    }
-  }
-
-  private async showHistory(): Promise<void> {
-    try {
-      const history = await this.storageService.getHistory(20);
-      if (this.ui) {
-        this.ui.showHistory(history);
-      }
-    } catch (error) {
-      if (this.ui) {
-        this.ui.updateStatus('Failed to load history', 'error');
-      }
-    }
-  }
-
-  private async handleResearchComplete(): Promise<void> {
-    if (!this.currentSession) return;
-
-    this.ui?.updateStatus('Research completed! Generating reports...', 'success');
-
-    try {
-      // Get all page data
-      const allPages = this.orchestrator.getAllPageData();
-
-      // Save results
-      const { htmlPath, jsonPath, markdownPath } = await this.resultOutputService.saveResults(
-        this.currentSession,
-        allPages
-      );
-
-      // Log completion
-      if (this.debugLogger.isEnabled()) {
-        const duration = this.currentSession.endTime! - this.currentSession.startTime;
-        this.debugLogger.logSessionSummary(
-          this.currentSession.id,
-          this.currentSession.totalPages,
-          this.currentSession.maxDepthReached,
-          duration,
-          this.currentSession.status
-        );
-      }
-
-      // Show results to user
-      if (this.ui) {
-        this.ui.updateStatus('Results saved successfully!', 'success');
-        this.ui.updateProgress(100, 'Complete');
-
-        // Wait a moment before showing results
-        setTimeout(async () => {
-          this.cleanup();
-          await this.resultOutputService.openResult(htmlPath);
-
-          // Show summary
-          console.log('\n' + chalk.green.bold('🎉 Research Complete!'));
-          console.log(chalk.white(`Query: "${this.currentSession!.query}"`));
-          console.log(chalk.white(`Status: ${this.currentSession!.status}`));
-          console.log(chalk.white(`Pages Processed: ${this.currentSession!.totalPages}`));
-          console.log(chalk.white(`Max Depth: ${this.currentSession!.maxDepthReached}`));
-
-          if (this.currentSession!.confidence !== undefined) {
-            console.log(chalk.white(`Confidence: ${(this.currentSession!.confidence * 100).toFixed(1)}%`));
-          }
-
-          if (this.debugLogger.isEnabled()) {
-            console.log(chalk.yellow(`\n📝 Debug log: ${this.debugLogger.getLogFilePath()}`));
-          }
-
-          process.exit(0);
-        }, 2000);
-      }
-
-    } catch (error) {
-      this.ui?.updateStatus(`Failed to save results: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
-    }
-  }
 
   async showConfig(): Promise<void> {
     const config = this.config.getResearchConfig();
@@ -423,9 +170,6 @@ class MassResearchCLI {
     }
   }
 
-  getResearchConfig() {
-    return this.config.getResearchConfig();
-  }
 }
 
 // CLI Program
@@ -438,33 +182,14 @@ program
   .version('1.0.0');
 
 program
-  .command('research [query]')
-  .description('Start a research session (interactive or direct based on config)')
-  .option('-d, --direct', 'Force direct mode (skip UI)')
-  .option('-i, --interactive', 'Force interactive mode (use UI)')
-  .action(async (query?: string, options?: { direct?: boolean; interactive?: boolean }) => {
-    const researchConfig = cli.getResearchConfig();
-
-    // Determine mode
-    const shouldUseDirect = options?.direct ||
-      (options?.interactive ? false : !researchConfig.interactiveMode);
-
-    if (shouldUseDirect) {
-      if (!query) {
-        console.log(chalk.red('❌ Query is required for direct mode'));
-        console.log(chalk.yellow('💡 Usage: mass-research research "your query" --direct'));
-        process.exit(1);
-      }
-      await cli.startDirectResearch(query);
-    } else {
-      await cli.startInteractiveResearch();
-    }
-  });
-
-program
-  .command('direct <query>')
-  .description('Start direct research mode (no UI, immediate processing)')
+  .command('research <query>')
+  .description('Start a direct research session')
   .action(async (query: string) => {
+    if (!query || !query.trim()) {
+      console.log(chalk.red('❌ Query is required'));
+      console.log(chalk.yellow('💡 Usage: mass-research research "your query"'));
+      process.exit(1);
+    }
     await cli.startDirectResearch(query);
   });
 
@@ -574,8 +299,8 @@ program
 
 // Default action
 if (process.argv.length === 2) {
-  // No command provided, start interactive research
-  cli.startInteractiveResearch();
+  // No command provided, show help
+  program.help();
 } else {
   program.parse(process.argv);
 }

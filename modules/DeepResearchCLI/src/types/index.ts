@@ -12,10 +12,13 @@ export interface ResearchConfig {
   enableDeepLinkCrawling: boolean;
   maxLinksPerPage: number;
   deepCrawlDepth: number;
+  aiDrivenCrawling: boolean;
+  aiLinkRanking: boolean;
+  aiCompletenessCheck: boolean;
 }
 
 export interface AIConfig {
-  provider: 'litellm' | 'vertex';
+  provider: 'litellm' | 'vertex' | 'anthropic';
   apiKey?: string;
   baseUrl?: string;
   modelId: string;
@@ -43,6 +46,13 @@ export interface PageData {
   fetchTime: number;
   processingTime: number;
   error?: string;
+  metadata?: {
+    duration?: number;
+    isPdf?: boolean;
+    pdfPages?: number;
+    pdfInfo?: any;
+    [key: string]: any;
+  };
 }
 
 export interface ExtractedLink {
