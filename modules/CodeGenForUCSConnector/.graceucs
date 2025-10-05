@@ -1,0 +1,420 @@
+# UCS Connector Service Agent - GRACE-UCS
+
+# Connector Integration for UCS (Universal Connector Service)
+
+GRACE-UCS is an AI-assisted system for comprehensive UCS connector development supporting RESUMABLE development from ANY implementation state.
+
+🎯 CORE CAPABILITIES:
+- NEW IMPLEMENTATIONS: Complete connector development from scratch
+- RESUME PARTIAL WORK: Continue from where developers stopped
+- ADD FEATURES: Extend existing connectors with new payment methods/flows
+- DEBUG & FIX: Diagnose and resolve issues in existing implementations
+- ALL PAYMENT METHODS: Cards, wallets, bank transfers, BNPL, crypto, regional methods
+- COMPLETE FLOW COVERAGE: Authorize, capture, void, refund, sync, webhooks, 3DS, mandates
+
+🏗️ UCS ARCHITECTURE REQUIREMENTS [CRITICAL]:
+- ALWAYS use RouterDataV2 (NOT RouterData) - from domain_types::router_data_v2::RouterDataV2
+- ALWAYS use ConnectorIntegrationV2 (NOT ConnectorIntegration) - from interfaces::connector_integration_v2::ConnectorIntegrationV2
+- ALWAYS import from domain_types (NOT hyperswitch_domain_models)
+- Use macros::create_all_prerequisites! macro for flow implementations
+- Use connector trait implementations like connector_types::PaymentAuthorizeV2, PaymentSyncV2, etc.
+- gRPC-first communication (Protocol Buffers)
+- Stateless design (no database dependencies in connector logic)
+- Generic connector struct with PaymentMethodDataTypes: Connector<T> where T: PaymentMethodDataTypes
+
+📋 USAGE SCENARIOS:
+
+NEW CONNECTOR:
+Command: "integrate [ConnectorName] using grace-ucs/.gracerules"
+Process: 
+1. Use add_connector.sh to generate boilerplate
+2. Follow tech_spec.md → planner_steps.md → implementation
+3. Implement actual logic in transformers and main files
+
+RESUME PARTIAL:
+Command: "continue implementing [ConnectorName] connector in UCS - I have [existing_features] and need [missing_features]"
+Process: assess current state → plan remaining work → implement
+
+ADD FEATURES:
+Command: "add [payment_methods/flows] to existing [ConnectorName] connector in UCS"
+Process: analyze existing code → plan additions → implement features
+
+DEBUG/FIX:
+Command: "fix [ConnectorName] connector [issue_description] in UCS"
+Process: diagnose issue → plan fix → implement solution
+
+TEMPLATE GENERATION:
+Command: "./connector_template/add_connector.sh [connector_name] [base_url]"
+Purpose: Generates complete boilerplate code structure with all required files and registrations
+Note: AI MUST check if template files already exist before running script
+
+[MUST READ ALL FILES FIRST BEFORE ANY IMPLEMENTATION]
+
+📁 STRUCTURE:
+grace-ucs/
+├── guides/
+│   ├── connector_integration_guide.md - COMPREHENSIVE UCS integration process [MUST FOLLOW]
+│   ├── patterns/pattern_authorize.md - UCS-specific implementation patterns [ESSENTIAL]
+│   ├── types/types.md - Complete UCS type system guide [CRITICAL]
+│   ├── errors/errors.md - UCS error handling and debugging [ESSENTIAL]
+│   ├── learnings/learnings.md - Lessons from UCS implementations [IMPORTANT]
+│   └── integrations/integrations.md - Previous UCS integration knowledge [REFERENCE]
+├── connector_integration/
+│   └── template/
+│       ├── tech_spec.md - UCS technical specification template [USE FOR PLANNING]
+│       └── planner_steps.md - UCS implementation planning template [USE FOR EXECUTION]
+└── references/{{connector_name}}/ - Connector-specific API documentation
+
+💎 IMPLEMENTATION PRINCIPLES:
+
+1. STATE ASSESSMENT FIRST:
+   - ALWAYS check if connector template files already exist:
+     * backend/connector-integration/src/connectors/[name].rs
+     * backend/connector-integration/src/connectors/[name]/transformers.rs
+   - If templates exist: skip template generation, analyze existing implementation
+   - If templates missing: use ./connector_template/add_connector.sh FIRST
+   - For partial implementations: analyze existing code, identify completed/missing features
+   - For new implementations: check templates → generate if needed → follow tech specification
+   - For debugging: understand the issue context and current behavior
+
+2. COMPREHENSIVE PAYMENT METHOD SUPPORT:
+   - Cards: All networks (Visa, MC, Amex, Discover, etc.)
+   - Wallets: Apple Pay, Google Pay, PayPal, regional wallets
+   - Bank Transfers: ACH, SEPA, local bank methods
+   - BNPL: Klarna, Affirm, Afterpay, regional providers
+   - Bank Redirects: iDEAL, Giropay, Sofort, etc.
+   - Cash/Vouchers: Boleto, OXXO, convenience stores
+   - Crypto: Bitcoin, Ethereum (if supported)
+   - Regional: UPI, Alipay, WeChat Pay, etc.
+
+3. COMPLETE FLOW COVERAGE (EACH FLOW INDEPENDENT):
+   - Core: Authorize, Capture, Void, Refund, PSync, RSync
+   - Advanced: CreateOrder, CreateSessionToken, SetupMandate
+   - Webhooks: IncomingWebhook trait implementation
+   - Disputes: DefendDispute, SubmitEvidence (if supported)
+   - **CRITICAL: Each flow implemented independently with no cross-flow dependencies**
+
+4. UCS-SPECIFIC PATTERNS:
+   - Main file: backend/connector-integration/src/connectors/{{connector_name}}.rs
+   - Transformers: backend/connector-integration/src/connectors/{{connector_name}}/transformers.rs
+   - Add connector to: backend/connector-integration/src/connectors.rs (pub mod and pub use)
+   - Generic struct pattern: pub struct ConnectorName<T> with PhantomData<T>
+   - Trait implementations for each flow using connector_types traits
+   - Use macros::create_all_prerequisites! for boilerplate flow implementations
+   - **FOCUS ONLY ON IMPLEMENTATION CODE**: Do NOT create or implement test files
+   - **TESTING IS SEPARATE**: Test files are handled by developers/QA team, not AI
+
+5. MODULAR IMPLEMENTATION:
+   - Each payment method as separate module
+   - **EACH FLOW COMPLETELY INDEPENDENT** - no dependencies between flows
+   - Each flow can be implemented, tested, and deployed separately
+   - Authorize flow independent of Capture flow
+   - Capture flow independent of Void flow
+   - Refund flow independent of all payment flows
+   - Sync flows independent of transaction flows
+   - Proper error handling for each component
+   - Comprehensive testing for each feature
+
+6. RESUMABLE DEVELOPMENT:
+   - Clear progress tracking and state documentation
+   - **UPDATE planner steps with completion status and implementation details**
+   - Modular code organization for easy continuation
+   - Comprehensive comments for implementation context
+   - Test coverage for regression prevention
+   - **Mark each completed step with: [✅ COMPLETED] + detailed description of what was implemented**
+
+🔄 PROCESS WORKFLOW:
+
+ASSESSMENT PHASE:
+1. Read ALL grace-ucs guide files
+2. CHECK if connector template files exist (skip generation if present)
+3. **STUDY existing UCS connectors for reference patterns (adyen.rs, razorpayv2.rs, checkout.rs)**
+4. Analyze current implementation state (if resuming)
+5. Review connector API documentation
+6. Identify implementation priorities
+
+PLANNING PHASE:
+1. IF templates missing: generate using ./connector_template/add_connector.sh
+2. Use tech_spec.md template for technical specification
+3. Use planner_steps.md template for implementation planning
+4. Create detailed step-by-step plan
+5. Define success criteria and testing strategy
+
+IMPLEMENTATION PHASE:
+1. Follow UCS patterns from pattern_authorize.md
+2. Use types from types.md
+3. **WHEN STUCK: Study existing connector patterns, understand WHY they work that way**
+4. **FOCUS ON IMPLEMENTATION CODE ONLY** - do NOT create test files
+5. Implement in modular chunks (main connector file + transformers)
+6. Verify compilation and basic functionality
+7. **ASK FOR FEEDBACK** after each flow implementation (optional for user)
+8. **STORE FEEDBACK** in learnings for future improvement
+9. **MARK COMPLETED STEPS** in planner with implementation details
+10. Update documentation during implementation
+
+VALIDATION PHASE:
+1. **CODE COMPILATION**: Verify code compiles with cargo check
+2. **PATTERN COMPLIANCE**: Ensure UCS patterns are followed correctly
+3. **DOCUMENTATION**: Complete implementation documentation
+4. **NOTE**: Testing is handled separately by developers/QA team
+
+📊 SUCCESS CRITERIA:
+- ✅ All supported payment methods implemented
+- ✅ All core flows implemented (auth, capture, void, refund, sync)
+- ✅ Proper error handling and mapping
+- ✅ Code compiles successfully with cargo check
+- ✅ UCS patterns followed correctly
+- ✅ Webhook implementation (if supported)
+- ✅ Production-ready code quality
+- ✅ Complete implementation documentation
+- **NOTE**: Testing coverage handled separately by QA team
+
+🏛️ UCS IMPLEMENTATION ARCHITECTURE [VERIFIED FROM CODEBASE]:
+
+CONNECTOR STRUCT PATTERN:
+```rust
+#[derive(Clone)]
+pub struct ConnectorName<T> {
+    pub(crate) amount_converter: &'static (dyn AmountConvertor<Output = MinorUnit> + Sync),
+    _phantom: std::marker::PhantomData<T>,
+}
+
+impl<T> ConnectorName<T> {
+    pub const fn new() -> &'static Self {
+        &Self {
+            amount_converter: &common_utils::types::MinorUnitForConnector,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+```
+
+TRAIT IMPLEMENTATIONS (Required for each connector):
+```rust
+impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
+    connector_types::PaymentAuthorizeV2<T> for ConnectorName<T> {}
+
+impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
+    connector_types::PaymentSyncV2 for ConnectorName<T> {}
+
+impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
+    connector_types::RefundV2<T> for ConnectorName<T> {}
+
+impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
+    connector_types::PaymentCapture for ConnectorName<T> {}
+
+impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
+    connector_types::PaymentVoidV2 for ConnectorName<T> {}
+
+// Add other flows as needed: SetupMandateV2, RepeatPaymentV2, etc.
+```
+
+MACROS USAGE (Critical for UCS):
+```rust
+macros::create_all_prerequisites!(
+    connector_name: ConnectorName,
+    generic_type: T,
+    api: [
+        (
+            flow: Authorize,
+            request_body: ConnectorPaymentRequest<T>,
+            response_body: ConnectorPaymentResponse,
+            router_data: RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>,
+        ),
+        (
+            flow: Capture,
+            request_body: ConnectorCaptureRequest,
+            response_body: ConnectorCaptureResponse,
+            router_data: RouterDataV2<Capture, PaymentFlowData, PaymentsCaptureData, PaymentsResponseData>,
+        ),
+        // Add all other flows...
+    ]
+);
+```
+
+MODULE REGISTRATION (Required):
+```rust
+// In backend/connector-integration/src/connectors.rs
+pub mod connector_name;
+pub use self::connector_name::ConnectorName;
+```
+
+**IMPLEMENTATION FOCUS**:
+- **ONLY**: Main connector file and transformers 
+- **NOT**: Test files (handled separately by QA team)
+
+⚡ CONNECTOR TEMPLATE SYSTEM [CRITICAL]:
+
+BOILERPLATE GENERATION:
+- ALWAYS use ./connector_template/add_connector.sh to generate initial structure
+- Script automatically creates: main file, transformers, protobuf enum, domain types, module registration
+- Handles all file modifications and registrations automatically
+- Template includes ALL required trait implementations (empty stubs)
+- Template provides proper UCS structure with generic types
+
+TEMPLATE OUTPUT:
+- Creates: backend/connector-integration/src/connectors/[name].rs
+- Creates: backend/connector-integration/src/connectors/[name]/transformers.rs  
+- Updates: backend/grpc-api-types/proto/payment.proto (adds enum)
+- Updates: backend/domain_types/src/connector_types.rs (adds mapping)
+- Updates: backend/connector-integration/src/connectors.rs (adds module)
+- Updates: backend/connector-integration/src/types.rs (adds connector)
+- Updates: config/development.toml (adds config section)
+
+IMPLEMENTATION FOCUS:
+After template generation, implement actual logic in:
+1. transformers.rs - Request/response transformations, payment method handling
+2. main file - Specific flow implementations (replace empty stubs)
+3. Add proper authentication, error handling, URL patterns
+
+🚨 CRITICAL REMINDERS:
+- ALWAYS use ./connector_template/add_connector.sh for new connectors FIRST
+- Template provides correct UCS structure - DON'T recreate manually
+- NEVER use traditional Hyperswitch patterns (RouterData, ConnectorIntegration)
+- ALWAYS use UCS patterns (RouterDataV2, ConnectorIntegrationV2, domain_types)
+- Template creates generic connector struct: pub struct Connector<T: PaymentMethodDataTypes>
+- Template includes ALL required trait implementations as empty stubs
+- Template handles all module registrations and protobuf updates
+- IMPLEMENT actual logic in generated template files (don't start from scratch)
+- **EACH FLOW MUST BE COMPLETELY INDEPENDENT** - no shared state or dependencies between flows
+- **IMPLEMENT flows separately** - can implement Authorize without Capture, Refund without Authorize, etc.
+- **FLOW INDEPENDENCE PRINCIPLE**: Each ConnectorIntegrationV2 implementation stands alone
+- **REUSE COMMON CODE**: Use ConnectorCommon methods for headers, auth, errors - DON'T duplicate code
+- **NO CODE DUPLICATION**: Authentication, content-type, error handling shared across all flows
+- **WHEN STUCK: Reference existing UCS connectors for patterns, DON'T copy code directly**
+- **PATTERN LEARNING**: Study existing connector implementations (adyen.rs, razorpayv2.rs, etc.) for architectural patterns
+- **VERIFY PATTERNS**: Understand WHY existing connectors use specific patterns before applying
+- **AFTER EACH FLOW IMPLEMENTATION: Ask for optional user feedback on code quality**
+- **FEEDBACK STORAGE: Store positive/negative feedback in grace-ucs/guides/learnings/learnings.md**
+- **REWARD LEARNING: Use accumulated feedback to improve future implementations**
+- **AFTER EACH IMPLEMENTATION STEP: Update planner file with [✅ COMPLETED] status and detailed description**
+- **PROGRESS TRACKING FORMAT: "- [✅ COMPLETED] Step Name: Implemented [specific_details] in [file_location]"**
+- **DO NOT CREATE TEST FILES** - focus only on implementation code (connector + transformers)
+- IMPLEMENT ValidationTrait if connector needs special validation (like order creation)
+- UPDATE all guide files with learnings during implementation
+- CREATE continuation documentation for future development
+- MAINTAIN modular structure for easy feature additions
+- **VALIDATION**: Ensure code compiles and follows UCS patterns, testing handled separately
+
+🧠 PATTERN LEARNING & TROUBLESHOOTING [CRITICAL]:
+
+WHEN IMPLEMENTATION GETS STUCK OR UNCLEAR:
+1. **STUDY EXISTING UCS CONNECTORS** for similar patterns:
+   - backend/connector-integration/src/connectors/adyen.rs (comprehensive implementation)
+   - backend/connector-integration/src/connectors/razorpayv2.rs (modern patterns)
+   - backend/connector-integration/src/connectors/checkout.rs (good examples)
+   - backend/connector-integration/src/connectors/[others].rs
+
+2. **PATTERN ANALYSIS PROCESS**:
+   - Read existing connector's main file for overall structure
+   - Study transformers.rs for request/response patterns
+   - Understand authentication patterns
+   - Analyze error handling approaches
+   - Review payment method handling strategies
+
+3. **DON'T COPY - UNDERSTAND**:
+   - ❌ NEVER directly copy code from existing connectors
+   - ✅ UNDERSTAND the pattern and WHY it's used
+   - ✅ ADAPT the pattern for your specific connector's API
+   - ✅ VERIFY the pattern fits your connector's requirements
+
+4. **SPECIFIC LEARNING AREAS**:
+   - **Authentication**: How do other connectors handle auth headers?
+   - **Request Building**: How do they structure API requests?
+   - **Response Parsing**: How do they handle API responses?
+   - **Error Mapping**: How do they map connector errors to UCS errors?
+   - **Payment Methods**: How do they handle different payment types?
+   - **URL Building**: How do they construct API endpoints?
+
+5. **TROUBLESHOOTING WORKFLOW**:
+   ```
+   STUCK? → Study similar pattern in existing connector → Understand WHY → Adapt for your connector → Test → Continue
+   ```
+
+6. **REFERENCE CONNECTORS BY USE CASE**:
+   - **Complex flows**: Adyen (has most comprehensive implementation)
+   - **Modern patterns**: RazorpayV2 (uses latest UCS patterns)
+   - **Simple structure**: Checkout (clean, straightforward implementation)
+   - **Error handling**: Review multiple connectors for error mapping patterns
+   - **Payment methods**: Study how different connectors handle various payment types
+
+REMEMBER: The goal is to LEARN patterns and UNDERSTAND architectural decisions, not to copy code.
+
+🎯 FEEDBACK & REWARD LEARNING SYSTEM [CRITICAL]:
+
+AFTER EACH FLOW IMPLEMENTATION:
+1. **ASK FOR OPTIONAL FEEDBACK**: 
+   - "Would you like to provide feedback on the [FlowName] implementation? (Optional - you can skip)"
+   - "Rate the code quality: Good/Needs Improvement/Bad"
+   - "Any specific comments on the implementation approach?"
+
+2. **FEEDBACK COLLECTION PRINCIPLES**:
+   - ✅ ALWAYS make feedback optional - never force user to respond
+   - ✅ Ask only after completing a significant flow (Authorize, Capture, Refund, etc.)
+   - ✅ Keep feedback requests brief and non-intrusive
+   - ✅ Accept "skip" or no response as valid
+   - ❌ DON'T ask for feedback on minor code changes
+   - ❌ DON'T pressure user to provide feedback
+
+3. **FEEDBACK STORAGE FORMAT**:
+   Store ALL feedback in grace-ucs/guides/learnings/learnings.md:
+   ```
+   ## User Feedback Log
+   
+   ### [DATE] [CONNECTOR_NAME] - [FLOW_NAME] Implementation
+   **Feedback**: [Positive/Negative/Neutral]
+   **Rating**: [Good/Needs Improvement/Bad]
+   **Comments**: [User's specific comments]
+   **Implementation Details**: [What was implemented]
+   **Lessons**: [What this teaches us for future implementations]
+   ```
+
+4. **REWARD LEARNING APPLICATION**:
+   - **Positive Feedback**: Note successful patterns, reuse in future implementations
+   - **Negative Feedback**: Identify improvement areas, avoid similar approaches
+   - **Neutral/No Feedback**: Continue with current approach
+   - **Pattern Recognition**: Identify what users consistently like/dislike
+
+5. **FEEDBACK CATEGORIES TO TRACK**:
+   - **Code Structure**: Clean organization, readability
+   - **Error Handling**: Comprehensive error mapping and handling
+   - **Performance**: Efficient request/response processing
+   - **Maintainability**: Easy to understand and modify
+   - **UCS Compliance**: Following UCS patterns correctly
+
+6. **LEARNING EVOLUTION**:
+   - **Week 1**: Basic pattern following
+   - **Week 2**: Incorporating initial feedback
+   - **Month 1**: Refined patterns based on user preferences
+   - **Month 3**: Highly optimized implementations based on accumulated learning
+
+7. **SAMPLE FEEDBACK REQUEST**:
+   ```
+   🎯 Optional Feedback Request:
+   
+   I've completed the Authorize flow implementation for [ConnectorName]. 
+   The code includes:
+   - Request transformation for card payments
+   - Response handling with proper status mapping
+   - Error handling for common failure scenarios
+   
+   Would you like to provide feedback? (Feel free to skip if you prefer)
+   - How does the code quality look?
+   - Any suggestions for improvement?
+   ```
+
+8. **FEEDBACK INTEGRATION WORKFLOW**:
+   ```
+   Implement Flow → Test → Ask Optional Feedback → Store Response → Apply Learning → Continue Next Flow
+   ```
+
+BENEFITS:
+- **Continuous Improvement**: AI gets better with each implementation
+- **User-Centric**: Code quality aligns with user preferences
+- **Pattern Recognition**: Identifies successful vs unsuccessful approaches
+- **Knowledge Base**: Builds repository of what works well in UCS context
+
+[Update all guide files based on learnings during the integration process]
+[Create connector-specific folders under connector_integration/ for each implementation]
+[Always reference existing UCS connectors for pattern examples - STUDY, don't copy]
+[Store user feedback to improve future implementations - OPTIONAL feedback only]

@@ -1,0 +1,82 @@
+use_default_settings: true
+
+general:
+  debug: false
+  instance_name: "MASS Research SearxNG"
+  contact_url: false
+  enable_metrics: false
+
+search:
+  safe_search: 0
+  default_lang: "en"
+  formats:
+    - html
+    - json
+    - rss
+  default_https: true
+  autocomplete: ""
+
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "mass-research-cli-secret-key"
+  limiter: false
+  public_instance: false
+  # Enable API access
+  method: "GET"
+  http_protocol_version: "1.1"
+
+ui:
+  # Minimize UI for API-focused usage
+  static_use_hash: true
+  default_theme: simple
+  query_in_title: false
+  infinite_scroll: false
+  center_alignment: false
+
+# API Configuration
+outgoing:
+  request_timeout: 5.0
+  useragent_suffix: " (GRACE-CLI-Research)"
+  max_request_timeout: 10.0
+
+# Enable JSON API responses
+enabled_plugins:
+  - "HTTPS rewrite"
+  - "Self Information"
+  - "Tracker URL remover"
+
+engines:
+  # Core search engines for API use
+  - name: google
+    engine: google
+    shortcut: g
+    use_mobile_ui: false
+
+  - name: bing
+    engine: bing
+    shortcut: b
+
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+
+  - name: github
+    engine: github
+    shortcut: gh
+    categories: it
+
+  - name: stackoverflow
+    engine: stackoverflow
+    shortcut: so
+    categories: it
+
+# Disable engines that might cause API issues
+disabled_engines:
+  - wikidata
+  - mediawiki
+  - openstreetmap
