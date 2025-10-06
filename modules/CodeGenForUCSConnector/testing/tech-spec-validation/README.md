@@ -220,7 +220,52 @@ After fixes: Estimated 100%
 ```
 
 ### 7. Feedback Loop with Auto-Fix
-If validation fails, AI offers options:
+
+#### **Special Case: Authentication Errors (401/403)**
+
+If validation fails with authentication errors, AI handles differently:
+
+```
+⚠️  Authentication Failed (HTTP 401)
+
+Error from API: "Invalid API key provided"
+
+This could be:
+1. Invalid credentials (wrong API key/secret)
+2. Incorrect auth header format in tech spec
+
+Please verify your credentials are correct:
+- Are you using TEST/SANDBOX credentials?
+- Is the API key active and valid?
+- Does the API key have required permissions?
+
+Options:
+[R] Retry with new credentials
+[F] Fix auth format in tech spec (if credentials are definitely correct)
+[C] Cancel validation
+
+Your choice (R/F/C):
+```
+
+**If [R] Retry with new credentials:**
+1. AI asks for corrected credentials
+2. Updates credentials.json
+3. Re-runs failed test with new credentials
+4. If still fails, offers [F] or [C] options
+
+**If [F] Fix auth format:**
+1. AI analyzes error messages
+2. Updates auth header format in tech spec
+3. Regenerates curl scripts
+4. Re-runs tests
+
+**If [C] Cancel:**
+1. Validation stops
+2. User can fix credentials manually
+
+#### **Other Validation Failures**
+
+For non-authentication errors, AI offers options:
 
 ```
 ⚠️  Tech Spec Validation Failed (Attempt 1/3)
@@ -242,7 +287,7 @@ Your choice (A/M/P/C):
 2. Regenerates curl scripts from updated tech spec
 3. Re-runs all 6 tests
 4. Shows updated validation results
-5. Maximum 3 attempts
+5. Maximum 3 attempts (excluding credential retries)
 
 **If [M] Manual:**
 1. User updates tech spec manually
@@ -344,6 +389,9 @@ AI can automatically fix most common tech spec issues.
 
 ### 6. Validated Blueprint
 Implementation can trust the validated tech spec completely.
+
+### 7. Credential Verification
+Special handling for authentication errors - AI asks user to verify/update credentials before assuming tech spec is wrong, preventing false auto-fixes.
 
 ## Example Workflow
 

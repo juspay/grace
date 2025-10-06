@@ -19,15 +19,17 @@ Define comprehensive validation criteria for determining tech spec credibility b
 
 #### ❌ Fail Indicators & Root Causes
 
-| HTTP Code | Issue | Tech Spec Problem | Auto-Fixable |
-|-----------|-------|-------------------|--------------|
-| 400 Bad Request | Request body malformed | Wrong request format or missing required fields | ⚠️ Partial |
-| 401 Unauthorized | Authentication failed | Wrong auth header format or invalid credentials | ❌ No (check creds) |
-| 403 Forbidden | Access denied | Missing permissions or wrong API endpoint | ❌ No |
-| 404 Not Found | Endpoint doesn't exist | Wrong endpoint path in tech spec | ✅ Yes (from error msg) |
-| 405 Method Not Allowed | Wrong HTTP method | Tech spec has wrong method (GET vs POST) | ✅ Yes |
-| 422 Unprocessable Entity | Validation failed | Missing required field or wrong data type | ✅ Yes (from error details) |
-| 500 Internal Server Error | API error | Malformed request or API issue | ⚠️ Maybe |
+| HTTP Code | Issue | Tech Spec Problem | Auto-Fixable | Special Handling |
+|-----------|-------|-------------------|--------------|------------------|
+| 400 Bad Request | Request body malformed | Wrong request format or missing required fields | ⚠️ Partial | - |
+| 401 Unauthorized | Authentication failed | Wrong auth header format OR invalid credentials | ⚠️ Conditional | **Ask user to verify credentials first** |
+| 403 Forbidden | Access denied | Missing permissions OR invalid credentials | ⚠️ Conditional | **Ask user to verify credentials first** |
+| 404 Not Found | Endpoint doesn't exist | Wrong endpoint path in tech spec | ✅ Yes | - |
+| 405 Method Not Allowed | Wrong HTTP method | Tech spec has wrong method (GET vs POST) | ✅ Yes | - |
+| 422 Unprocessable Entity | Validation failed | Missing required field or wrong data type | ✅ Yes | - |
+| 429 Too Many Requests | Rate limit exceeded | Too many test requests | ❌ No | Add delay and retry |
+| 500 Internal Server Error | API error | Malformed request or API issue | ⚠️ Maybe | - |
+| 503 Service Unavailable | API maintenance | Temporary unavailability | ❌ No | Retry later |
 
 **Example Validation:**
 ```bash
@@ -40,7 +42,7 @@ HTTP_CODE=200
 # Result: ✅ PASS
 ```
 
-**Example Failure:**
+**Example Failure (Endpoint Error):**
 ```bash
 # Expected
 success_status_codes: [200]
@@ -54,6 +56,44 @@ Issue: Endpoint path incorrect
 Tech spec says: /v1/payments/{id}/void
 Should be: /v1/payments/{id}/cancel
 Auto-fix: ✅ YES
+```
+
+**Example Failure (Authentication Error - SPECIAL HANDLING):**
+```bash
+# Actual
+HTTP_CODE=401
+Error: "Invalid API key provided"
+
+# ⚠️ CRITICAL: DO NOT AUTO-FIX IMMEDIATELY
+# This could be:
+# 1. Wrong credentials (most common)
+# 2. Wrong auth header format
+
+# Required Action:
+Ask user:
+  ⚠️  Authentication Failed (HTTP 401)
+
+  Error from API: "Invalid API key provided"
+
+  This could be:
+  1. Invalid credentials (wrong API key/secret)
+  2. Incorrect auth header format in tech spec
+
+  Please verify your credentials are correct:
+  - Are you using TEST/SANDBOX credentials?
+  - Is the API key active and valid?
+  - Does the API key have required permissions?
+
+  Options:
+  [R] Retry with new credentials
+  [F] Fix auth format in tech spec (if credentials are definitely correct)
+  [C] Cancel validation
+
+  Your choice (R/F/C):
+
+# If user chooses [R]: Request new credentials and retry same test
+# If user chooses [F]: Only then auto-fix auth format in tech spec
+# If user chooses [C]: Stop validation
 ```
 
 ---

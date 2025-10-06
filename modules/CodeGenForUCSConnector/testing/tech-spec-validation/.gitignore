@@ -22,3 +22,4 @@ test_scripts/
 !*.template
 !*.json.template
 !README.md
+!CREDENTIAL_HANDLING.md

@@ -318,11 +318,41 @@ WORKFLOW:
 
    **Common Issues to Detect:**
    - 404 Not Found → Wrong endpoint path in tech spec
-   - 401 Unauthorized → Wrong auth format in tech spec
+   - 401 Unauthorized → **SPECIAL CASE: Check credentials first, then auth format**
+   - 403 Forbidden → **SPECIAL CASE: Invalid credentials or insufficient permissions**
    - 400 Bad Request → Wrong request body format in tech spec
    - 422 Unprocessable → Missing required field in tech spec
    - Missing field → Wrong field name in tech spec
    - Unknown status → Missing status mapping in tech spec
+
+   **CRITICAL: 401/403 Authentication Errors Require Special Handling:**
+   When you receive 401 Unauthorized or 403 Forbidden errors:
+   1. ❌ DO NOT auto-fix tech spec immediately
+   2. ✅ First ask user to verify credentials:
+      ```
+      ⚠️  Authentication Failed (HTTP 401/403)
+
+      This could be:
+      1. Invalid credentials (wrong API key/secret)
+      2. Incorrect auth header format in tech spec
+
+      Error from API: {{error_message}}
+
+      Please verify your credentials are correct:
+      - Are you using TEST/SANDBOX credentials?
+      - Is the API key active and valid?
+      - Does the API key have required permissions?
+
+      Options:
+      [R] Retry with new credentials
+      [F] Fix auth format in tech spec (if credentials are definitely correct)
+      [C] Cancel validation
+
+      Your choice (R/F/C):
+      ```
+   3. If user chooses [R]: Ask for new credentials and retry
+   4. If user chooses [F]: Auto-fix auth format in tech spec
+   5. If user confirms credentials are correct but still getting 401/403: Then it's a tech spec auth format issue
 
 6. **GENERATE CREDIBILITY REPORT**:
    Create detailed validation report at:
@@ -374,11 +404,16 @@ WORKFLOW:
      * Correct field names (from actual response structure)
      * Add missing status mappings (from actual response values)
      * Update required fields (from 422 errors)
+     * Fix auth header format (from 401 errors - ONLY if credentials confirmed correct)
    - Regenerate curl scripts from updated tech spec
    - Re-run all 6 tests
    - Generate new credibility report
    - Show updated results
    - Repeat up to 3 times total
+
+   **IMPORTANT: Before auto-fixing 401/403 errors:**
+   - ALWAYS ask user to verify credentials first
+   - Only fix auth format if user confirms credentials are definitely correct
 
    **IF USER CHOOSES [M] MANUAL:**
    - Wait for user to update tech spec
