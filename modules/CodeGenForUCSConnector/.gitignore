@@ -1,0 +1,14 @@
+# Tech Spec Validation Testing
+# Never commit API credentials or sensitive test data
+testing/tech-spec-validation/*/credentials.json
+testing/tech-spec-validation/*/responses/
+testing/tech-spec-validation/*/state.json
+testing/tech-spec-validation/*/test_scripts/
+
+# Keep credibility reports for reference
+!testing/tech-spec-validation/*/credibility_report.md
+
+# Keep templates and documentation
+!testing/tech-spec-validation/*.md
+!testing/tech-spec-validation/*.template
+!testing/tech-spec-validation/.gitignore

@@ -32,6 +32,16 @@ Integration of the {{connector_name}} connector to UCS connector-service
 13. **Webhook Support**: Implement complete webhook handling if supported
 14. **Resumable Development**: Structure for easy continuation if partially implemented
 15. **Documentation**: Include comprehensive implementation notes
+16. **🆕 Tech Spec Validation**: RECOMMENDED (but optional) - Include structured YAML sections for API validation testing:
+   - api_config with test_url
+   - auth with credential requirements and header formats
+   - Complete flow specifications with test_example request bodies
+   - Response structure with field names and status mappings
+
+   **YAML is preferred** because it enables easy parsing and tech spec credibility validation.
+   **If YAML not included**, AI will extract validation information from prose/Markdown using natural language understanding.
+
+   Either format works - YAML is easier to parse, prose requires NLP extraction.
 </project_rules>
 
 <reference_docs>
@@ -484,18 +494,226 @@ async fn test_all_payment_methods() {
 - [ ] Code documentation
 - [ ] Implementation state documentation
 
-## 10. References
+## 10. Tech Spec Validation YAML (Optional but Recommended)
 
-### 10.1 External Documentation
+**Purpose:** These YAML sections enable automated tech spec credibility validation by testing the spec against the real connector API before implementation.
+
+**Format Options:**
+- ✅ **Preferred**: Include structured YAML sections below (easy parsing, minimal errors)
+- ✅ **Alternative**: Skip YAML and describe in prose - AI will extract via natural language understanding
+
+### 10.1 API Configuration
+```yaml
+api_config:
+  # Test/sandbox environment URL for validation
+  test_url: "https://api.sandbox.{{connector_name}}.com"
+  production_url: "https://api.{{connector_name}}.com"  # For reference only
+```
+
+### 10.2 Authentication Configuration
+```yaml
+auth:
+  # Define all authentication headers/parameters
+  headers:
+    - name: "Authorization"
+      format: "Bearer {api_key}"  # {placeholders} for credentials
+      required: true
+      description: "Primary API key authentication"
+
+    - name: "X-API-Secret"  # If secondary credential needed
+      format: "{api_secret}"
+      required: false
+      description: "Optional secondary credential"
+
+    - name: "X-Merchant-ID"  # If additional identifier needed
+      format: "{key1}"
+      required: false
+      description: "Optional merchant identifier"
+```
+
+### 10.3 Flow Test Configurations
+
+For each supported flow, provide complete test configuration:
+
+#### Authorize Flow
+```yaml
+authorize:
+  method: "POST"
+  path: "/v1/payments"
+  request:
+    content_type: "application/json"  # or "application/x-www-form-urlencoded"
+    # CRITICAL: Provide complete working example request body
+    test_example: |
+      {
+        "amount": 1000,
+        "currency": "USD",
+        "payment_method": {
+          "type": "card",
+          "card": {
+            "number": "4242424242424242",
+            "exp_month": 12,
+            "exp_year": 2025,
+            "cvc": "123"
+          }
+        },
+        "capture_method": "manual",
+        "description": "GRACE-UCS validation test"
+      }
+  response:
+    success_status_codes: [200, 201]
+    id_field: "id"  # Field name containing payment ID
+    status_field: "status"  # Field name containing payment status
+    required_fields: ["id", "status", "amount"]  # Fields that must be present
+    status_mappings:
+      # Map connector status values to UCS types
+      "requires_capture": "Authorized"
+      "processing": "Processing"
+      "succeeded": "Charged"
+      "failed": "Failed"
+```
+
+#### Capture Flow
+```yaml
+capture:
+  method: "POST"
+  path: "/v1/payments/{payment_id}/capture"  # {payment_id} from authorize
+  url_params:
+    - payment_id: "From authorize response"  # Indicate dependency
+  request:
+    content_type: "application/json"
+    test_example: |
+      {
+        "amount": 1000
+      }
+  response:
+    success_status_codes: [200]
+    id_field: "id"
+    status_field: "status"
+    status_mappings:
+      "succeeded": "Charged"
+      "processing": "Processing"
+```
+
+#### Void Flow
+```yaml
+void:
+  method: "POST"
+  path: "/v1/payments/{payment_id}/cancel"
+  url_params:
+    - payment_id: "From fresh authorize"
+  request:
+    content_type: "application/json"
+    test_example: null  # If no body required
+  response:
+    success_status_codes: [200]
+    status_field: "status"
+    status_mappings:
+      "canceled": "Voided"
+```
+
+#### Refund Flow
+```yaml
+refund:
+  method: "POST"
+  path: "/v1/refunds"
+  request:
+    content_type: "application/json"
+    test_example: |
+      {
+        "payment_id": "{payment_id}",
+        "amount": 1000,
+        "reason": "requested_by_customer"
+      }
+  response:
+    success_status_codes: [200, 201]
+    id_field: "id"
+    status_field: "status"
+    status_mappings:
+      "succeeded": "Success"
+      "pending": "Pending"
+      "failed": "Failed"
+```
+
+#### Payment Sync Flow
+```yaml
+psync:
+  method: "GET"
+  path: "/v1/payments/{payment_id}"
+  url_params:
+    - payment_id: "From authorize"
+  request:
+    content_type: null  # GET request - no body
+    test_example: null
+  response:
+    success_status_codes: [200]
+    id_field: "id"
+    status_field: "status"
+    status_mappings:
+      "requires_capture": "Authorized"
+      "succeeded": "Charged"
+      "canceled": "Voided"
+```
+
+#### Refund Sync Flow
+```yaml
+rsync:
+  method: "GET"
+  path: "/v1/refunds/{refund_id}"
+  url_params:
+    - refund_id: "From refund"
+  request:
+    content_type: null
+    test_example: null
+  response:
+    success_status_codes: [200]
+    id_field: "id"
+    status_field: "status"
+    status_mappings:
+      "succeeded": "Success"
+      "pending": "Pending"
+      "failed": "Failed"
+```
+
+### 10.4 Validation Notes
+
+**When YAML is provided:**
+- AI extracts all information directly from structured YAML
+- Generates curl test scripts automatically
+- Validates tech spec against real API before implementation
+- High confidence in spec accuracy
+
+**When YAML is NOT provided:**
+- AI extracts information from prose/Markdown descriptions using NLP
+- Same validation capabilities, but extraction is more complex
+- Recommended to provide clear examples in prose
+
+**For validation to work, spec must include:**
+1. ✅ Test environment URL
+2. ✅ Auth header format (with {placeholder} for credentials)
+3. ✅ Complete working request body examples for each flow
+4. ✅ Response field names (id_field, status_field)
+5. ✅ Status value mappings to UCS types
+6. ✅ Expected success HTTP status codes
+
+---
+
+## 11. References
+
+### 11.1 External Documentation
 - [Connector API Documentation](link)
 - [Payment Methods Guide](link)
 - [Webhook Documentation](link)
 
-### 10.2 UCS Internal References
+### 11.2 UCS Internal References
 - grace-ucs/guides/connector_integration_guide.md
 - grace-ucs/guides/patterns/patterns.md
 - grace-ucs/guides/types/types.md
 - Similar UCS connectors: [List examples]
+
+### 11.3 Tech Spec Validation
+- testing/tech-spec-validation/README.md - Complete validation guide
+- testing/tech-spec-validation/curl_generator.md - Curl generation from spec
+- testing/tech-spec-validation/validation_rules.md - Validation criteria
 
 ---
 
@@ -507,6 +725,7 @@ async fn test_all_payment_methods() {
 4. **Resumable Implementation**: Structure for easy continuation
 5. **Production-Ready**: Include comprehensive error handling and testing
 6. **Type Safety**: Use UCS type system consistently throughout
+7. **🆕 Validation First**: YAML sections enable tech spec validation before implementation
 ```
 
 ---

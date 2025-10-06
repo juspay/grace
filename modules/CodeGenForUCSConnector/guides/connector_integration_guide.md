@@ -137,7 +137,153 @@ If resuming partial implementation:
 # Use: grace-ucs/connector_integration/template/planner_steps.md
 ```
 
-### Phase 2: Core Implementation
+### Phase 2: Tech Spec Credibility Validation 🆕
+
+**MANDATORY phase before implementation - validates tech spec against real API**
+
+#### Step 2.1: Provide Test Credentials
+
+After tech spec is generated, AI will request minimal credentials:
+
+```
+🔐 Tech Spec Credibility Validation
+
+Connector: {{connector_name}}
+Test URL: {{extracted_from_tech_spec}}
+
+Please provide test credentials:
+{
+  "api_key": "sk_test_xxxxx",
+  "api_secret": "optional_if_needed",
+  "key1": "optional_additional"
+}
+
+IMPORTANT: Use test/sandbox credentials only!
+```
+
+**User provides only 3 values** - everything else comes from tech spec.
+
+#### Step 2.2: Curl Test Generation
+
+AI automatically generates 6 curl test scripts by extracting from tech spec:
+
+- `01_authorize.sh` - Tests authorization endpoint
+- `02_capture.sh` - Tests capture endpoint
+- `03_void.sh` - Tests void/cancel endpoint
+- `04_refund.sh` - Tests refund endpoint
+- `05_psync.sh` - Tests payment status retrieval
+- `06_rsync.sh` - Tests refund status retrieval
+
+Each script contains:
+- Base URL from `api_config.test_url`
+- Endpoint path from flow spec
+- Auth headers from `auth.headers` with user credentials
+- Request body from `flow.request.test_example`
+
+#### Step 2.3: Test Execution
+
+Tests run sequentially against **real connector API**:
+
+```bash
+🧪 Running tech spec validation tests...
+
+01_authorize.sh  → Creates payment, saves payment_id
+02_capture.sh    → Captures using payment_id
+03_void.sh       → Voids fresh authorization
+04_refund.sh     → Refunds captured payment
+05_psync.sh      → Retrieves payment status
+06_rsync.sh      → Retrieves refund status
+```
+
+#### Step 2.4: Response Validation
+
+For each test, AI validates:
+
+✅ **HTTP Status** - Matches `success_status_codes`
+✅ **Response Structure** - Contains `required_fields`
+✅ **Field Names** - `id_field` and `status_field` exist
+✅ **Status Mappings** - All actual statuses have mappings
+
+**Common Issues Detected:**
+- 404 → Wrong endpoint path in tech spec
+- 401 → Wrong auth format in tech spec
+- 400 → Wrong request body format
+- 422 → Missing required field
+- Missing field → Wrong field name in tech spec
+
+#### Step 2.5: Credibility Report
+
+AI generates detailed report:
+
+```markdown
+# Tech Spec Credibility Report
+
+## Summary
+✅ Passed: 5/6 flows
+❌ Failed: 1/6 flow
+
+## Issues Found
+
+### Critical
+1. Void endpoint path incorrect
+   - Tech spec: /v1/payments/{id}/void
+   - Actual: /v1/payments/{id}/cancel
+   - Auto-fix: ✅ Available
+
+## Credibility Score
+Before fixes: 83%
+After fixes: 100% (projected)
+```
+
+#### Step 2.6: Feedback Loop
+
+**If all tests pass:**
+```
+✅ Tech Spec Credibility: VALIDATED
+Proceeding to implementation...
+```
+
+**If any test fails:**
+```
+⚠️  Validation Failed (Attempt 1/3)
+
+Choose action:
+[A] Auto-fix - AI updates tech spec and re-validates
+[M] Manual - You update tech spec, AI re-validates
+[P] Proceed - Continue despite issues (NOT recommended)
+[C] Cancel - Stop for review
+
+Your choice:
+```
+
+**Auto-fix process:**
+1. AI analyzes actual API responses
+2. Updates tech spec with corrections
+3. Regenerates curl scripts
+4. Re-runs all tests
+5. Shows updated results
+6. Max 3 attempts
+
+#### Step 2.7: Success Criteria
+
+Tech spec validated when:
+- ✅ All 6 flows return 2xx status codes
+- ✅ All required fields present
+- ✅ All statuses have mappings
+- ✅ Authentication works
+- ✅ No structural mismatches
+
+**Only proceed to implementation after validation!**
+
+#### Output Files
+
+- `testing/tech-spec-validation/{{connector}}/credibility_report.md`
+- `testing/tech-spec-validation/{{connector}}/responses/*.json`
+- Validated tech spec ready for implementation
+
+---
+
+### Phase 3: Core Implementation
 
 #### Step 2.1: Connector Structure Setup
 ```rust

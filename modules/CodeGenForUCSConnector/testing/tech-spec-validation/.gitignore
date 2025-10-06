@@ -1,0 +1,24 @@
+# Never commit credentials
+*/credentials.json
+credentials.json
+
+# Never commit API responses (may contain sensitive data)
+*/responses/
+responses/
+
+# Never commit state files (contain transaction IDs)
+*/state.json
+state.json
+
+# Test scripts can be regenerated from tech spec
+*/test_scripts/
+test_scripts/
+
+# Keep credibility reports for analysis
+!*/credibility_report.md
+
+# Keep templates and documentation
+!*.md
+!*.template
+!*.json.template
+!README.md

@@ -59,6 +59,75 @@ fix [ConnectorName] connector issues in UCS - having problems with [specific_iss
 add support for [payment_method_types] to [ConnectorName] connector in UCS
 ```
 
+---
+
+## 🧪 Tech Spec Credibility Validation (New Feature)
+
+Before implementing any code, GRACE-UCS now validates the tech spec against the real connector API to ensure accuracy.
+
+### How It Works
+
+1. **AI generates tech spec** with complete API documentation including YAML test configurations
+2. **User provides test credentials** (only 3 values: api_key, api_secret, key1)
+3. **AI generates curl tests** from tech spec (everything except credentials extracted from spec)
+4. **Tests execute** against real connector API
+5. **Results validate** tech spec accuracy
+6. **Only proceed** to implementation if validated
+
+### Example Workflow
+
+```bash
+# 1. Generate tech spec
+integrate Stripe using grace-ucs/.gracerules
+
+# 2. AI asks for credentials
+🔐 Tech Spec Credibility Validation
+
+Test URL: https://api.stripe.com (from tech spec)
+
+Please provide test credentials:
+{
+  "api_key": "sk_test_xxxxx",
+  "api_secret": "",
+  "key1": ""
+}
+
+# 3. AI generates and runs 6 curl tests
+🧪 Running tech spec validation...
+✅ Authorize: PASS
+✅ Capture: PASS
+❌ Void: FAIL (endpoint path incorrect - should be /cancel not /void)
+✅ Refund: PASS
+✅ PSync: PASS
+⚠️  RSync: PARTIAL (missing 2 status mappings)
+
+# 4. AI offers auto-fix
+⚠️  Validation Failed (Attempt 1/3)
+
+Issues:
+- Void endpoint path incorrect
+- Missing status mappings in RSync
+
+[A] Auto-fix tech spec and re-validate (Recommended)
+[M] Manual fix
+[P] Proceed anyway
+[C] Cancel
+
+# 5. After auto-fix
+✅ All 6 flows validated!
+Tech spec credibility: 100%
+
+Proceeding to implementation...
+```
+
+### Benefits
+
+- ✅ **Catch errors early** - Before writing any code
+- ✅ **Save time** - Don't implement based on wrong assumptions
+- ✅ **High confidence** - Know the tech spec is accurate
+- ✅ **Minimal effort** - Just provide 3 credential values
+- ✅ **Auto-correction** - AI fixes most issues automatically
+
 ## 📋 Comprehensive Flow Support
 
 ### Core Payment Flows

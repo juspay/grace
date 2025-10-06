@@ -158,7 +158,283 @@ VALIDATION PHASE:
 3. **DOCUMENTATION**: Complete implementation documentation
 4. **NOTE**: Testing is handled separately by developers/QA team
 
+🧪 TECH SPEC CREDIBILITY VALIDATION [CRITICAL - NEW MANDATORY PHASE]:
+
+This phase runs AFTER tech spec generation, BEFORE implementation planning.
+
+PURPOSE: Validate tech spec accuracy by testing against real connector API using curl commands.
+
+CORE PRINCIPLE: **EVERYTHING for the curl comes from tech spec EXCEPT credentials (api_key, api_secret, key1)**
+
+WORKFLOW:
+
+1. **EXTRACT VALIDATION INFO FROM TECH SPEC** (YAML or Prose):
+
+   **PREFERRED: Tech Spec with YAML Sections**
+   When generating tech spec, STRONGLY RECOMMEND including structured YAML:
+   - ✅ api_config section: test_url, api_version, rate_limit
+   - ✅ auth section: header formats with {api_key} placeholders
+   - ✅ Complete flow specifications for all 6 flows (authorize, capture, void, refund, psync, rsync)
+   - ✅ Each flow with: method, path, request.test_example, response fields, status_mappings
+
+   **FALLBACK: Extract from Prose if No YAML**
+   If tech spec is pure Markdown prose, extract validation info by reading carefully:
+
+   ✅ **Base URL Extraction**:
+      Look for: "API endpoint", "base URL", "sandbox", "test environment"
+      Example: "Stripe's test API is at https://api.stripe.com"
+      → Extract: test_url = "https://api.stripe.com"
+
+   ✅ **Authentication Format Extraction**:
+      Look for: "authorization", "authentication", "API key", "bearer token"
+      Example: "Pass API key in Authorization header: `Authorization: Bearer sk_test_xxxxx`"
+      → Extract: auth_format = "Authorization: Bearer {api_key}"
+
+   ✅ **Endpoint & Method Extraction**:
+      Look for: "POST to", "GET from", "send request to", "endpoint"
+      Example: "To authorize, POST to /v1/payment_intents"
+      → Extract: method = "POST", path = "/v1/payment_intents"
+
+   ✅ **Request Body Extraction**:
+      Look for: "required fields", "parameters", "request body", "must include"
+      Example: "Required: amount (integer in cents), currency (ISO code)"
+      → Build test_example: {"amount": 1000, "currency": "USD"}
+
+      For content-type, look for: "JSON", "form-encoded", "XML"
+      Example: "Send JSON payload" → content_type = "application/json"
+
+   ✅ **Response Structure Extraction**:
+      Look for: "response contains", "returns", "includes fields"
+      Example: "Response has 'id' field and 'status' field"
+      → Extract: id_field = "id", status_field = "status"
+
+   ✅ **Status Mapping Extraction**:
+      Look for: status descriptions, "when status is", "means"
+      Example: "'requires_capture' status means payment is authorized"
+      → Extract: status_mappings = {"requires_capture": "Authorized"}
+
+      Build comprehensive mappings from all status mentions in tech spec
+
+   **Extraction Strategy**:
+   - Read entire tech spec first
+   - Identify all 6 flow sections (authorize, capture, void, refund, psync, rsync)
+   - For each flow, extract method, path, request format, response structure
+   - If uncertain, make intelligent inferences from API documentation patterns
+   - Validate extractions make sense (e.g., POST for mutations, GET for queries)
+
+   **Tech spec must be self-contained** - everything needed to make API calls must be extractable!
+
+2. **REQUEST MINIMAL USER CREDENTIALS**:
+   After tech spec generation, immediately ask:
+
+   ```
+   🔐 Tech Spec Credibility Validation
+
+   Connector: {{CONNECTOR_NAME}}
+   Test URL (from tech spec): {{EXTRACTED_BASE_URL}}
+
+   To validate the tech spec against the real API, please provide test credentials:
+
+   {
+     "api_key": "your_test_key",
+     "api_secret": "your_test_secret_if_needed",
+     "key1": "additional_key_if_needed"
+   }
+
+   Credential requirements (from tech spec):
+   - api_key: {{auth.credentials_required.api_key.description}}
+   - api_secret: {{auth.credentials_required.api_secret.description}}
+   - key1: {{auth.credentials_required.key1.description}}
+
+   IMPORTANT: Use test/sandbox credentials only. Never production credentials!
+
+   These will be stored in testing/tech-spec-validation/{{connector_name}}/credentials.json
+   (File is gitignored for security)
+   ```
+
+3. **GENERATE CURL TEST SCRIPTS FROM TECH SPEC**:
+   For each of 6 flows, extract from tech spec and generate curl script:
+
+   **Extraction Process:**
+   ```
+   BASE_URL = tech_spec.api_config.test_url
+   ENDPOINT = tech_spec.authorize.path
+   METHOD = tech_spec.authorize.method
+   CONTENT_TYPE = tech_spec.authorize.request.content_type
+   AUTH_HEADER_FORMAT = tech_spec.auth.headers[0].format  # "Bearer {api_key}"
+   REQUEST_BODY = tech_spec.authorize.request.test_example
+   ```
+
+   **Generated Curl:**
+   ```bash
+   curl -X POST "https://api.stripe.com/v1/payment_intents" \
+     -H "Authorization: Bearer ${API_KEY}" \  # Format from spec + user cred
+     -H "Content-Type: application/x-www-form-urlencoded" \  # From spec
+     -d "amount=1000&currency=usd&payment_method_types[]=card"  # From spec
+   ```
+
+   Generate all 6 scripts (01_authorize.sh through 06_rsync.sh)
+
+4. **EXECUTE VALIDATION TESTS SEQUENTIALLY**:
+   Run tests in order (some depend on previous results):
+
+   ```bash
+   01_authorize.sh  → Saves payment_id to state.json
+   02_capture.sh    → Uses payment_id from state
+   03_void.sh       → Uses fresh authorization
+   04_refund.sh     → Uses payment_id from capture
+   05_psync.sh      → Uses payment_id to check status
+   06_rsync.sh      → Uses refund_id from refund
+   ```
+
+   Each script:
+   - Executes curl with params from tech spec
+   - Saves response to responses/ directory
+   - Validates response against tech spec expectations
+   - Updates state.json for dependent tests
+
+5. **ANALYZE RESULTS AGAINST TECH SPEC EXPECTATIONS**:
+   For each flow, validate:
+
+   ✅ **HTTP Status Check**:
+   - Expected: tech_spec.flow.response.success_status_codes
+   - Actual: HTTP response code
+   - Match? → PASS, else identify issue
+
+   ✅ **Response Structure Check**:
+   - Expected fields: tech_spec.flow.response.required_fields
+   - Actual: fields in response JSON
+   - All present? → PASS, else identify missing
+
+   ✅ **Field Name Validation**:
+   - ID field at: tech_spec.flow.response.id_field
+   - Status field at: tech_spec.flow.response.status_field
+   - Found in response? → PASS, else tech spec has wrong field names
+
+   ✅ **Status Mapping Validation**:
+   - Actual status value in response
+   - Exists in tech_spec.flow.response.status_mappings?
+   - Mapped? → PASS, else add missing mapping
+
+   **Common Issues to Detect:**
+   - 404 Not Found → Wrong endpoint path in tech spec
+   - 401 Unauthorized → Wrong auth format in tech spec
+   - 400 Bad Request → Wrong request body format in tech spec
+   - 422 Unprocessable → Missing required field in tech spec
+   - Missing field → Wrong field name in tech spec
+   - Unknown status → Missing status mapping in tech spec
+
+6. **GENERATE CREDIBILITY REPORT**:
+   Create detailed validation report at:
+   `testing/tech-spec-validation/{{connector}}/credibility_report.md`
+
+   Include:
+   - Summary: X/6 flows passed
+   - Detailed results for each flow
+   - Identified issues with severity (Critical/High/Medium)
+   - Auto-fix recommendations
+   - Tech spec credibility score
+
+7. **FEEDBACK LOOP WITH AUTO-FIX** (Max 3 attempts):
+
+   **IF ALL 6 FLOWS PASS:**
+   ```
+   ✅ Tech Spec Credibility: VALIDATED
+
+   All 6 flows tested successfully against real API.
+   Tech spec is accurate and credible.
+
+   Proceeding to implementation planning...
+   ```
+   → Continue to planner_steps.md generation
+
+   **IF ANY FLOW FAILS:**
+   ```
+   ⚠️  Tech Spec Validation Failed (Attempt {{N}}/3)
+
+   Issues found:
+   - Void endpoint path incorrect (404 error)
+   - Missing status mapping: "processing"
+
+   Detailed report: testing/tech-spec-validation/{{connector}}/credibility_report.md
+
+   Choose action:
+   [A] Auto-fix - I'll update tech spec and re-validate (Recommended)
+   [M] Manual - You update tech spec, I'll re-validate
+   [P] Proceed - Continue despite issues (NOT recommended)
+   [C] Cancel - Stop for manual review
+
+   Your choice (A/M/P/C):
+   ```
+
+   **IF USER CHOOSES [A] AUTO-FIX:**
+   - Analyze actual API responses and error messages
+   - Update tech spec with corrections:
+     * Fix endpoint paths (from 404 error messages)
+     * Correct field names (from actual response structure)
+     * Add missing status mappings (from actual response values)
+     * Update required fields (from 422 errors)
+   - Regenerate curl scripts from updated tech spec
+   - Re-run all 6 tests
+   - Generate new credibility report
+   - Show updated results
+   - Repeat up to 3 times total
+
+   **IF USER CHOOSES [M] MANUAL:**
+   - Wait for user to update tech spec
+   - Ask: "Tech spec updated. Ready to re-validate? (Y/N)"
+   - If Y: Regenerate curl scripts and re-run tests
+
+   **IF USER CHOOSES [P] PROCEED:**
+   - ⚠️ Document all known issues in planner_steps.md
+   - Flag connector as "HIGH RISK - Unvalidated Tech Spec"
+   - Warn: "Implementation may fail due to incorrect tech spec assumptions"
+   - Continue to planning phase
+
+   **IF USER CHOOSES [C] CANCEL:**
+   - Stop workflow
+   - Provide path to credibility report for review
+   - User can manually fix and restart
+
+8. **SUCCESS CRITERIA FOR VALIDATION**:
+   Tech spec considered credible ONLY when:
+   - ✅ All 6 flows return 2xx HTTP status codes
+   - ✅ All required response fields present in actual responses
+   - ✅ All actual status values have mappings in tech spec
+   - ✅ Authentication format works correctly
+   - ✅ Request body formats accepted by API
+   - ✅ Endpoint paths exist and respond correctly
+
+   **DO NOT proceed to implementation without validated tech spec!**
+
+9. **SECURITY CONSIDERATIONS**:
+   - credentials.json is automatically gitignored
+   - Never commit API keys or secrets
+   - Use only test/sandbox credentials
+   - Responses may contain sensitive data - also gitignored
+   - Option to clear credentials after validation
+
+10. **STATE MANAGEMENT**:
+    Track validation state for feedback loop:
+    ```json
+    {
+      "connector": "stripe",
+      "validation_attempts": 1,
+      "max_attempts": 3,
+      "current_status": "passed",
+      "passed_flows": ["authorize", "capture", "void", "refund", "psync", "rsync"],
+      "failed_flows": [],
+      "credibility_score": 100,
+      "last_validated": "2025-01-15T10:30:00Z"
+    }
+    ```
+
+REMEMBER: Tech spec validation ensures accurate implementation blueprint. A validated tech spec = trustworthy foundation for code generation!
+
+---
+
 📊 SUCCESS CRITERIA:
+- ✅ Tech spec validated via real API testing (NEW - MANDATORY)
 - ✅ All supported payment methods implemented
 - ✅ All core flows implemented (auth, capture, void, refund, sync)
 - ✅ Proper error handling and mapping
