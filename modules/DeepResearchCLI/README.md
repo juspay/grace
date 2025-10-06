@@ -1,10 +1,10 @@
-# 🔍 MASS Deep Research CLI
+# 🔍 GRACE Deep Research CLI
 
-A powerful command-line interface for conducting comprehensive, AI-driven web research with beautiful terminal UI and intelligent deep research capabilities.
+A powerful Python-based command-line interface for conducting comprehensive, AI-driven web research with intelligent deep research capabilities.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)
-![TypeScript](https://img.shields.io/badge/typescript-5.4.3-blue.svg)
+![Python Version](https://img.shields.io/badge/python-%3E%3D3.8-brightgreen.svg)
+![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20windows-blue.svg)
 
 ## ✨ Features
 
@@ -24,16 +24,9 @@ A powerful command-line interface for conducting comprehensive, AI-driven web re
 - **Multi-depth web crawling** with configurable depth levels (up to 7 levels deep)
 - **Final synthesis** with confidence scoring and specialized output formatting
 
-### 🎨 Beautiful Terminal UI
-- **Interactive terminal interface** built with blessed and terminal-kit
-- **Real-time progress visualization** with expandable/collapsible logs
-- **Beautiful tree-structure logging** showing research progression
-- **Live status updates** with color-coded information
-- **Keyboard shortcuts** for quick actions (skip, cancel, expand/collapse)
-
 ### 🔧 Advanced Configuration
 - **Environment-based configuration** with `.env` support
-- **Multiple AI providers** (LiteLLM, Vertex AI)
+- **Multiple AI providers** (LiteLLM, Vertex AI, Anthropic)
 - **Custom AI instructions** from file for personalized research behavior
 - **Proxy support** for enhanced privacy and bot prevention
 - **Stealth browsing** with randomized user agents and viewport sizes
@@ -56,126 +49,184 @@ A powerful command-line interface for conducting comprehensive, AI-driven web re
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18.0.0 or higher
-- npm or yarn
-- Docker Desktop or OrbStack (for SearxNG search engine)
+- Python 3.8 or higher
+- pip (Python package installer)
+- Docker Desktop or OrbStack (for SearxNG search engine - optional, auto-configured)
 
-### ⚡ Fast Setup (3 steps)
+### ⚡ Fast Setup (Automated - Recommended)
 
-1. **Install dependencies**:
+**One-line installation** (handles everything automatically):
+
 ```bash
-npm install
+cd /path/to/DeepResearchCLI
+./setup.sh
 ```
 
-2. **Run automated setup** (configures SearxNG JSON API):
-```bash
-npm run setup
-```
-This will:
-- ✅ Check Docker/OrbStack installation
-- ✅ Configure and start SearxNG with optimized JSON API settings
-- ✅ Test both web interface and JSON API functionality
-- ✅ Find available ports automatically (cross-platform)
-- ✅ Create `.env.example` with correct configuration
+This automated setup script will:
+- ✅ Check Python and pip installation
+- ✅ Install Python dependencies from requirements.txt
+- ✅ Install the `deep-research` command globally
+- ✅ Install Playwright browsers for web scraping
+- ✅ **Detect Docker/OrbStack and setup SearxNG automatically**
+- ✅ **Fallback to local SearxNG if Docker not available**
+- ✅ Create and configure .env file with correct SearxNG URL
+- ✅ Test the installation
+- ✅ Provide next steps and usage instructions
 
-3. **Configure AI and start researching**:
+**What it does with SearxNG:**
+1. **Docker/OrbStack detected** → Automatically pulls and starts SearxNG container
+2. **No Docker** → Offers to clone and install SearxNG locally (from GitHub)
+3. **Docker not running** → Provides installation instructions and retries
+
+### 📋 Manual Setup (Alternative)
+
+If you prefer manual installation:
+
+1. **Install the CLI package**:
+```bash
+cd /path/to/DeepResearchCLI
+pip install -e .
+```
+
+2. **Install Playwright browsers**:
+```bash
+playwright install chromium
+```
+
+3. **Configure environment**:
 ```bash
 # Copy and edit environment file
 cp .env.example .env
-# Add your AI API keys to .env
+# Edit .env and add your AI API keys and SearxNG URL
+```
 
-# Build the project
-npm run build
+4. **Start researching**:
+```bash
+# Start a research session
+deep-research research "your research query"
 
-# Start researching (follows your custom_instructions.txt)
-npm start research "your research query"
+# Show configuration
+deep-research config
+
+# View help
+deep-research --help
+```
+
+### 📦 Installation Options
+
+**Option 1: Automated Setup (Recommended)**
+```bash
+./setup.sh
+# Handles everything including SearxNG
+```
+
+**Option 2: Global Installation**
+```bash
+pip install -e .
+# Command available system-wide: deep-research
+```
+
+**Option 3: Add Python bin to PATH**
+```bash
+# For zsh (macOS default)
+echo 'export PATH="$HOME/Library/Python/3.9/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# For bash
+echo 'export PATH="$HOME/Library/Python/3.9/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+
+# For Windows (PowerShell)
+# Add Python Scripts directory to PATH environment variable
+```
+
+**Option 4: Direct Script Execution**
+```bash
+# Run directly without installation
+python run_cli.py research "your query"
 ```
 
 ### ✨ What You Get
+- **Simple command-line interface** - Just type `deep-research` from anywhere
+- **Automated SearxNG setup** - Docker or local installation handled automatically
 - **Custom instruction support** - Research outputs in your specified format (OpenAPI, JSON, etc.)
 - **Real web search** - Powered by SearxNG with Google, Bing, DuckDuckGo engines
 - **Cross-platform compatibility** - Works on Windows, Mac, and Linux
 - **Intelligent depth control** - AI decides when to stop researching for optimal results
 
-### Alternative Manual Setup
-
-If you prefer manual setup or already have SearxNG running:
-
-1. **Install dependencies**: `npm install`
-2. **Copy environment**: `cp .env.example .env`
-3. **Configure your AI provider** in `.env`
-4. **Set SearxNG URL** in `.env` (if using external instance)
-5. **Build and run**: `npm run build && npm start`
-
-For detailed setup instructions, see [SETUP.md](./SETUP.md).
-
 ## 📋 Configuration
 
 ### Environment Variables
 
-Create a `.env` file in the cli directory with the following configuration:
+The setup script creates a `.env` file automatically. Here's what it contains:
 
 ```env
 # AI Configuration
-AI_PROVIDER=litellm
+AI_PROVIDER=litellm                           # Options: litellm, vertex, anthropic
 LITELLM_API_KEY=your_api_key_here
 LITELLM_BASE_URL=http://localhost:4000/v1
 LITELLM_MODEL_ID=gpt-4
 
-# Custom Instructions (optional)
+# Vertex AI Configuration (if AI_PROVIDER=vertex)
+# VERTEX_AI_PROJECT_ID=your_project_id
+# VERTEX_AI_LOCATION=us-central1
+
+# Anthropic Configuration (if AI_PROVIDER=anthropic)
+# ANTHROPIC_API_KEY=your_api_key_here
+
+# Custom Instructions (optional but recommended)
 CUSTOM_INSTRUCTIONS_FILE=./custom_instructions.txt
 
 # Research Configuration
-MAX_DEPTH=5
-MAX_PAGES_PER_DEPTH=10
-MAX_TOTAL_PAGES=50
-CONCURRENT_PAGES=3
-LINK_RELEVANCE_THRESHOLD=0.6
-TIMEOUT_PER_PAGE_MS=30000
-RESPECT_ROBOTS_TXT=true
+MAX_DEPTH=5                                   # Maximum crawl depth
+MAX_PAGES_PER_DEPTH=10                       # Pages to process per depth level
+MAX_TOTAL_PAGES=50                           # Total pages limit
+CONCURRENT_PAGES=10                          # Concurrent page processing
+LINK_RELEVANCE_THRESHOLD=0.6                 # Link relevance threshold (0-1)
+TIMEOUT_PER_PAGE_MS=30000                    # Timeout per page in milliseconds
+RESPECT_ROBOTS_TXT=false                     # Respect robots.txt
 
 # Data Storage
-RESEARCH_DATA_DIR=./research_data
-HISTORY_FILE=./research_history.json
+RESEARCH_DATA_DIR=./data                     # Research data directory
+HISTORY_FILE=./data/research_history.json   # History file location
 
-# SearXNG Configuration (configured by setup script)
-SEARXNG_BASE_URL=http://localhost:8080
-
-# Browser Configuration
-BROWSER_HEADLESS=true
-BROWSER_TIMEOUT_MS=30000
+# SearxNG Configuration (auto-configured by setup.sh)
+SEARXNG_BASE_URL=http://localhost:32768     # SearxNG URL
 
 # Proxy Configuration (optional)
-PROXY_LIST=http://proxy1:port,http://proxy2:port,socks5://proxy3:port
+# PROXY_LIST=http://proxy1:port,http://proxy2:port
 
 # Debug Configuration
-IS_DEBUG=false
-DEBUG_LOG_FILE=./search_query_time.log
-RESULT_OUTPUT_DIR=./cli/result
+IS_DEBUG=true                                 # Enable debug logging
+DEBUG_LOG_FILE=./logs/debug.log              # Debug log file
 ```
 
 ### AI Provider Setup
 
 #### LiteLLM (Recommended)
-1. Set up LiteLLM server or use a hosted instance
-2. Configure `LITELLM_API_KEY` and `LITELLM_BASE_URL`
-3. Set your preferred model in `LITELLM_MODEL_ID`
+```env
+AI_PROVIDER=litellm
+LITELLM_API_KEY=your_api_key_here
+LITELLM_BASE_URL=http://localhost:4000/v1
+LITELLM_MODEL_ID=gpt-4
+```
 
-#### Vertex AI
-1. Set up Google Cloud Project
-2. Enable Vertex AI API
-3. Configure authentication
-4. Set `AI_PROVIDER=vertex` and configure project details
+#### Vertex AI (Google Cloud)
+```env
+AI_PROVIDER=vertex
+VERTEX_AI_PROJECT_ID=your_project_id
+VERTEX_AI_LOCATION=us-central1
+```
+
+#### Anthropic (Claude)
+```env
+AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=your_api_key_here
+```
 
 ### 📝 Custom Instructions
 
-The CLI now properly supports custom instructions that allow you to personalize the AI's research behavior and output format. **Recent fixes ensure instructions are consistently followed.**
-
-#### Recent Fixes Applied
-- ✅ **Fixed conflicting format requirements** - No more JSON vs custom format conflicts
-- ✅ **Removed duplicate loading logic** - Single source of truth for instructions
-- ✅ **Enhanced format detection** - AI now respects custom output formats (OpenAPI YAML, etc.)
-- ✅ **Improved content passing** - Full research data available for custom formatting
+Custom instructions allow you to personalize the AI's research behavior and output format.
 
 #### Setting Up Custom Instructions
 
@@ -198,7 +249,7 @@ You are an expert AI research assistant specializing in deep web research and an
 - Consider multiple perspectives on controversial topics
 ```
 
-**Example: OpenAPI Specification Instructions (for Payment Gateway Integration)**
+**Example: OpenAPI Specification Instructions**
 ```txt
 You are an expert AI agent to do deep research to gather technical information for integrating payment gateways. Your goal is to produce a detailed, structured OpenAPI spec for the connector in the specified format.
 
@@ -236,23 +287,23 @@ CUSTOM_INSTRUCTIONS_FILE=./custom_instructions.txt
 
 3. **Verify configuration**:
 ```bash
-npm start config
+deep-research config
 ```
+
+**Important Notes:**
+- ✅ **No need to rerun setup** - Custom instructions are loaded dynamically at runtime
+- ✅ **Changes take effect immediately** - Just edit the file and run your next research
+- ✅ **Multiple instruction files** - Create different files and switch by changing `CUSTOM_INSTRUCTIONS_FILE` in .env
+- ✅ **No restart required** - Each research session loads instructions fresh from the file
 
 #### How to Use Custom Instructions
 
 **✅ Correct way (follows custom instructions):**
 ```bash
-npm start research "stripe payment gateway integration"
+deep-research research "stripe payment gateway integration"
 ```
 
-**❌ Wrong way (ignores custom instructions):**
-```bash
-npm run dev  # This is for interactive mode, prompts for custom instructions
-```
-
-#### Features
-- ✅ **Fixed format conflicts** - No more JSON vs custom format issues
+**Features:**
 - ✅ **Consistent application** - Instructions applied to all research phases
 - ✅ **Full data access** - Custom instructions receive complete research data
 - ✅ **Format detection** - AI detects and follows output format requirements
@@ -262,125 +313,150 @@ npm run dev  # This is for interactive mode, prompts for custom instructions
 #### Troubleshooting Custom Instructions
 
 **Instructions not being followed:**
-1. Ensure using `npm start research "query"` (not `npm run dev`)
-2. Check file exists: `ls -la custom_instructions.txt`
-3. Verify configuration: `npm start config`
-4. Check file permissions: `chmod 644 custom_instructions.txt`
-
-**Format conflicts:**
-- The recent fixes eliminate JSON vs custom format conflicts
-- AI now prioritizes custom instructions over default formatting
-- Full research data is passed to custom instruction processing
-
-For detailed examples and best practices, see [CUSTOM_INSTRUCTIONS.md](./CUSTOM_INSTRUCTIONS.md).
+1. Check file exists: `ls -la custom_instructions.txt`
+2. Verify configuration: `deep-research config`
+3. Check file permissions: `chmod 644 custom_instructions.txt`
+4. Ensure file path is correct in `.env`
 
 ## 💻 Usage
 
-### 🔧 Setup (One-time)
+### 🎯 Command Reference
 
-Before using the CLI, run the automated setup to configure SearxNG:
+Once installed, you can use the `deep-research` command from anywhere:
+
+#### Research Commands
 
 ```bash
-npm run setup
+# Start a research session with your query
+deep-research research "stripe payment gateway integration"
+
+# Research with custom instructions (loaded from .env)
+deep-research research "GraphQL vs REST performance comparison"
+
+# Interactive mode - prompts for query if not provided
+deep-research research
 ```
 
-This will:
-- ✅ Check Docker/OrbStack installation
-- ✅ Configure and start SearxNG with optimized JSON API settings
-- ✅ Test both web interface and JSON API functionality
-- ✅ Find available ports automatically (cross-platform support)
-- ✅ Create `.env.example` template with correct SearxNG URL
-
-### 🎯 Research Commands
-
-#### Direct Research (Recommended)
-Use this for research following your custom instructions:
+#### Configuration & Status
 
 ```bash
-# Research with custom instructions from file
-npm start research "stripe payment gateway integration"
+# Show current configuration
+deep-research config
 
-# Research with specific query
-npm start research "GraphQL vs REST performance comparison"
-```
+# View research history (last 20 sessions)
+deep-research history
 
-#### Interactive Mode
-For guided research with prompts:
-
-```bash
-# Start interactive mode (no arguments)
-npm run dev
-
-# Or explicit interactive mode
-npm start
+# Show research statistics
+deep-research stats
 ```
 
 #### Testing & Diagnostics
 
 ```bash
 # Test SearxNG connectivity and JSON API
-npm start test-search
+deep-research test-search
 
 # Test with custom query
-npm start test-search -q "payment gateways"
+deep-research test-search -q "payment gateways"
 
-# Show current configuration
-npm start config
+# Clean up old data (coming soon)
+deep-research clean --days 30
 
-# View research history
-npm start history
-
-# Show research statistics
-npm start stats
-
-# Clean up old data
-npm start clean --days 30
+# Show help and available commands
+deep-research --help
 ```
 
 ### 🚨 Important Usage Notes
 
 **For Custom Instructions (OpenAPI, specific formats):**
-- Use `npm start research "your query"` - this follows your `custom_instructions.txt`
-- Avoid `npm run dev` for formatted output - this is for interactive/general research
+- Set `CUSTOM_INSTRUCTIONS_FILE` in your `.env` to point to your instructions file
+- The CLI will automatically load and follow these instructions during research
+- Verify instructions are loaded: `deep-research config`
 
-**SearxNG JSON API:**
-- The setup automatically configures SearxNG for proper JSON API responses
-- If you see "Search failed, using fallback" - run `npm start test-search` to diagnose
-- SearxNG must be running for real web search (fallback provides limited mock results)
+**SearxNG Configuration:**
+- Automatically configured by `./setup.sh`
+- Configure `SEARXNG_BASE_URL` in `.env` if using external instance
+- SearxNG must be running for real web search
+- Test connectivity: `deep-research test-search`
 
-### Terminal UI Controls
+**Managing SearxNG (Docker):**
+```bash
+# Check if running
+docker ps | grep searxng
 
-During research, you can use these controls:
+# Stop SearxNG
+docker stop searxng
 
-- **`1`** - Skip current operation
-- **`2`** - Cancel research
-- **`3`** - Show research history
-- **`Ctrl+O`** - Expand/collapse log entries
-- **`Enter`** - Provide custom input/guidance
-- **`Tab`** - Switch between log and input areas
-- **`Escape/Q/Ctrl+C`** - Exit application
+# Start SearxNG
+docker start searxng
+
+# View logs
+docker logs searxng
+
+# Remove container
+docker rm -f searxng
+```
+
+**Managing SearxNG (Local):**
+```bash
+# Navigate to SearxNG directory
+cd searxng-local
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Set settings path
+export SEARXNG_SETTINGS_PATH=searxng/settings.yml
+
+# Start SearxNG
+python searxng/webapp.py
+```
+
+### 🔧 Alternative Execution Methods
+
+If you haven't added the command to PATH, you can still run the CLI:
+
+```bash
+# Using the full path (replace with your Python version)
+/Users/username/Library/Python/3.9/bin/deep-research research "query"
+
+# Using Python directly
+python run_cli.py research "query"
+
+# Using Python module syntax (won't work due to package structure)
+cd /path/to/DeepResearchCLI
+python -c "from cli import main; main()" research "query"
+```
 
 ## 📊 Output Formats
+
+The CLI automatically generates research outputs in multiple formats:
 
 ### HTML Report
 Beautiful, responsive HTML report with:
 - Executive summary with statistics
-- Interactive source analysis
-- Collapsible content sections
+- All sources with relevance scores
+- Page content and extracted information
+- Links and relationships
 - Professional styling
 
 ### JSON Export
 Complete structured data including:
-- Session metadata
+- Session metadata (ID, query, timestamps)
 - All page data with content
 - Link analysis results
 - AI scoring and insights
+- Full research tree structure
 
 ### Markdown Report
 Clean markdown format perfect for:
 - Documentation
 - Sharing findings
 - Integration with other tools
+- Version control
+
+**Output Location:**
+All research outputs are saved to the directory specified by `RESEARCH_DATA_DIR` in your `.env` file (default: `./data`).
 
 ## 🔧 Advanced Features
 
@@ -390,60 +466,100 @@ Enable debug mode for detailed logging:
 
 ```env
 IS_DEBUG=true
-DEBUG_LOG_FILE=./search_query_time.log
+DEBUG_LOG_FILE=./logs/debug.log
 ```
 
 Debug logs include:
 - Search query timing
 - Page fetch performance
-- AI call details
-- Error tracking
+- AI call details with token usage
+- Error tracking with stack traces
 - Session summaries
+- Link extraction details
+
+View debug logs:
+```bash
+tail -f ./logs/debug.log
+```
 
 ### Proxy Configuration
 
 For enhanced privacy and bot prevention:
 
 ```env
-PROXY_LIST=http://user:pass@proxy1:8080,socks5://proxy2:1080
+PROXY_LIST=http://user:pass@proxy1:8080,socks5://proxy2:1080,http://proxy3:9090
 ```
 
 The system will automatically rotate through proxies for different requests.
 
-### Custom Research Flows
+### Research Configuration Tuning
 
-The CLI supports mid-research guidance:
-- AI will occasionally ask for direction
-- You can provide custom instructions
-- Research adapts based on your input
-- Skip or cancel operations as needed
+Adjust research behavior in `.env`:
+
+```env
+# Aggressive research (deep, comprehensive)
+MAX_DEPTH=7
+MAX_PAGES_PER_DEPTH=15
+MAX_TOTAL_PAGES=100
+CONCURRENT_PAGES=15
+
+# Conservative research (fast, focused)
+MAX_DEPTH=3
+MAX_PAGES_PER_DEPTH=5
+MAX_TOTAL_PAGES=20
+CONCURRENT_PAGES=5
+
+# Balanced (recommended)
+MAX_DEPTH=5
+MAX_PAGES_PER_DEPTH=10
+MAX_TOTAL_PAGES=50
+CONCURRENT_PAGES=10
+```
 
 ## 📁 File Structure
 
 ```
-cli/
-├── src/
-│   ├── services/           # Core research services
-│   │   ├── AIService.ts           # AI integration
-│   │   ├── SearchService.ts       # Web search
-│   │   ├── WebScrapingService.ts  # Content extraction
-│   │   ├── ConfigService.ts       # Configuration management
-│   │   ├── StorageService.ts      # Data persistence
-│   │   ├── ResultOutputService.ts # Result formatting
-│   │   └── DeepResearchOrchestrator.ts # Main orchestrator
-│   ├── ui/                # Terminal UI components
-│   │   └── TerminalUI.ts          # Interactive interface
-│   ├── utils/             # Utility functions
-│   │   └── DebugLogger.ts         # Debug logging
-│   ├── types/             # TypeScript definitions
-│   │   └── index.ts               # Type definitions
-│   └── index.ts           # Main CLI application
-├── research_data/         # Generated research data
-├── cli/result/           # HTML/JSON/MD outputs
-├── package.json
-├── tsconfig.json
-├── .env.example
-└── README.md
+DeepResearchCLI/
+├── cli.py                      # Main CLI application
+├── run_cli.py                  # Entry point script
+├── setup.py                    # Package installation config
+├── setup.sh                    # Automated setup script
+├── requirements.txt            # Python dependencies
+├── .env                        # Environment configuration
+├── .env.example                # Example configuration
+├── custom_instructions.txt     # AI research instructions
+├── searxng-config.yml          # SearxNG configuration
+│
+├── services/                   # Core research services
+│   ├── __init__.py
+│   ├── config_service.py       # Configuration management
+│   ├── ai_service.py           # AI integration (LiteLLM/Vertex/Anthropic)
+│   ├── search_service.py       # SearxNG search integration
+│   ├── web_scraping_service.py # Playwright web scraping
+│   ├── storage_service.py      # Data persistence
+│   ├── result_output_service.py# Result formatting (HTML/JSON/MD)
+│   └── direct_research_service.py # Main research orchestrator
+│
+├── research_types/             # Type definitions
+│   └── __init__.py             # Dataclasses for research data
+│
+├── utils/                      # Utility functions
+│   └── debug_logger.py         # Debug logging utility
+│
+├── ui/                         # UI components (future)
+│
+├── data/                       # Research data (auto-created)
+│   ├── research_history.json   # Research session history
+│   └── [session_id]/           # Individual research sessions
+│       ├── research.html       # HTML report
+│       ├── research.json       # JSON export
+│       └── research.md         # Markdown report
+│
+├── logs/                       # Debug logs (auto-created)
+│   └── debug.log               # Debug log file
+│
+└── searxng-local/              # Local SearxNG (if installed)
+    └── ...                     # SearxNG files
 ```
 
 ## 🎯 Intelligent Research Workflow
@@ -452,50 +568,47 @@ The CLI follows a sophisticated AI-driven research workflow:
 
 ### Phase 1: Initial Search & Link Extraction
 ```
-|--> Search --> "Your Query"
-      |--> [+] Found 15 search results [Ctrl+O to expand]
-           ├── Wikipedia: Topic Overview
-           ├── Academic Paper: Deep Analysis
-           └── News Article: Recent Developments
-      |--> Processing search result pages...
-      |--> Extracted 24 links from search result pages
-      └── Total 39 links queued for processing
+Search Query: "Your Research Query"
+   ↓
+SearxNG Search
+   ├─ Google results
+   ├─ Bing results
+   ├─ DuckDuckGo results
+   └─ 15-20 initial results
+   ↓
+Processing Search Results
+   ├─ Fetch each search result page
+   ├─ Extract content and links
+   └─ Queue 30-50 links for deep research
 ```
 
 ### Phase 2: AI-Driven Deep Research
 ```
-|--> Depth Level 1 (Processing 12 pages)
-     ├── Fetching: example.com/article
-     │    ├── Processing content (15,000 chars)
-     │    ├── Relevance: 87.3% | Insights: 4 | Processed: ✓
-     │    └── Found 8 links for depth 2 (3 priority, 5 standard)
-     ├── 🤖 AI Decision: Continue to depth 2 (information gaps exist)
-     │
-|--> Depth Level 2 (Processing 8 pages)
-     ├── Fetching: research.org/study
-     │    ├── Processing content (12,400 chars)
-     │    ├── Relevance: 92.1% | Insights: 6 | Processed: ✓
-     │    └── Found 5 links for depth 3 (2 priority, 3 standard)
-     ├── 🤖 AI Completeness Assessment: 73% complete
-     ├── 🤖 AI Decision: Continue to depth 3 (high-quality links available)
-     │
-|--> Depth Level 3 (Processing 5 pages)
-     ├── 🤖 AI Completeness Assessment: 89% complete
-     ├── 🤖 AI Decision: Stopping research at depth 3
-     │    ├── Reason: Comprehensive coverage achieved
-     │    ├── Confidence: 91.2%
-     │    └── Information Quality: excellent
+Depth Level 1 (Processing 10-15 pages)
+   ├─ Fetch page content with Playwright
+   ├─ AI analyzes relevance (score 0-1)
+   ├─ Extract key information
+   ├─ Discover additional links
+   └─ AI Decision: Continue deeper?
+      ↓
+Depth Level 2 (Processing 8-12 pages)
+   ├─ Process high-relevance links
+   ├─ AI completeness check: 60%
+   └─ AI Decision: Continue to depth 3
+      ↓
+Depth Level 3 (Processing 5-8 pages)
+   ├─ AI completeness check: 85%
+   └─ AI Decision: Stop (sufficient coverage)
 ```
 
 ### Phase 3: AI Synthesis with Custom Instructions
 ```
-|--> Synthesizing research findings...
-     ├── Processing 25 high-quality sources for final analysis
-     ├── Loading custom research instructions... ✓
-     ├── Extracting key insights following custom format
-     ├── Cross-referencing information
-     ├── Generating specialized response (OpenAPI specification format)
-     └── Analysis complete (confidence: 91.2%) | Custom instructions: ✓
+Final Synthesis
+   ├─ Load custom instructions from file
+   ├─ Process all collected data
+   ├─ Generate response following format
+   ├─ Calculate confidence score
+   └─ Export results (HTML/JSON/MD)
 ```
 
 ### Key Intelligence Features:
@@ -505,124 +618,94 @@ The CLI follows a sophisticated AI-driven research workflow:
 - **📋 Custom Instructions**: Follows your specific output format requirements
 - **⚡ Priority Systems**: Processes highest-value content first
 
-## 🔍 Example Research Sessions
+## 🔧 SearxNG Setup
 
-### Payment Gateway Integration Research
-```
-Query: "Stripe payment gateway OpenAPI specification"
-Custom Instructions: OpenAPI spec format for connector integration
-AI Decisions: Stopped at depth 4 (comprehensive coverage achieved)
-Pages Processed: 28 pages
-Links Extracted: 67 links from search result pages
-Results: Complete OpenAPI specification with endpoints, auth, and data models
-```
+The setup script automatically handles SearxNG installation:
 
-### Academic Research
-```
-Query: "Impact of AI on software development productivity"
-AI Decisions: Continued to depth 5 (information gaps detected)
-Pages Processed: 35 pages
-Links Extracted: 94 links from research papers and articles
-Results: Comprehensive analysis with academic citations and statistical data
-```
+### Automatic Setup (via ./setup.sh)
 
-### Technical Investigation
-```
-Query: "GraphQL vs REST API performance comparison"
-AI Decisions: Stopped at depth 3 (sufficient benchmarks found)
-Pages Processed: 42 pages
-Links Extracted: 156 links from technical documentation and blogs
-Results: Technical comparison with performance benchmarks and use cases
-```
+**Docker/OrbStack available:**
+- ✅ Pulls `searxng/searxng:latest` image
+- ✅ Finds available port (32768-32800)
+- ✅ Creates configuration file
+- ✅ Starts container with proper settings
+- ✅ Tests JSON API connectivity
+- ✅ Updates `.env` with correct URL
 
-### Market Research
-```
-Query: "Electric vehicle market trends 2024"
-AI Decisions: Continued to depth 4 (market data completeness: 76%)
-Pages Processed: 31 pages
-Links Extracted: 78 links from market reports and news sources
-Results: Market analysis with statistical data, forecasts, and competitive landscape
-```
+**Docker not available:**
+- ✅ Offers to clone SearxNG from GitHub
+- ✅ Sets up Python virtual environment
+- ✅ Installs SearxNG dependencies
+- ✅ Creates settings configuration
+- ✅ Provides manual start instructions
 
-## 🔧 SearxNG JSON API Configuration
+### Manual SearxNG Setup
 
-The CLI now includes enhanced SearxNG configuration for reliable JSON API responses across different environments.
-
-### What's Included
-- ✅ **Optimized `searxng-config.yml`** with JSON API focus
-- ✅ **Cross-platform Docker setup** (Windows/Mac/Linux)
-- ✅ **Dynamic port allocation** (32768-32800 range)
-- ✅ **API response validation** with detailed error reporting
-- ✅ **Comprehensive testing tools** for connectivity diagnosis
-
-### Key Configuration Features
-
-**JSON API Optimization:**
-```yaml
-search:
-  formats:
-    - html
-    - json  # ✅ Properly configured for API use
-    - rss
-
-engines:
-  # ✅ Reliable engines for API responses
-  - name: google
-  - name: bing
-  - name: duckduckgo
-  - name: startpage
-
-disabled_engines:
-  # ✅ Disabled problematic engines
-  - wikidata
-  - mediawiki
-```
-
-**Docker Improvements:**
-- ✅ **Windows path conversion** for Docker volume mounting
-- ✅ **Port conflict resolution** with automatic fallback
-- ✅ **Cross-platform shell execution** (cmd.exe/bash)
-- ✅ **Enhanced error handling** with Windows-specific fallbacks
-
-### Troubleshooting SearxNG Issues
-
-**Test SearxNG connectivity:**
+**Using Docker:**
 ```bash
-npm start test-search -q "test query"
+# Pull image
+docker pull searxng/searxng:latest
+
+# Start container
+docker run -d \
+  --name searxng \
+  -p 32768:8080 \
+  -v "$(pwd)/searxng-config.yml:/etc/searxng/settings.yml:ro" \
+  --restart unless-stopped \
+  searxng/searxng:latest
+
+# Update .env
+echo "SEARXNG_BASE_URL=http://localhost:32768" >> .env
 ```
 
-**Common SearxNG issues and fixes:**
+**Local installation:**
+```bash
+# Clone repository
+git clone https://github.com/searxng/searxng.git searxng-local
+cd searxng-local
 
-1. **"SearxNG returned HTML instead of JSON"**
-   ```bash
-   # Restart SearxNG with correct config
-   docker stop searxng && docker rm searxng
-   npm run setup
-   ```
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
 
-2. **"Port already in use"**
-   - Setup automatically finds available ports (32768-32800)
-   - Check current port: `npm start config`
-   - Restart setup if needed: `npm run setup`
+# Install
+pip install -e .
 
-3. **"Docker volume mounting failed"**
-   ```bash
-   # On Windows, ensure Docker Desktop is running
-   # On Mac, ensure OrbStack/Docker Desktop is running
-   # Check Docker status
-   docker info
-   ```
-
-4. **"Container starts but API doesn't work"**
-   ```bash
-   # Check container logs
-   docker logs searxng
-
-   # Test API directly
-   curl "http://localhost:$(grep SEARXNG_BASE_URL .env | cut -d: -f3)/search?q=test&format=json"
-   ```
+# Start
+export SEARXNG_SETTINGS_PATH=searxng/settings.yml
+python searxng/webapp.py
+```
 
 ## 🐛 Troubleshooting
+
+### Installation Issues
+
+**"Command not found: deep-research"**
+```bash
+# Option 1: Add Python bin to PATH
+echo 'export PATH="$HOME/Library/Python/3.9/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# Option 2: Use full path
+~/.local/bin/deep-research --help
+
+# Option 3: Reinstall the package
+pip install -e .
+```
+
+**"ModuleNotFoundError" or import errors**
+```bash
+# Ensure all dependencies are installed
+pip install -r requirements.txt
+
+# Reinstall in editable mode
+pip uninstall deep-research-cli
+pip install -e .
+```
+
+**"No module named 'types'"**
+- This has been fixed by renaming the `types` directory to `research_types`
+- Ensure you have the latest version: `git pull` and reinstall
 
 ### Common Issues
 
@@ -630,44 +713,39 @@ npm start test-search -q "test query"
 - Check your `.env` file exists and has AI API keys
 - Ensure `CUSTOM_INSTRUCTIONS_FILE` points to existing file
 - Verify AI provider configuration
-- Run `npm start config` to see current settings
+- Run `deep-research config` to see current settings
 
 **"Custom instructions not being followed"**
-- Ensure you're using `npm start research "query"` (not `npm run dev`)
 - Verify `CUSTOM_INSTRUCTIONS_FILE` in `.env` points to correct file
-- Check file permissions - must be readable
-- Run `npm start config` to verify instructions are loaded
-
-**"Docker not found" during setup**
-- Install Docker Desktop or OrbStack
-- Make sure Docker daemon is running
-- Try `docker --version` to verify installation
-- On Windows: Ensure Docker Desktop is configured for Linux containers
+- Check file exists: `ls -la custom_instructions.txt`
+- Check file permissions: `chmod 644 custom_instructions.txt`
+- Run `deep-research config` to verify instructions are loaded
+- Remember: Changes take effect immediately, no restart needed!
 
 **"SearxNG not responding"**
-- Run `npm start test-search` to diagnose API issues
-- Check if container is running: `docker ps`
-- Restart container: `docker restart searxng`
+- Check if Docker container is running: `docker ps | grep searxng`
+- Start if stopped: `docker start searxng`
+- Test connectivity: `deep-research test-search`
 - Check logs: `docker logs searxng`
-- Re-run setup: `npm run setup`
+- Verify URL: `deep-research config`
 
 **"Search failed, using fallback"**
-- This means SearxNG isn't returning valid JSON
-- Run `npm start test-search` for detailed diagnosis
-- Check SearxNG URL: `npm start config`
-- Verify container status: `docker ps | grep searxng`
+- SearxNG isn't returning valid JSON
+- Run `deep-research test-search` for detailed diagnosis
+- Restart SearxNG: `docker restart searxng`
+- Check configuration: `deep-research config`
 
 **"Failed to fetch page" errors**
 - Check proxy configuration in `.env`
-- Verify target sites are accessible from your network
-- Increase timeout values: `TIMEOUT_PER_PAGE=60000`
-- Check if sites block automated requests
+- Verify target sites are accessible
+- Increase timeout: `TIMEOUT_PER_PAGE_MS=60000`
+- Install Playwright browsers: `playwright install chromium`
 
 **"AI service error"**
 - Verify API key is valid and has credits
-- Check model availability (some models have regional restrictions)
-- Test connection: run research with simple query first
-- Check AI provider status/documentation
+- Check model availability
+- Test connection with simple query first
+- Verify provider configuration in `.env`
 
 ### Debug Mode
 
@@ -675,36 +753,61 @@ Enable detailed logging:
 
 ```env
 IS_DEBUG=true
+DEBUG_LOG_FILE=./logs/debug.log
 ```
 
-Check the debug log file for detailed information:
+Check the debug log:
 ```bash
-tail -f ./search_query_time.log
+tail -f ./logs/debug.log
 ```
 
 ## 🔒 Privacy & Ethics
 
 ### Responsible Usage
-- Respect robots.txt files (enabled by default)
+- Respect robots.txt files (configurable via `RESPECT_ROBOTS_TXT`)
 - Use reasonable delays between requests
 - Don't overwhelm target servers
 - Respect website terms of service
+- Use proxies responsibly
 
 ### Privacy Features
 - Proxy support for IP rotation
-- Stealth browsing techniques
+- Stealth browsing techniques with Playwright
 - No personal data collection
-- Local data storage only
+- All data stored locally
+- No telemetry or tracking
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our contributing guidelines:
+We welcome contributions! To contribute:
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+4. Test thoroughly
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+### Development Setup
+
+```bash
+# Clone repository
+git clone https://github.com/juspay/grace.git
+cd grace/modules/DeepResearchCLI
+
+# Install in development mode
+pip install -e .
+
+# Install development dependencies
+pip install -r requirements.txt
+
+# Run tests (when available)
+pytest
+
+# Check code style
+flake8 .
+```
 
 ## 📄 License
 
@@ -713,18 +816,32 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - [Playwright](https://playwright.dev/) for JavaScript-enabled web scraping
-- [Blessed](https://github.com/chjj/blessed) for terminal UI components
-- [Inquirer.js](https://github.com/SBoudrias/Inquirer.js) for interactive prompts
-- [Chalk](https://github.com/chalk/chalk) for terminal styling
+- [SearxNG](https://github.com/searxng/searxng) for privacy-respecting search
+- [Click](https://click.palletsprojects.com/) for CLI framework
+- [Rich](https://rich.readthedocs.io/) for beautiful terminal output
+- [Anthropic](https://www.anthropic.com/) for Claude AI capabilities
+- [Google Cloud](https://cloud.google.com/) for Vertex AI
 
 ## 📞 Support
 
 For support and questions:
-- Create an issue on GitHub
-- Check the troubleshooting section
-- Review the debug logs
-- Consult the configuration documentation
+- 📝 [Create an issue on GitHub](https://github.com/juspay/grace/issues)
+- 📖 Check the troubleshooting section above
+- 🔍 Review the debug logs
+- 📚 Consult the configuration documentation
+
+## 🗺️ Roadmap
+
+- [ ] Enhanced UI with real-time progress visualization
+- [ ] Support for more AI providers
+- [ ] Advanced filtering and result ranking
+- [ ] Research templates library
+- [ ] API server mode
+- [ ] Web interface
+- [ ] Collaborative research features
 
 ---
 
 **Happy Researching! 🔍✨**
+
+*Built with ❤️ by the GRACE team*

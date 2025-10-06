@@ -1,0 +1,8 @@
+include README.md
+include requirements.txt
+include custom_instructions.txt
+include searxng-config.yml
+include .env.example
+recursive-include services *.py
+recursive-include types *.py
+recursive-include utils *.py
