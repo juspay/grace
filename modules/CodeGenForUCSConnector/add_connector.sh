@@ -27,7 +27,7 @@ readonly SCRIPT_NAME="Hyperswitch Connector Generator"
 
 # Paths configuration
 readonly ROOT_DIR="$(pwd)"
-readonly TEMPLATE_DIR="$ROOT_DIR/grace-ucs/template-generation"
+readonly TEMPLATE_DIR="$ROOT_DIR/grace/modules/CodeGenForUCSConnector/template-generation"
 readonly BACKEND_DIR="$ROOT_DIR/backend"
 readonly CONFIG_DIR="$ROOT_DIR/config"
 
