@@ -40,6 +40,7 @@ def register_module(
     aliases: Optional[List[str]] = None,
     main: Optional[str] = None,
     examples: Optional[List[str]] = None,
+    subcommands: Optional[List[str]] = None,
     verbose: bool = True
 ):
     """Register a module with the grace CLI.
@@ -52,6 +53,7 @@ def register_module(
         aliases: Optional list of command aliases
         main: Default subcommand to use when no args provided
         examples: Usage examples
+        subcommands: Valid subcommands for this command
         verbose: Print status messages
     """
     try:
@@ -63,7 +65,8 @@ def register_module(
             entry_point=entry_point,
             aliases=aliases,
             main=main,
-            examples=examples
+            examples=examples,
+            subcommands=subcommands
         )
 
         if verbose:

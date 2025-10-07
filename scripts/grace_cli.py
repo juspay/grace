@@ -27,7 +27,7 @@ class GraceCLI:
         self.grace_root = Path(__file__).parent.parent.absolute()
 
     def execute_command(self, command_name: str, args: List[str]) -> int:
-        """Execute a registered command."""
+        """Execute a registered command with smart subcommand handling."""
         cmd_info = self.registry.get_command(command_name)
         if not cmd_info:
             console.print(f"[red]Error:[/red] Unknown command '{command_name}'")
@@ -36,14 +36,13 @@ class GraceCLI:
 
         entry_point = cmd_info.entry_point
 
-        # If no args provided and main subcommand exists, use it
-        if not args and cmd_info.main:
-            args = [cmd_info.main]
+        # Smart subcommand handling
+        processed_args = self._process_args(args, cmd_info)
 
         # Handle bash/shell commands
         if entry_point in ['bash', 'sh', 'zsh']:
-            script_path = args[0] if args else cmd_info.main
-            remaining_args = args[1:] if len(args) > 1 else []
+            script_path = processed_args[0] if processed_args else cmd_info.main
+            remaining_args = processed_args[1:] if len(processed_args) > 1 else []
 
             if not script_path.startswith('/'):
                 script_path = str(self.grace_root / script_path)
@@ -57,7 +56,7 @@ class GraceCLI:
 
         # Execute regular commands
         try:
-            result = subprocess.run([entry_point] + args)
+            result = subprocess.run([entry_point] + processed_args)
             return result.returncode
         except FileNotFoundError:
             module_path = self.grace_root / cmd_info.module_path
@@ -72,6 +71,40 @@ class GraceCLI:
         except Exception as e:
             console.print(f"[red]Error:[/red] {e}")
             return 1
+
+    def _process_args(self, args: List[str], cmd_info) -> List[str]:
+        """Process arguments with smart subcommand handling.
+
+        Logic:
+        1. If no args and main subcommand exists, use main
+        2. If first arg is a valid subcommand, pass it through
+        3. If first arg is not a valid subcommand, prepend main (if exists) and pass arg as parameter
+
+        Examples:
+            grace research             -> grace-research research
+            grace research config      -> grace-research config
+            grace research "worldpay"  -> grace-research research "worldpay"
+        """
+        # No args provided
+        if not args:
+            if cmd_info.main:
+                return [cmd_info.main]
+            return []
+
+        # Check if first arg is a valid subcommand
+        first_arg = args[0]
+
+        # If it's a valid subcommand, pass everything through
+        if cmd_info.subcommands and first_arg in cmd_info.subcommands:
+            return args
+
+        # If it's not a valid subcommand and we have a main subcommand, prepend main
+        if cmd_info.main and cmd_info.subcommands:
+            # First arg is not a subcommand, so treat it as a parameter
+            return [cmd_info.main] + args
+
+        # No subcommands defined or no main, pass through as-is
+        return args
 
     def _check_command_status(self, cmd) -> str:
         """Check if command is installed."""
@@ -289,6 +322,7 @@ def command_info(command_name):
 [cyan]Entry Point:[/cyan] {cmd_info.entry_point}
 [cyan]Main Subcommand:[/cyan] {cmd_info.main if cmd_info.main else 'None'}
 [cyan]Aliases:[/cyan] {', '.join(cmd_info.aliases) if cmd_info.aliases else 'None'}
+[cyan]Subcommands:[/cyan] {', '.join(cmd_info.subcommands) if cmd_info.subcommands else 'None'}
 [cyan]Status:[/cyan] {'✅ Installed' if module_path.exists() else '❌ Not installed'}
 [cyan]Full Path:[/cyan] {module_path}
 """

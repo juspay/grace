@@ -18,12 +18,15 @@ class CommandInfo:
     aliases: List[str] = None
     main: str = None  # Default subcommand to use when no args provided
     examples: List[str] = None  # Usage examples
+    subcommands: List[str] = None  # Valid subcommands for this command
 
     def __post_init__(self):
         if self.aliases is None:
             self.aliases = []
         if self.examples is None:
             self.examples = []
+        if self.subcommands is None:
+            self.subcommands = []
 
 
 class GraceRegistry:
@@ -98,7 +101,8 @@ class GraceRegistry:
         entry_point: str,
         aliases: Optional[List[str]] = None,
         main: Optional[str] = None,
-        examples: Optional[List[str]] = None
+        examples: Optional[List[str]] = None,
+        subcommands: Optional[List[str]] = None
     ):
         """Register a new command.
 
@@ -110,6 +114,7 @@ class GraceRegistry:
             aliases: List of command aliases
             main: Default subcommand to use when no args provided
             examples: Usage examples
+            subcommands: Valid subcommands for this command
         """
         cmd_info = CommandInfo(
             name=name,
@@ -118,7 +123,8 @@ class GraceRegistry:
             entry_point=entry_point,
             aliases=aliases or [],
             main=main,
-            examples=examples or []
+            examples=examples or [],
+            subcommands=subcommands or []
         )
 
         self.commands[name] = cmd_info
