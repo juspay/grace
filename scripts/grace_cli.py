@@ -189,6 +189,7 @@ def cli(ctx, version):
             if shown == 0:
                 console.print("  grace list        # List all commands")
                 console.print("  grace init        # Initialize registry")
+                console.print("  grace reload      # Reload registry from commands.json")
 
         console.print("")
 
@@ -245,6 +246,27 @@ def clear_registry():
     """Clear all registered commands."""
     GraceRegistry().clear_registry()
     console.print("[green]✅ Registry cleared![/green]")
+
+
+@cli.command(name='reload')
+def reload_registry():
+    """Reload the command registry from commands.json."""
+    grace_root = Path(__file__).parent.parent.absolute()
+    script_path = grace_root / "scripts" / "register_commands.py"
+
+    console.print("[cyan]Reloading command registry from commands.json...[/cyan]")
+
+    # Clear existing registry
+    GraceRegistry().clear_registry()
+
+    # Reload from commands.json
+    result = subprocess.run([sys.executable, str(script_path)])
+
+    if result.returncode == 0:
+        console.print("[green]✅ Command registry reloaded successfully![/green]")
+        console.print("\nRun [cyan]grace list[/cyan] to see updated commands")
+    else:
+        console.print("[red]❌ Failed to reload registry[/red]")
 
 
 @cli.command(name='info')

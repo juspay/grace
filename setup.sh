@@ -34,23 +34,50 @@ fi
 PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
 print_success "Python $PYTHON_VERSION found"
 
-# Check pip
-print_status "Checking pip installation..."
-if ! command_exists pip && ! command_exists pip3; then
-    print_error "pip is required. Please install pip."
-    exit 1
+# Remove .grace_registry.json if it exists
+if [ -f ".grace_registry.json" ]; then
+    print_status "Removing existing .grace_registry.json..."
+    rm -f ".grace_registry.json"
+    print_success ".grace_registry.json removed"
 fi
-print_success "pip is available"
+
+# Check if virtual environment exists
+if [ -d "venv" ]; then
+    echo ""
+    echo -e "${YELLOW}⚠️  Virtual environment already exists${NC}"
+    read -p "Do you want to recreate it? (y/N): " recreate
+    if [[ $recreate =~ ^[Yy]$ ]]; then
+        print_status "Removing existing virtual environment..."
+        rm -rf venv
+        print_success "Virtual environment removed"
+    fi
+fi
+
+# Create virtual environment if it doesn't exist
+if [ ! -d "venv" ]; then
+    echo ""
+    print_status "Creating virtual environment..."
+    python3 -m venv venv
+    print_success "Virtual environment created"
+fi
+
+# Activate virtual environment
+echo ""
+print_status "Activating virtual environment..."
+source venv/bin/activate
+print_success "Virtual environment activated"
+
+# Upgrade pip
+echo ""
+print_status "Upgrading pip..."
+pip install --upgrade pip > /dev/null 2>&1
+print_success "pip upgraded"
 
 # Install grace CLI
 echo ""
 print_status "Installing grace CLI..."
-if pip install -e . >/dev/null 2>&1; then
-    print_success "Grace CLI installed successfully"
-else
-    print_error "Failed to install Grace CLI"
-    exit 1
-fi
+pip install -e . > /dev/null 2>&1
+print_success "Grace CLI installed successfully"
 
 # Initialize registry
 echo ""
@@ -58,40 +85,13 @@ print_status "Initializing command registry..."
 python3 scripts/register_commands.py
 print_success "Command registry initialized"
 
-# Get Python bin path
-PYTHON_BIN_PATH=$(python3 -c "import site; print(site.USER_BASE + '/bin')" 2>/dev/null || echo "$HOME/.local/bin")
-
-# Check PATH
-echo ""
-print_status "Checking command availability..."
-if command_exists grace; then
-    print_success "grace command is available in PATH"
-    echo "   Location: $(which grace)"
-else
-    echo -e "${YELLOW}⚠️  grace command not found in PATH${NC}"
-    echo ""
-    echo "   To add it to your PATH:"
-
-    if [ -n "$ZSH_VERSION" ] || [ "$SHELL" = "/bin/zsh" ]; then
-        PYTHON_MAJOR_MINOR=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-        echo -e "   ${CYAN}echo 'export PATH=\"\$HOME/Library/Python/$PYTHON_MAJOR_MINOR/bin:\$PATH\"' >> ~/.zshrc${NC}"
-        echo -e "   ${CYAN}source ~/.zshrc${NC}"
-    elif [ -n "$BASH_VERSION" ] || [ "$SHELL" = "/bin/bash" ]; then
-        PYTHON_MAJOR_MINOR=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-        echo -e "   ${CYAN}echo 'export PATH=\"\$HOME/Library/Python/$PYTHON_MAJOR_MINOR/bin:\$PATH\"' >> ~/.bashrc${NC}"
-        echo -e "   ${CYAN}source ~/.bashrc${NC}"
-    else
-        echo "   export PATH=\"$PYTHON_BIN_PATH:\$PATH\""
-    fi
-fi
-
 # Test installation
 echo ""
 print_status "Testing installation..."
-if command_exists grace; then
-    grace --version > /dev/null 2>&1 && print_success "Installation test passed!" || print_error "Installation test failed"
+if venv/bin/grace --version > /dev/null 2>&1; then
+    print_success "Installation test passed!"
 else
-    $PYTHON_BIN_PATH/grace --version > /dev/null 2>&1 && print_success "Installation test passed (using full path)!" || print_error "Installation test failed"
+    print_error "Installation test failed"
 fi
 
 # Summary
@@ -102,22 +102,18 @@ echo -e "${CYAN}============================================================${NC
 echo ""
 echo "Next Steps:"
 echo ""
-echo "1. List available commands:"
-if command_exists grace; then
-    echo -e "   ${CYAN}grace list${NC}"
-else
-    echo -e "   ${CYAN}$PYTHON_BIN_PATH/grace list${NC}"
-fi
+echo "1. Activate the virtual environment:"
+echo -e "   ${CYAN}source venv/bin/activate${NC}"
 echo ""
-echo "2. Install module CLIs:"
+echo "2. List available commands:"
+echo -e "   ${CYAN}grace list${NC}"
+echo ""
+echo "3. Install module CLIs:"
 echo "   Each module has its own setup script in modules/<module>/setup.sh"
 echo ""
-echo "3. View help:"
-if command_exists grace; then
-    echo -e "   ${CYAN}grace --help${NC}"
-else
-    echo -e "   ${CYAN}$PYTHON_BIN_PATH/grace --help${NC}"
-fi
+echo "4. View help:"
+echo -e "   ${CYAN}grace --help${NC}"
 echo ""
-echo -e "${YELLOW}Note:${NC} If grace is not in PATH, restart your terminal or source your shell config."
+echo -e "${YELLOW}Note:${NC} Always activate the virtual environment before using grace:"
+echo -e "   ${CYAN}source $SCRIPT_DIR/venv/bin/activate${NC}"
 echo ""
