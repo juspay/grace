@@ -1,0 +1,29 @@
+{
+  "commands": [
+    {
+      "name": "research",
+      "description": "Deep research with AI analysis and web scraping",
+      "module_path": "modules/DeepResearchCLI",
+      "entry_point": "grace-research",
+      "main": "research",
+      "aliases": ["r", "deepresearch", "dr"],
+      "examples": [
+        "grace research",
+        "grace research \"worldpay\"",
+        "grace r \"finix authorise flow\"",
+        "grace research config"
+      ]
+    },
+    {
+      "name": "setup",
+      "description": "Run grace Deep research setup script",
+      "module_path": ".",
+      "entry_point": "bash",
+      "main": "./modules/DeepResearchCLI/setup.sh",
+      "aliases": ["install"],
+      "examples": [
+        "grace setup"
+      ]
+    }
+  ]
+}

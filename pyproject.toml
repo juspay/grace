@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "grace-cli"
+version = "1.0.0"
+description = "GRACE CLI - Global command executor for all grace modules"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "juspay/grace", email = "manideepk90@gmail.com"}
+]
+keywords = ["cli", "automation", "tools", "grace"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "click>=8.0.0",
+    "rich>=13.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/juspay/grace"
+Repository = "https://github.com/juspay/grace"
+
+[project.scripts]
+grace = "grace_cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "scripts"}
+py-modules = ["grace_cli", "grace_registry"]
+include-package-data = true
+zip-safe = false
