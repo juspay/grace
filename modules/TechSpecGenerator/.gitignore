@@ -54,14 +54,3 @@ config.json
 
 # Tool data directory
 api-doc-processor-data/
-node_modules/
-
-# NPM packaging
-*.tgz
-*.tar.gz
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# TypeScript build
-dist/

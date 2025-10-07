@@ -1,287 +1,140 @@
 # GRACE
 **Global Rapid Agentic Connector Exchange**
 
-GRACE is a comprehensive toolkit for building and managing connector integrations through intelligent automation and code generation.
+A comprehensive toolkit for building and managing connector integrations through intelligent automation and code generation. GRACE provides specialized modules for research, specification generation, and automated code generation - all accessible through a unified CLI.
 
-## Overview
+## 🚀 Quick Start
 
-GRACE provides a modular architecture with specialized tools for different aspects of connector development, from research and specification generation to automated code generation and testing.
+```bash
+# Run setup and activate virtual environment
+./setup.sh
+source venv/bin/activate
 
-## Modules
+# Verify installation
+grace --version
+grace list
 
-The `modules/` directory contains four specialized tools for connector development:
+# Setup modules as needed
+grace setup-d  # DeepResearchCLI
+grace setup-t  # TechSpecGenerator
+```
+
+## 📋 CLI Commands
+
+| Command | Aliases | Description |
+|---------|---------|-------------|
+| `grace list` | - | List all commands with status |
+| `grace info <command>` | - | Show command details |
+| `grace research [query]` | `r`, `dr` | AI-driven web research |
+| `grace techspec` | `ts` | Process API documentation |
+| `grace setup-d` | - | Setup DeepResearchCLI |
+| `grace setup-t` | - | Setup TechSpecGenerator |
+| `grace reload` | - | Reload command registry |
+| `grace --help` | - | Show help |
+
+## 🎯 Modules
 
 ### 🔍 DeepResearchCLI
-A powerful command-line interface for conducting comprehensive, AI-driven web research with beautiful terminal UI and intelligent deep research capabilities.
+AI-driven web research tool with intelligent depth control, multi-stage content processing, and support for multiple AI providers (LiteLLM, Vertex AI). Exports to HTML, JSON, or Markdown.
 
-**Key Features:**
-- AI-driven depth control with smart stopping criteria
-- Multi-stage content processing and summarization
-- Interactive terminal interface with real-time progress visualization
-- Multiple AI providers support (LiteLLM, Vertex AI)
-- Stealth browsing with proxy support and bot prevention
-- Multiple export formats (HTML, JSON, Markdown)
-- Configurable research parameters and custom instructions
+```bash
+grace setup-d
+grace research "Stripe payment API integration"
+```
 
 ### 📋 TechSpecGenerator
-A powerful TypeScript CLI tool that automates API integration research and planning using real LangGraph workflows. This module crawls API documentation, extracts content, generates technical specifications using AI, and creates mock servers with an interactive command-line interface.
+Automates API integration research using LangGraph workflows. Crawls API documentation, extracts content, generates technical specifications, and creates Express.js mock servers.
 
-**Key Features:**
-- Real LangGraph workflow management with @langchain/langgraph
-- Interactive CLI for API documentation processing
-- Web crawling and content extraction to markdown
-- AI-powered technical specification generation
-- Express.js mock server generation
-- Full TypeScript support with type safety
+```bash
+grace setup-t
+grace techspec
+```
 
 ### 🔌 CodeGenForHSConnector
-Code generation tools specifically designed for Hyperswitch connector development. Provides a structured, step-by-step process to ensure connectors are added accurately and efficiently to the Hyperswitch ecosystem.
-
-**Key Features:**
-- Comprehensive integration guide with reusable framework
-- Support for all payment flows (authorize, capture, refund, sync, etc.)
-- Template-based connector generation
-- Integration planning and technical specification templates
-- Step-by-step implementation guidance
-
-### 🔗 CodeGenForUCSConnector
-A specialized AI-assisted system for UCS (Universal Connector Service) connector development that supports complete connector lifecycle management - from initial implementation to continuation of partially completed work.
-
-**Key Features:**
-- Resume partial implementations where developers left off
-- Complete flow coverage (authorize, capture, void, refund, sync, webhooks, etc.)
-- All payment method support (cards, wallets, bank transfers, BNPL, etc.)
-- UCS-specific patterns tailored for gRPC-based stateless architecture
-- Flow-specific pattern files with real-world examples
-- Template generation for consistent implementations
-
-## 🚀 Usage Guide
-
-GRACE provides different tools for different stages of connector development. Choose the appropriate workflow based on your needs:
-
-### 🔍 For Research & Discovery
-**Use DeepResearchCLI when you need to:**
-- Research payment provider APIs and documentation
-- Gather comprehensive information about payment flows
-- Analyze competitor implementations
-- Create detailed research reports for planning
+Template-based code generation for Hyperswitch connectors with support for all payment flows and step-by-step implementation guidance.
 
 ```bash
-cd modules/DeepResearchCLI
-npm install
-npm run setup    # Sets up SearxNG search engine
-npm start       # Interactive research mode
-```
-
-**Example Usage:**
-```bash
-# Research a payment provider
-npm start research
-# Enter query: "Stripe payment API integration guide"
-# AI will conduct deep research and generate comprehensive reports
-```
-
-### 📋 For API Documentation Processing
-**Use TechSpecGenerator when you need to:**
-- Process existing API documentation
-- Generate technical specifications from docs
-- Create mock servers for testing
-- Convert documentation to structured formats
-
-```bash
-cd modules/TechSpecGenerator
-npm install
-npm run build
-api-doc-processor --create-config  # Create config file
-api-doc-processor                  # Interactive workflow
-```
-
-**Example Usage:**
-```bash
-# Process PayPal API documentation
-api-doc-processor
-# Enter URLs: https://developer.paypal.com/docs/api/
-# AI will crawl, extract, and generate tech specs
-```
-
-### 🔌 For Hyperswitch Connector Development
-**Use CodeGenForHSConnector when you need to:**
-- Integrate new payment connectors into Hyperswitch
-- Follow Hyperswitch-specific patterns and flows
-- Generate connector code for the main Hyperswitch repository
-
-```bash
-# In your Hyperswitch repository
-git clone https://github.com/juspay/grace.git
-# Use with AI assistant:
+# Use with AI assistant in Hyperswitch repository
 integrate [ConnectorName] using .gracerules
 ```
 
-**Example Usage:**
-```bash
-# AI command for new connector
-integrate Razorpay using .gracerules
-# AI will create tech spec, implementation plan, and generate code
-```
-
-### 🔗 For UCS Connector Development
-**Use CodeGenForUCSConnector when you need to:**
-- Develop connectors for UCS (Universal Connector Service)
-- Resume partial implementations
-- Add specific payment flows to existing connectors
-- Work with gRPC-based stateless architecture
+### 🔗 CodeGenForUCSConnector
+AI-assisted UCS connector development with support for resuming partial implementations, all payment flows, and UCS-specific gRPC patterns.
 
 ```bash
-# For new UCS connector
-integrate [ConnectorName] using grace-ucs/.gracerules
+# Use with AI assistant in connector-service repository
+# New connector
+integrate [ConnectorName] using .graceucs
 
-# For resuming work
-continue implementing [ConnectorName] connector in UCS - I have [existing_flows] and need [missing_flows]
+# Resume work
+continue implementing [ConnectorName] connector in .graceucs
 
-# For adding specific flows
-add [flow_names] flows to existing [ConnectorName] connector in UCS
+# Add flows
+add [flow_names] flows to existing [ConnectorName] connector in .graceucs
 ```
 
-**Example Usage:**
+## 📖 Workflow Examples
+
+### Complete Connector Integration
 ```bash
-# Start new UCS connector
-integrate Adyen using grace-ucs/.gracerules
+# 1. Research
+grace research
+# → Saves comprehensive research report
 
-# Resume partial work
-continue implementing Stripe connector in UCS - I have authorization and need capture, refund flows
+# 2. Process documentation
+grace techspec
+# → Generates tech spec and mock server
 
-# Add payment methods
-add wallet payments to PayPal connector in UCS
+# 3. Implement (with AI assistant)
+integrate Klarna using .graceucs
+# → Complete UCS connector
 ```
 
-## 📖 Detailed Workflow Examples
-
-### Complete Connector Integration Workflow
-
-#### 1. Research Phase (DeepResearchCLI)
+### Adding Payment Methods
 ```bash
-cd modules/DeepResearchCLI
-npm start
-# Query: "Klarna payments API integration guide"
-# Result: Comprehensive research report with API details
+grace r "worldpay Apple Pay flow"
+
+# Use with AI assistant in UCS repository
+add Apple Pay support to existing Stripe connector using .graceucs
 ```
-
-#### 2. Documentation Processing (TechSpecGenerator)
-```bash
-cd modules/TechSpecGenerator
-api-doc-processor
-# Input: Klarna developer documentation URLs
-# Result: Structured tech spec and mock server
-```
-
-#### 3. Implementation (CodeGenForUCSConnector)
-```bash
-# Place research results in grace-ucs/references/klarna/
-integrate Klarna using grace-ucs/.gracerules
-# Result: Complete UCS connector implementation
-```
-
-### Troubleshooting Existing Connector
-
-#### 1. Debug with UCS Tools
-```bash
-fix Stripe connector issues in UCS - getting timeout errors on authorization flow
-# AI will analyze code and provide fixes
-```
-
-#### 2. Research Solutions (DeepResearchCLI)
-```bash
-cd modules/DeepResearchCLI
-npm start
-# Query: "Stripe API timeout handling best practices"
-# Result: Research on timeout handling strategies
-```
-
-### Adding New Payment Methods
-
-#### 1. Research Payment Method (DeepResearchCLI)
-```bash
-# Research specific payment method requirements
-npm start
-# Query: "Apple Pay integration requirements and flows"
-```
-
-#### 2. Implement in UCS (CodeGenForUCSConnector)
-```bash
-add Apple Pay support to existing Stripe connector in UCS
-# AI will add wallet payment method support
-```
-
-## 🎯 Choosing the Right Tool
-
-| Task | Recommended Tool | When to Use |
-|------|------------------|-------------|
-| Initial research on new payment provider | DeepResearchCLI | Need comprehensive information gathering |
-| Processing existing API documentation | TechSpecGenerator | Have documentation URLs to analyze |
-| Building new Hyperswitch connector | CodeGenForHSConnector | Working with main Hyperswitch repository |
-| Building/extending UCS connector | CodeGenForUCSConnector | Working with UCS connector-service |
-| Debugging connector issues | CodeGenForUCSConnector | Need to fix or enhance existing UCS connectors |
-| Adding payment methods | CodeGenForUCSConnector | Extending existing connector capabilities |
 
 ## 🛠️ Prerequisites
+- Python 3.8+
+- API keys for AI services (OpenAI, Anthropic, Google, etc.)
+- AI assistant with code execution (Claude, GPT-4, etc.)
+- Hyperswitch/UCS repository (for code generation modules)
 
-### General Requirements
-- Node.js 18.0.0 or higher
-- npm or yarn
-- AI assistant with code execution capabilities (Claude, GPT-4, etc.)
+## 🔧 Custom Commands
 
-### Module-Specific Requirements
-- **DeepResearchCLI**: Docker Desktop or OrbStack (for SearxNG)
-- **TechSpecGenerator**: TypeScript 5+, API keys for LLM services
-- **CodeGenForHSConnector**: Hyperswitch repository cloned
-- **CodeGenForUCSConnector**: UCS connector-service repository
-
-## Getting Started
-
-1. Clone the repository
-2. Choose the appropriate module based on your task (see table above)
-3. Navigate to the module directory in `modules/`
-4. Follow the module-specific setup instructions
-5. Use the provided commands and examples above
-
-Each module contains its own README.md with detailed installation and usage instructions.
-
-## Project Structure
-
-```
-grace/
-├── modules/                    # Core modules and tools
-│   ├── DeepResearchCLI/        # AI-driven web research tool
-│   ├── TechSpecGenerator/      # LangGraph-based API doc processor
-│   ├── CodeGenForHSConnector/  # Hyperswitch connector tools
-│   └── CodeGenForUCSConnector/ # UCS connector tools
-├── .git/                      # Git repository metadata
-├── .gitignore                 # Git ignore patterns
-└── README.md                  # This file
+Edit `commands.json` and reload:
+```bash
+grace reload
 ```
 
-## Module Details
+## 🎯 Tool Selection Guide
 
-### DeepResearchCLI Structure
-- Full TypeScript CLI with services, UI, and utilities
-- Research data storage and history management
-- Distributed build artifacts and source code
+| Task | Tool |
+|------|------|
+| Research payment provider | `grace research` |
+| Process API documentation | `grace techspec` |
+| Build Hyperswitch connector | CodeGenForHSConnector |
+| Build/extend UCS connector | CodeGenForUCSConnector |
 
-### TechSpecGenerator Structure
-- LangGraph workflow implementation
-- Node-based processing architecture
-- Configuration management and TypeScript compilation
+## 🐛 Troubleshooting
 
-### CodeGenForHSConnector Structure
-- Connector integration templates and guides
-- Error handling patterns and type definitions
-- Integration examples and learnings
+**Command not found:**
+```bash
+source venv/bin/activate
+# Or add to PATH: export PATH="$HOME/Library/Python/3.9/bin:$PATH"
+```
 
-### CodeGenForUCSConnector Structure
-- UCS-specific implementation patterns
-- Flow-specific guides (authorize, capture, etc.)
-- Template generation and learning documentation
+**Module not installed:**
+```bash
+grace setup-d  # install deepresearch cli
+grace setup-t  # install TechSpecGenerator cli
+```
 
-## Contributing
-
-Please refer to the individual module documentation for specific contribution guidelines and development setup instructions.
+**Registry issues:**
+```bash
+grace reload # if Grace fails to use the commands properly
+```

@@ -91,3 +91,46 @@ logs
 environments/
 *.backup
 .mass/
+
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# Research data
+research_data/
+data/
+logs/
+*.log
+
+# SearxNG local installation
+searxng-local/
+searxng.pid
+nohup.out
+
+.env
