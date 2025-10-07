@@ -69,38 +69,7 @@ Before starting, determine your current implementation state:
 ```rust
 PaymentMethodData::Card(card_data) => {
     // Handle all card networks: Visa, Mastercard, Amex, Discover, etc.
-    // Support 3DS authentication
     // Handle CVV verification
-}
-```
-
-### Digital Wallets
-```rust
-PaymentMethodData::Wallet(wallet_data) => match wallet_data {
-    WalletData::ApplePay(_) => // Apple Pay implementation
-    WalletData::GooglePay(_) => // Google Pay implementation
-    WalletData::PaypalRedirect(_) => // PayPal implementation
-    // ... other wallets
-}
-```
-
-### Bank Transfers
-```rust
-PaymentMethodData::BankTransfer(bank_data) => match bank_data {
-    BankTransferData::AchBankTransfer => // ACH implementation
-    BankTransferData::SepaBank => // SEPA implementation
-    BankTransferData::Bacs => // BACS implementation
-    // ... other bank transfer methods
-}
-```
-
-### Buy Now Pay Later
-```rust
-PaymentMethodData::BuyNowPayLater(bnpl_data) => match bnpl_data {
-    BuyNowPayLaterData::KlarnaRedirect => // Klarna implementation
-    BuyNowPayLaterData::AffirmRedirect => // Affirm implementation
-    BuyNowPayLaterData::AfterpayClearpayRedirect => // Afterpay implementation
-    // ... other BNPL providers
 }
 ```
 
@@ -122,7 +91,7 @@ If resuming partial implementation:
 #### Step 1.2: Create/Update Technical Specification
 ```bash
 # For new implementation:
-# Use: grace-ucs/connector_integration/template/tech_spec.md
+# Use: grace-ucs/connector_integration/template/tech_spec.md //chnage
 
 # For continuing implementation:
 # AI will update existing spec with missing components
@@ -198,169 +167,7 @@ impl TryFrom<&ConnectorAuthType> for ConnectorNameAuthType {
 > - **Refund Flow**: `guides/patterns/pattern_refund.md`
 > - **Void Flow**: `guides/patterns/pattern_void.md`
 > - **Psync Flow**: `guides/patterns/pattern_psync.md`
-> - **Future flows**: Additional pattern files will be added for void, refund, sync, webhook, and dispute flows
-
-#### Step 3.1: Authorize Flow
-```rust
-impl ConnectorIntegrationV2<Authorize, PaymentsAuthorizeData, PaymentsResponseData>
-    for ConnectorName
-{
-    fn get_headers(
-        &self,
-        req: &RouterDataV2<Authorize, PaymentsAuthorizeData, PaymentsResponseData>,
-        connectors: &Connectors,
-    ) -> CustomResult<Vec<(String, Maskable<String>)>, errors::ConnectorError> {
-        // Implementation
-    }
-    
-    fn get_content_type(&self) -> &'static str {
-        self.common_get_content_type()
-    }
-    
-    fn get_url(
-        &self,
-        req: &RouterDataV2<Authorize, PaymentsAuthorizeData, PaymentsResponseData>,
-        connectors: &Connectors,
-    ) -> CustomResult<String, errors::ConnectorError> {
-        // Build connector-specific URL
-    }
-    
-    fn get_request_body(
-        &self,
-        req: &RouterDataV2<Authorize, PaymentsAuthorizeData, PaymentsResponseData>,
-        _connectors: &Connectors,
-    ) -> CustomResult<RequestContent, errors::ConnectorError> {
-        // Transform UCS data to connector format
-        let connector_req = transformers::ConnectorNamePaymentsRequest::try_from(req)?;
-        Ok(RequestContent::Json(Box::new(connector_req)))
-    }
-    
-    fn build_request(
-        &self,
-        req: &RouterDataV2<Authorize, PaymentsAuthorizeData, PaymentsResponseData>,
-        connectors: &Connectors,
-    ) -> CustomResult<Option<RequestDetails>, errors::ConnectorError> {
-        // Build complete HTTP request
-    }
-    
-    fn handle_response(
-        &self,
-        data: &RouterDataV2<Authorize, PaymentsAuthorizeData, PaymentsResponseData>,
-        event_builder: Option<&mut ConnectorEvent>,
-        res: Response,
-    ) -> CustomResult<RouterDataV2<Authorize, PaymentsAuthorizeData, PaymentsResponseData>, errors::ConnectorError> {
-        // Handle connector response and transform back to UCS format
-    }
-    
-    fn get_error_response(
-        &self,
-        res: Response,
-        event_builder: Option<&mut ConnectorEvent>,
-    ) -> CustomResult<ErrorResponse, errors::ConnectorError> {
-        self.build_error_response(res, event_builder)
-    }
-}
-```
-
-#### Step 3.2: Payment Method Handling
-```rust
-// In transformers.rs
-impl TryFrom<&RouterDataV2<Authorize, PaymentsAuthorizeData, PaymentsResponseData>>
-    for ConnectorNamePaymentsRequest
-{
-    type Error = Error;
-    
-    fn try_from(
-        item: &RouterDataV2<Authorize, PaymentsAuthorizeData, PaymentsResponseData>,
-    ) -> Result<Self, Self::Error> {
-        match item.request.payment_method_data.clone() {
-            PaymentMethodData::Card(req_card) => {
-                // Handle card payments
-                Self::build_card_request(item, req_card)
-            }
-            PaymentMethodData::Wallet(wallet_data) => {
-                // Handle wallet payments
-                Self::build_wallet_request(item, wallet_data)
-            }
-            PaymentMethodData::BankTransfer(bank_data) => {
-                // Handle bank transfers
-                Self::build_bank_transfer_request(item, bank_data)
-            }
-            PaymentMethodData::BuyNowPayLater(bnpl_data) => {
-                // Handle BNPL
-                Self::build_bnpl_request(item, bnpl_data)
-            }
-            // Add all other payment method types
-            _ => Err(errors::ConnectorError::NotImplemented(
-                utils::get_unimplemented_payment_method_error_message("connector_name")
-            ).into())
-        }
-    }
-}
-```
-
-### Phase 4: Advanced Features
-
-#### Step 4.1: Webhook Implementation
-```rust
-impl IncomingWebhook for ConnectorName {
-    fn get_webhook_object_reference_id(
-        &self,
-        request: &IncomingWebhookRequestDetails<'_>,
-    ) -> CustomResult<ObjectReferenceId, errors::ConnectorError> {
-        // Extract payment/refund ID from webhook
-    }
-    
-    fn get_webhook_event_type(
-        &self,
-        request: &IncomingWebhookRequestDetails<'_>,
-    ) -> CustomResult<IncomingWebhookEvent, errors::ConnectorError> {
-        // Map connector webhook events to UCS events
-    }
-    
-    fn get_webhook_resource_object(
-        &self,
-        request: &IncomingWebhookRequestDetails<'_>,
-    ) -> CustomResult<Box<dyn masking::ErasedMaskSerialize>, errors::ConnectorError> {
-        // Parse webhook payload
-    }
-    
-    fn get_dispute_details(
-        &self,
-        request: &IncomingWebhookRequestDetails<'_>,
-    ) -> CustomResult<DisputePayload, errors::ConnectorError> {
-        // Handle dispute webhooks if supported
-    }
-}
-```
-
-## 🧪 Testing Strategy
-
-### Unit Tests
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn test_payment_authorize_success() {
-        // Test successful authorization for all payment methods
-    }
-    
-    #[test]
-    fn test_payment_authorize_failure() {
-        // Test failure scenarios
-    }
-    
-    // Add tests for all flows and payment methods
-}
-```
-
-### Integration Tests
-```rust
-// File: backend/grpc-server/tests/connector_name_test.rs
-// Comprehensive gRPC integration tests
-```
+> - **Rsync Flow**: `guides/patterns/pattern_rsync.md`
 
 ## 🔄 Resuming Partial Implementation
 
@@ -374,24 +181,6 @@ mod tests {
 # 2. Use patterns from guides/patterns/pattern_capture.md
 # 3. Create capture flow following same patterns
 # 4. Ensure consistency with existing code style
-```
-
-#### "Need to add wallet support"
-```bash
-# AI Command: "add [WalletType] support to [ConnectorName] connector in UCS"
-# AI will:
-# 1. Analyze existing payment method handling
-# 2. Add wallet-specific transformations
-# 3. Update request/response structures
-```
-
-#### "Webhook implementation missing"
-```bash
-# AI Command: "implement webhook handling for [ConnectorName] connector in UCS"
-# AI will:
-# 1. Create webhook trait implementation
-# 2. Add signature verification
-# 3. Map webhook events to UCS events
 ```
 
 ## 🚨 Common UCS Pitfalls
@@ -442,47 +231,17 @@ use interfaces::connector_integration_v2::*;
 
 ### Payment Methods ✅
 - [ ] Card payments (all networks)
-- [ ] Digital wallets
-- [ ] Bank transfers
-- [ ] Buy Now Pay Later
-- [ ] Crypto payments
-- [ ] Regional methods
-- [ ] Cash/voucher methods
-
-### Advanced Features ✅
-- [ ] Webhook implementation
-- [ ] 3DS authentication
-- [ ] Recurring/mandate setup
-- [ ] Dispute handling
-- [ ] Multi-currency support
-- [ ] Partial capture/refund
 
 ### Quality & Testing ✅
-- [ ] Unit tests for all flows
-- [ ] Integration tests
-- [ ] Error scenario testing
-- [ ] Performance testing
-- [ ] Documentation updates
-- [ ] Code review ready
+- [ ] cargo build works for all flows
 
 ## 🎯 Success Metrics
 
 A complete UCS connector implementation should:
 1. **Support all relevant payment methods** for the connector
 2. **Handle all core flows** (auth, capture, void, refund, sync)
-3. **Process webhooks** if supported by connector
-4. **Have comprehensive test coverage** (>90%)
-5. **Follow UCS patterns** consistently
-6. **Handle errors gracefully** with proper mapping
-7. **Be production-ready** with proper logging and metrics
+3. **Follow UCS patterns** consistently
+4. **Handle errors gracefully** with proper mapping
+5. **Should be error free** should build successfully without any compilation errors
 
-## 🔄 Continuous Integration
-
-The UCS connector can be continuously improved:
-- **Add new payment methods** as connector supports them
-- **Implement new flows** as they become available
-- **Optimize performance** based on usage patterns
-- **Enhance error handling** based on production data
-- **Update for API changes** as connector evolves
-
-Remember: GRACE-UCS makes connector development resumable at any stage. You can always continue where you left off!
+Remember: GRACE makes connector development resumable at any stage. You can always continue where you left off!
