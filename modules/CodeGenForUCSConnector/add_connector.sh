@@ -34,10 +34,13 @@ readonly CONFIG_DIR="$ROOT_DIR/config"
 # File paths
 readonly CONNECTOR_TYPES_FILE="$BACKEND_DIR/interfaces/src/connector_types.rs"
 readonly DOMAIN_TYPES_FILE="$BACKEND_DIR/domain_types/src/connector_types.rs"
+readonly DOMAIN_TYPES_TYPES_FILE="$BACKEND_DIR/domain_types/src/types.rs"
 readonly INTEGRATION_TYPES_FILE="$BACKEND_DIR/connector-integration/src/types.rs"
 readonly CONNECTORS_MODULE_FILE="$BACKEND_DIR/connector-integration/src/connectors.rs"
 readonly PROTO_FILE="$BACKEND_DIR/grpc-api-types/proto/payment.proto"
 readonly CONFIG_FILE="$CONFIG_DIR/development.toml"
+readonly SANDBOX_CONFIG_FILE="$CONFIG_DIR/sandbox.toml"
+readonly PRODUCTION_CONFIG_FILE="$CONFIG_DIR/production.toml"
 
 # Template files
 readonly CONNECTOR_TEMPLATE="$TEMPLATE_DIR/connector.rs.template"
@@ -442,9 +445,10 @@ check_naming_conflicts() {
     # Check if connector files already exist
     local connector_file="$BACKEND_DIR/connector-integration/src/connectors/$NAME_SNAKE.rs"
     local connector_dir="$BACKEND_DIR/connector-integration/src/connectors/$NAME_SNAKE"
-
+    
     if [[ -f "$connector_file" ]] || [[ -d "$connector_dir" ]]; then
         fatal_error "Connector '$NAME_SNAKE' already exists"
+        
     fi
 
     # Check protobuf enum
@@ -497,16 +501,28 @@ create_backup() {
     local files_to_backup=(
         "$PROTO_FILE"
         "$DOMAIN_TYPES_FILE"
+        "$DOMAIN_TYPES_TYPES_FILE"
         "$CONNECTORS_MODULE_FILE"
         "$INTEGRATION_TYPES_FILE"
         "$CONFIG_FILE"
+        "$SANDBOX_CONFIG_FILE"
+        "$PRODUCTION_CONFIG_FILE"
     )
 
     local file
     for file in "${files_to_backup[@]}"; do
         if [[ -f "$file" ]]; then
-            cp "$file" "$BACKUP_DIR/$(basename "$file")"
-            log_debug "Backed up: $(basename "$file")"
+            # Create unique backup names for files with same basename
+            if [[ "$file" == "$DOMAIN_TYPES_TYPES_FILE" ]]; then
+                cp "$file" "$BACKUP_DIR/domain_types_types.rs"
+                log_debug "Backed up: domain_types/types.rs"
+            elif [[ "$file" == "$INTEGRATION_TYPES_FILE" ]]; then
+                cp "$file" "$BACKUP_DIR/integration_types.rs"
+                log_debug "Backed up: connector-integration/types.rs"
+            else
+                cp "$file" "$BACKUP_DIR/$(basename "$file")"
+                log_debug "Backed up: $(basename "$file")"
+            fi
         fi
     done
 
@@ -571,6 +587,18 @@ update_domain_types() {
     log_success "Updated domain types with $NAME_PASCAL"
 }
 
+update_domain_types_file() {
+    log_step "Updating domain types types.rs file"
+
+    # Add connector field to Connectors struct
+    # Insert before the closing brace of the struct
+    sed -i.bak "/^pub struct Connectors {/,/^}/ s/^}/    pub $NAME_SNAKE: ConnectorParams,\\n}/" "$DOMAIN_TYPES_TYPES_FILE"
+
+    rm -f "$DOMAIN_TYPES_TYPES_FILE.bak"
+
+    log_success "Added $NAME_SNAKE to Connectors struct in types.rs"
+}
+
 update_connectors_module() {
     log_step "Updating connectors module"
 
@@ -599,19 +627,41 @@ update_integration_types() {
     log_success "Updated integration types with $NAME_PASCAL mapping"
 }
 
-update_config() {
-    log_step "Updating configuration"
+update_config_file() {
+    local config_file="$1"
+    local config_name="$2"
 
-    if [[ -f "$CONFIG_FILE" ]]; then
-        # Add connector configuration
-        echo "" >> "$CONFIG_FILE"
-        echo "# $NAME_PASCAL connector configuration" >> "$CONFIG_FILE"
-        echo "$NAME_SNAKE.base_url = \"$BASE_URL\"" >> "$CONFIG_FILE"
-
-        log_success "Updated configuration"
+    if [[ -f "$config_file" ]]; then
+        # Check if [connectors] section exists
+        if grep -q "^\[connectors\]" "$config_file"; then
+            # Insert after [connectors] section header
+            sed -i.bak "/^\[connectors\]/a\\
+$NAME_SNAKE.base_url = \"$BASE_URL\"
+" "$config_file"
+            rm -f "$config_file.bak"
+            log_success "Updated $config_name in [connectors] section"
+        else
+            # Create [connectors] section at the end
+            echo "" >> "$config_file"
+            echo "[connectors]" >> "$config_file"
+            echo "# $NAME_PASCAL connector configuration" >> "$config_file"
+            echo "$NAME_SNAKE.base_url = \"$BASE_URL\"" >> "$config_file"
+            log_success "Created [connectors] section in $config_name and added configuration"
+        fi
     else
-        log_warning "Configuration file not found, skipping config update"
+        log_warning "$config_name not found, skipping config update"
     fi
+}
+
+update_config() {
+    log_step "Updating configuration files"
+
+    # Update all environment config files
+    update_config_file "$CONFIG_FILE" "development.toml"
+    update_config_file "$SANDBOX_CONFIG_FILE" "sandbox.toml"
+    update_config_file "$PRODUCTION_CONFIG_FILE" "production.toml"
+
+    log_success "All configuration files updated"
 }
 
 # =============================================================================
@@ -681,14 +731,23 @@ emergency_rollback() {
                     "connector_types.rs")
                         cp "$backup_file" "$DOMAIN_TYPES_FILE"
                         ;;
+                    "domain_types_types.rs")
+                        cp "$backup_file" "$DOMAIN_TYPES_TYPES_FILE"
+                        ;;
+                    "integration_types.rs")
+                        cp "$backup_file" "$INTEGRATION_TYPES_FILE"
+                        ;;
                     "connectors.rs")
                         cp "$backup_file" "$CONNECTORS_MODULE_FILE"
                         ;;
-                    "types.rs")
-                        cp "$backup_file" "$INTEGRATION_TYPES_FILE"
-                        ;;
                     "development.toml")
                         cp "$backup_file" "$CONFIG_FILE"
+                        ;;
+                    "sandbox.toml")
+                        cp "$backup_file" "$SANDBOX_CONFIG_FILE"
+                        ;;
+                    "production.toml")
+                        cp "$backup_file" "$PRODUCTION_CONFIG_FILE"
                         ;;
                 esac
             fi
@@ -797,6 +856,7 @@ main() {
     create_connector_files
     update_protobuf
     update_domain_types
+    update_domain_types_file
     update_connectors_module
     update_integration_types
     update_config
