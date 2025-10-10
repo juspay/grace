@@ -3,7 +3,28 @@
 
 A comprehensive toolkit for building and managing connector integrations through intelligent automation and code generation. GRACE provides specialized modules for research, specification generation, and automated code generation - all accessible through a unified CLI.
 
-## 📦 Available Modules
+## Quick Start
+
+1. **Install GRACE CLI:**
+```bash
+./setup.sh # it will install all the cli
+# source to the env file it created or activate using 
+source grace/venv/bin/activate # from the connector-service repo
+source venv/bin/active # from grace repo
+```
+
+2. **Verify Installation:**
+```bash
+grace list
+```
+
+3. **View Available Commands:**
+```bash
+grace --help
+```
+
+
+## Available Modules
 
 ### 1. **DeepResearchCLI** - AI-Powered Research Assistant
 Deep research with AI analysis and web scraping capabilities. Conduct comprehensive research on payment connectors, APIs, and integration patterns.
@@ -59,22 +80,6 @@ Previous generation of the code generator with alternative implementation patter
 
 **Location:** `modules/CodegenLegacy/`
 
-## 🚀 Quick Start
-
-1. **Install GRACE CLI:**
-```bash
-./setup.sh
-```
-
-2. **Verify Installation:**
-```bash
-grace list
-```
-
-3. **View Available Commands:**
-```bash
-grace --help
-```
 
 ## 📋 Command Reference
 
@@ -112,6 +117,3 @@ grace/
 └── README.md         # This file
 ```
 
-## 📝 License
-
-MIT License

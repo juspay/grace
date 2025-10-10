@@ -144,242 +144,131 @@ Before finalizing the specification, verify each item:
 ☐ **Examples**: Real examples from documentation (not fabricated)
 
 ---
+You are tasked with creating comprehensive API documentation by extracting information from the provided context. Your role is to structure the available information into a standardized documentation format without making any modifications, assumptions, or interpretations.
 
-## OUTPUT FORMAT SPECIFICATION
+## Core Requirements:
+- Extract ALL available endpoints from the following documentation
+- Maintain exact 1:1 correspondence between source content and documentation
+- Do not modify, enhance, or assume any missing information
+- Structure only what is explicitly present in the source material
+- Cover all API flows mentioned in the context, not just specific ones
+
+## Documentation Structure:
+
+### Connector Information
+- Extract connector name and basic details as provided
+- List all base URLs (production, sandbox, testing) mentioned
+- Include any additional URLs found (webhooks, status endpoints, documentation links, etc.)
+
+### Authentication Details
+- Document authentication methods exactly as described
+- Include all authentication parameters, headers, and configurations mentioned
+- Preserve exact format of API keys, tokens, or credentials structure
+
+### Complete Endpoint Inventory
+For EVERY endpoint found in the context, document:
+- Exact endpoint URL/path
+- HTTP method
+- All headers mentioned
+- Complete request payload structure (as provided)
+- Complete response payload structure (as provided)
+- Any curl examples if present
+- Error responses if documented
+
+### Flow Categories to Extract:
+Document all flows present, which may include:
+- Payment/Authorization flows
+- Capture operations
+- Refund processes
+- Status/sync endpoints
+- Dispute handling
+- Tokenization/vaulting
+- Webhook endpoints
+- Account/configuration endpoints
+- Any other flows mentioned
+
+### Configuration Parameters
+- List all configuration requirements mentioned
+- Environment variables or settings
+- Supported features, currencies, regions as stated
+- Integration requirements
+
+## Output Guidelines:
+- Use the exact field names, values, and structures from the source
+- Preserve original JSON formatting and data types
+- Include all optional and required parameters as marked
+- Maintain original error codes and messages
+- Do not fill gaps or make educated guesses
+- If information is partially available, document only what's explicitly provided
+- Use "Not specified in source" for clearly missing but relevant information
+
+Generate documentation that serves as a faithful representation of the API capabilities based solely on the provided context.
 
 
-```yaml
-openapi: 3.0.3
-info:
-  title: "{{CONNECTOR_NAME}} Connector Integration Specification"
-  description: |
-    Complete specification for {{CONNECTOR_NAME}} connector integration.
-    Contains all technical details required for production implementation.
+You are tasked with creating comprehensive API documentation by extracting information from the provided context. 
+Your role is to structure the available information into a standardized documentation format without making any modifications, assumptions, or interpretations.
+## Core Requirements:
+- Extract ALL available endpoints from the following documentation
+- Maintain exact 1:1 correspondence between source content and documentation
+- Do not modify, enhance, or assume any missing information
+- Structure only what is explicitly present in the source material
+- Cover all API flows mentioned in the context, not just specific ones
+## Documentation Structure:
 
-    VERIFICATION STATUS: [Mark each section as VERIFIED or REQUIRES_VERIFICATION]
-  version: 1.0.0
+### Connector Information
+- Extract connector name and basic details as provided
+- List all base URLs (production, sandbox, testing) mentioned
+- Include any additional URLs found (webhooks, status endpoints, documentation links, etc.)
+### Authentication Details
+- Document authentication methods exactly as described
+- Include all authentication parameters, headers, and configurations mentioned
+- Preserve exact format of API keys, tokens, or credentials structure
+### Complete Endpoint Inventory
+For EVERY endpoint found in the context, document:
+- Exact endpoint URL/path
+- HTTP method
+- All headers mentioned
+- Complete request payload structure (as provided)
+- Complete response payload structure (as provided)
+- Any curl examples if present
+- Error responses if documented
 
-components:
-  schemas:
-    {{CONNECTOR_NAME}}ConnectorSpec:
-      type: object
-      required: [connector_name, connector_enum, auth_type, supported_flows, api_endpoints, transformers]
-      properties:
-        connector_name:
-          type: string
-          example: "{{CONNECTOR_NAME}}"
-          description: "Exact name for Rust struct generation"
+### Flow Categories to Extract:
+Document all flows present, which may include:
+- Payment/Authorization flows
+- Capture operations
+- Refund processes
+- Status/sync endpoints
+- Dispute handling
+- Tokenization/vaulting
+- Webhook endpoints
+- Account/configuration endpoints
+- Any other flows mentioned
 
-        connector_enum:
-          type: string
-          example: "{{CONNECTOR_NAME_UPPER}}"
-          description: "Enum variant in ConnectorEnum"
+### Configuration Parameters
+- List all configuration requirements mentioned
+- Environment variables or settings
+- Supported features, currencies, regions as stated
+- Integration requirements
 
-        display_name:
-          type: string
-          example: "{{CONNECTOR_DISPLAY_NAME}}"
+## Output Guidelines:
+- Use the exact field names, values, and structures from the source
+- Preserve original JSON formatting and data types
+- Include all optional and required parameters as marked
+- Maintain original error codes and messages
+- Do not fill gaps or make educated guesses
+- If information is partially available, document only what's explicitly provided
+- Use \"Not specified in source\" for clearly missing but relevant information
 
-        base_url:
-          type: object
-          properties:
-            production:
-              type: string
-              example: "{{PRODUCTION_URL}}"
-            sandbox:
-              type: string
-              example: "{{SANDBOX_URL}}"
-          description: "Exact base URLs from official documentation"
+Generate documentation that serves as a faithful representation of the API capabilities based solely on the provided context.
 
-        auth_type:
-          $ref: '#/components/schemas/AuthConfig'
-
-        supported_flows:
-          type: array
-          items:
-            $ref: '#/components/schemas/FlowConfig'
-          description: "All flows supported by this connector"
-
-        api_endpoints:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/EndpointConfig'
-          description: "Exact endpoint configurations per flow"
-
-        transformers:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/TransformerConfig'
-          description: "Request/response transformation specifications"
-
-        webhook_config:
-          $ref: '#/components/schemas/WebhookConfig'
-          description: "Webhook verification and event handling"
-
-    AuthConfig:
-      type: object
-      required: [type, implementation]
-      properties:
-        type:
-          type: string
-          enum: [HeaderKey, BodyKey, SignatureKey, MultiAuthKey, CertificateAuth, NoKey]
-          example: "HeaderKey"
-        implementation:
-          type: object
-          description: "Exact authentication implementation details"
-          # Varies by auth type - document actual requirements
-
-    FlowConfig:
-      type: object
-      required: [flow_type, required, request_type, response_type]
-      properties:
-        flow_type:
-          type: string
-          enum: [Authorize, Capture, Void, PSync, RSync, Refund, SetupMandate, RepeatPayment, CreateOrder, PaymentMethodToken]
-          example: "Authorize"
-        required:
-          type: boolean
-          description: "Whether this flow must be implemented"
-        request_type:
-          type: string
-          description: "Rust type for request transformation"
-        response_type:
-          type: string
-          description: "Rust type for response transformation"
-
-    EndpointConfig:
-      type: object
-      required: [method, path, content_type]
-      properties:
-        method:
-          type: string
-          enum: [GET, POST, PUT, PATCH, DELETE]
-          example: "POST"
-        path:
-          type: string
-          description: "Exact API path with parameter placeholders"
-          example: "/v1/payments/{payment_id}/captures"
-        content_type:
-          type: string
-          enum: [application/json, application/xml, text/xml, application/x-www-form-urlencoded, multipart/form-data]
-          example: "application/json"
-        path_params:
-          type: array
-          items:
-            type: string
-          description: "Path parameter names"
-          example: ["payment_id"]
-        query_params:
-          type: array
-          items:
-            type: string
-          description: "Required query parameters"
-        headers:
-          type: object
-          description: "Required headers beyond authentication"
-
-    TransformerConfig:
-      type: object
-      required: [request_mapping, response_mapping]
-      properties:
-        request_mapping:
-          type: object
-          description: "Exact field mappings from RouterData to connector request"
-          additionalProperties:
-            $ref: '#/components/schemas/FieldMapping'
-        response_mapping:
-          type: object
-          description: "Exact field mappings from connector response to RouterData"
-          additionalProperties:
-            $ref: '#/components/schemas/FieldMapping'
-        amount_conversion:
-          type: string
-          enum: [minor_units, major_units, string_minor, string_major]
-          description: "Exact amount format expected by connector"
-
-    FieldMapping:
-      type: object
-      properties:
-        source_path:
-          type: string
-          description: "JSONPath to source field"
-          example: "$.request.minor_amount"
-        target_path:
-          type: string
-          description: "JSONPath to target field in connector API"
-          example: "$.amount"
-        transformation:
-          type: string
-          enum: [direct, currency_conversion, date_format, custom, conditional]
-          description: "Type of transformation required"
-        transformation_details:
-          type: object
-          description: "Specific transformation parameters"
-        required:
-          type: boolean
-          description: "Whether this field is required"
-        data_type:
-          type: string
-          enum: [string, integer, number, boolean, array, object]
-          description: "Expected data type"
-        constraints:
-          type: object
-          description: "Field constraints (length, range, enum values)"
-
-    WebhookConfig:
-      type: object
-      properties:
-        verification_method:
-          type: string
-          enum: [hmac_signature, ip_whitelist, shared_secret, none]
-          description: "How to verify webhook authenticity"
-        signature_algorithm:
-          type: string
-          enum: [SHA256, SHA512, MD5, RSA-SHA256]
-          description: "Algorithm for signature verification"
-        signature_header:
-          type: string
-          description: "Header containing webhook signature"
-        supported_events:
-          type: array
-          items:
-            type: string
-          description: "All webhook event types supported"
-        event_mappings:
-          type: object
-          description: "Mapping from webhook events to internal event types"
-
-# CRITICAL MISSING INFORMATION SECTION
-missing_information:
-  authentication:
-    - "List specific auth details that need verification"
-  endpoints:
-    - "List endpoint details that need verification"
-  webhooks:
-    - "List webhook details that need verification"
-
-# VERIFICATION SOURCES SECTION
-verification_sources:
-  required_followup:
-    - "Contact {{CONNECTOR_NAME}} Developer Support for X"
-    - "Access {{CONNECTOR_NAME}} Developer Portal for Y"
-    - "Review {{CONNECTOR_NAME}} API Reference for Z"
-
-# EXAMPLE IMPLEMENTATION
-example_implementation:
-  connector_name: "{{CONNECTOR_NAME}}"
-  auth_type:
-    type: "HeaderKey"  # Use exact type found
-    implementation:
-      header_name: "X-API-Key"  # Use exact header name
-      value_format: "Bearer {api_key}"  # Use exact format
-
-  # Continue with exact details found...
-```
+API Documentation:
+{content}"
 
 ## RESEARCH METHODOLOGY
 
 ### 1. Source Prioritization (In Order):
-1. **Official API Documentation** - Primary source
+1. **Official API Documentation** - Primary source which has query domain
 2. **Developer Portal/Guides** - Implementation details
 3. **SDK/Library Code** - Reference implementations
 4. **Community Forums** - Edge cases and clarifications

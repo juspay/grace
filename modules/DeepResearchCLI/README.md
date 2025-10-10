@@ -165,7 +165,7 @@ The setup script creates a `.env` file automatically. Here's what it contains:
 AI_PROVIDER=litellm                           # Options: litellm, vertex, anthropic
 LITELLM_API_KEY=your_api_key_here
 LITELLM_BASE_URL=http://localhost:4000/v1
-LITELLM_MODEL_ID=gpt-4
+LITELLM_MODEL_ID=claude-sonnet-4-20250514
 
 # Vertex AI Configuration (if AI_PROVIDER=vertex)
 # VERTEX_AI_PROJECT_ID=your_project_id
@@ -208,7 +208,7 @@ DEBUG_LOG_FILE=./logs/debug.log              # Debug log file
 AI_PROVIDER=litellm
 LITELLM_API_KEY=your_api_key_here
 LITELLM_BASE_URL=http://localhost:4000/v1
-LITELLM_MODEL_ID=gpt-4
+LITELLM_MODEL_ID=claude-sonnet-4-20250514
 ```
 
 #### Vertex AI (Google Cloud)
