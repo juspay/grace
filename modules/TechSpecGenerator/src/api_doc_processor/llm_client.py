@@ -51,12 +51,15 @@ class LLMClient:
                 return False, "", "No content found in markdown files"
             
             # Prepare the prompt
-            prompt = prompt_config.template.format(content=combined_content)
+            # prompt = prompt_config.template
+            messages = [{"role": "user", "content": content} for content in combined_content]
+            messages.insert(0, {"role": "system", "content": prompt_config.system_instructions})
+            
             
             # Prepare completion arguments (following your pattern)
             completion_args = {
                 "model": self.config.model,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": messages,
                 "temperature": self.config.temperature,
                 "max_tokens": self.config.max_tokens,
                 "api_key": self.config.api_key
@@ -95,7 +98,7 @@ class LLMClient:
             except Exception as e:
                 combined_content.append(f"## Error reading {file_path.name}\n\nError: {str(e)}\n\n")
         
-        return "\n".join(combined_content)
+        return combined_content
     
     def save_tech_spec(self, tech_spec: str, output_dir: Path) -> Path:
         """Save the generated tech spec to a file."""
