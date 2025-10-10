@@ -144,3 +144,12 @@ echo "For more information, see:"
 echo "- README.md for usage guide"
 echo "- INSTALL.md for detailed installation instructions"
 echo ""
+
+echo "Create config.json with your API keys if you haven't already."
+if [ ! -f "config.json" ]; then
+    echo -e "${YELLOW}You can create a config file by running:${NC}"
+    echo -e "${YELLOW}  api-doc-processor --create-config${NC}"
+    api-doc-processor --create-config
+    echo ""
+fi
+

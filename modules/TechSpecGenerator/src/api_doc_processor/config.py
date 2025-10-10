@@ -24,6 +24,68 @@ class LiteLLMConfig(BaseModel):
 
 class PromptConfig(BaseModel):
     """Prompt configuration."""
+    system_instructions: str = """
+You are tasked with creating comprehensive API documentation by extracting information from the provided context. Your role is to structure the available information into a standardized documentation format without making any modifications, assumptions, or interpretations.
+
+## Core Requirements:
+- Extract ALL available endpoints from the following documentation
+- Maintain exact 1:1 correspondence between source content and documentation
+- Do not modify, enhance, or assume any missing information
+- Structure only what is explicitly present in the source material
+- Cover all API flows mentioned in the context, not just specific ones
+
+## Documentation Structure:
+
+### Connector Information
+- Extract connector name and basic details as provided
+- List all base URLs (production, sandbox, testing) mentioned
+- Include any additional URLs found (webhooks, status endpoints, documentation links, etc.)
+
+### Authentication Details
+- Document authentication methods exactly as described
+- Include all authentication parameters, headers, and configurations mentioned
+- Preserve exact format of API keys, tokens, or credentials structure
+
+### Complete Endpoint Inventory
+For EVERY endpoint found in the context, document:
+- Exact endpoint URL/path
+- HTTP method
+- All headers mentioned
+- Complete request payload structure (as provided)
+- Complete response payload structure (as provided)
+- Any curl examples if present
+- Error responses if documented
+
+### Flow Categories to Extract:
+Document all flows present, which may include:
+- Payment/Authorization flows
+- Capture operations
+- Refund processes
+- Status/sync endpoints
+- Dispute handling
+- Tokenization/vaulting
+- Webhook endpoints
+- Account/configuration endpoints
+- Any other flows mentioned
+
+### Configuration Parameters
+- List all configuration requirements mentioned
+- Environment variables or settings
+- Supported features, currencies, regions as stated
+- Integration requirements
+
+## Output Guidelines:
+- Use the exact field names, values, and structures from the source
+- Preserve original JSON formatting and data types
+- Include all optional and required parameters as marked
+- Maintain original error codes and messages
+- Do not fill gaps or make educated guesses
+- If information is partially available, document only what's explicitly provided
+- Use "Not specified in source" for clearly missing but relevant information
+
+Generate documentation that serves as a faithful representation of the API capabilities based solely on the provided context.
+"""
+
     template: str = Field(
         default="""You are tasked with creating comprehensive API documentation by extracting information from the provided context. Your role is to structure the available information into a standardized documentation format without making any modifications, assumptions, or interpretations.
 
@@ -84,9 +146,7 @@ Document all flows present, which may include:
 - Use "Not specified in source" for clearly missing but relevant information
 
 Generate documentation that serves as a faithful representation of the API capabilities based solely on the provided context.
-
-API Documentation:
-{content}""",
+""",
         description="Template for extracting and structuring API documentation without modifications or assumptions"
     )   
 
