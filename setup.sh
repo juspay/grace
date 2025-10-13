@@ -82,8 +82,8 @@ print_success "Grace CLI installed successfully"
 # Install dependencies
 echo ""
 print_status "Installing dependencies..."
-print_status "Installing DeepResearchCLI..."
-./modules/DeepResearchCLI/setup.sh
+# print_status "Installing DeepResearchCLI..."
+# ./modules/DeepResearchCLI/setup.sh
 print_status "Installing TechSpecGenerator..."
 ./modules/TechSpecGenerator/setup.sh
 
