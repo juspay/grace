@@ -1,186 +1,174 @@
-# GRACE
+# Grace CLI - LangGraph Workflow System
 
-**Global Rapid Agentic Connector Exchange**
+Intelligent research and technical specification generator using LangGraph workflows.
 
-A comprehensive toolkit for building and managing connector integrations through intelligent automation and code generation. GRACE provides specialized modules for research, specification generation, and automated code generation - all accessible through a unified CLI.
+## Features
 
-# Quick Setup
+- **Research Workflow**: Deep research with intelligent source discovery, content analysis, and synthesis
+- **Techspec Workflow**: Automated connector code generation with validation and documentation
+- **LangGraph Integration**: State-based workflow orchestration with parallel processing
+- **Rich Output**: Multiple formats (Markdown, JSON, Text) with comprehensive metadata
 
-**Prerequisites:** Ensure you're in the `grace/` directory for setup
+## Requirements
 
-Step 1: To install grace CLI
+- Python 3.9+ (Required for LangGraph compatibility)
+- uv or pip for package management
 
+## Installation
+
+### Using uv (Recommended)
 ```bash
-./setup.sh
+# Install from source
+cd grace
+uv sync
+
+# Or install specific feature groups
+uv sync --extra dev --extra ai --extra scraping
 ```
 
-Step 2: To activate Grace CLI
-
+### Using pip
 ```bash
-source ./venv/bin/activate  # from grace folder
+# Install in development mode
+pip install -e .
+
+# Or with optional dependencies
+pip install -e ".[dev,ai,scraping,nlp]"
 ```
 
-# Manual Setup
-setup virtual python environment --> inside grace folder
+## Quick Start
 
+### Research Workflow
 ```bash
-python3 -m venv venv
+# Basic research
+grace research "machine learning trends 2024"
 
-# or use uv
-
-uv venv venv
-
-source ./venv/bin/active
+# Advanced research with options
+grace research "AI in healthcare" \
+  --depth 8 \
+  --sources 15 \
+  --format json \
+  --output research_report.json \
+  --verbose
 ```
-Install cli
+
+### Techspec Workflow
 ```bash
-pip install -e . && pip install -e ./modules/TechSpecGenerator
+# Generate connector for a payment processor
+grace techspec stripe \
+  --api-doc stripe_api.yaml \
+  --output ./generated/stripe \
+  --verbose
+
+# Test mode (no file generation)
+grace techspec paypal --test-only
+
+# Create configuration template
+grace techspec --create-config
 ```
 
+## LangGraph Workflow Architecture
 
-## USAGE
+Both workflows use LangGraph for sophisticated state management and parallel processing:
 
-### Step 1: Activate Grace CLI if venv is not active
+### Research Workflow States
+```
+Query Analysis -> Source Discovery -> Content Extraction
+                                            |
+Format Output <- Synthesize Report <- Analyze Content
+```
 
+### Techspec Workflow States
+```
+API Analysis -> Schema Extract -> Code Generation
+                                       |
+Finalize Output <- Generate Docs <- Validate Code
+```
+
+## Usage Examples
+
+### Research Examples
 ```bash
-source ./grace/venv/bin/activate
-# or
-source ./venv/bin/activate  # from grace folder
+# Technology research with specific depth
+grace research "blockchain scalability solutions" --depth 7
+
+# Business research with JSON output
+grace research "SaaS pricing strategies 2024" --sources 20 --format json
+
+# Save to file
+grace research "quantum computing applications" --output quantum_report.md
 ```
 
-### Step 2: use GRACE CLI
-
+### Techspec Examples
 ```bash
-# to generate techspec from links
-grace ts
-# or
-grace techspec
-# or
-api-doc-processor
+# Payment processor connector
+grace techspec adyen --api-doc adyen_openapi.yaml
+
+# E-commerce platform with custom output
+grace techspec shopify --output ./connectors/shopify --verbose
+
+# Test without generating files
+grace techspec test_connector --test-only
 ```
 
-### Step 3: Codegen
+## Development
 
-**Prerequisites:** Move the markdown file generated inside the **techspec-output** folder to grace/modules/Codegen/reference/**{Connector_name}**/
-
-To use Codegen, You need to use the cline or claude code for generating code
-
-**Claude code is recommended for this**
-
-run the claude code
-and prompt this
-
-> Integrate the {ConnectorName} using .grace/modules/Codegen/.gracerules
-
-### OR
-
-use this command
-
+### Setup
 ```bash
- claude "Integrate {ConnectorName} using
-grace/modules/Codegen/.gracerules" --dangerously-skip-permissions
+git clone <repository-url>
+cd grace
+uv sync --extra dev
 ```
 
-**Note**: replace the ConnectorName to the actual connector name you are integrating.
 
-## Available Modules
-
-<!-- ### 1. **DeepResearchCLI** - AI-Powered Research Assistant
-
-Deep research with AI analysis and web scraping capabilities. Conduct comprehensive research on payment connectors, APIs, and integration patterns.
-
-**Commands:**
-
-- `grace research` or `grace r` - Start research session
-- `grace research "connector name"` - Research specific connector
-- `grace research config` - Configure research settings
-- `grace research history` - View research history
-- `grace research clear` - Clear research history -->
-<!--
-**Examples:**
-
+### Code Formatting
 ```bash
-grace research "worldpay"
-grace r "finix authorise flow"
-grace research config
-``` -->
+uv run black src/
+uv run mypy src/
+```
 
-### 1. **TechSpecGenerator** - API Documentation Processor
+## Troubleshooting
 
-Generate technical specifications from API documentation. Converts API docs into structured specifications for connector implementation.
-
-**Commands:**
-
-- `grace techspec` or `grace ts` - Run TechSpec Generator
-- `grace ts --create-config` - Create configuration file
-- `grace ts --test-only` - Run in test mode
-- `grace ts --verbose` - Verbose output
-
-**Examples:**
-
+### Dependency Resolution
+If you get Python version conflicts:
 ```bash
-grace techspec
-grace ts --create-config
+# Check Python version
+python --version  # Should be 3.9+
+
+# Clear cache and reinstall
+uv cache clean
+uv sync
 ```
 
-### 2. **Codegen** - Automated Connector Code Generation
-
-Automated code generation for UCS connector implementations. Generates complete connector code from specifications.
-
-**Features:**
-
-- Template-based code generation
-- Connector integration scaffolding
-- Guided setup with interactive prompts
-- Custom rules via `.gracerules`
-
-**Location:** `modules/Codegen/`
-
-### 3. **CodegenLegacy** - Legacy Connector Code Generation
-
-Previous generation of the code generator with alternative implementation patterns.
-
-**Features:**
-
-- Legacy template support
-- Alternative code patterns
-- Custom CLI rules via `.clinerules`
-
-**Location:** `modules/CodegenLegacy/`
-
-## 📋 Command Reference
-
-| Command          | Aliases | Description                       |
-| ---------------- | ------- | --------------------------------- |
-| `grace techspec` | `ts`    | Generate technical specifications |
-| `grace list`     | -       | List all available commands       |
-
-## 🔧 Configuration
-
-GRACE uses a centralized configuration system via `commands.json`. Each module can be configured independently through its own setup scripts and configuration files.
-
-## 📖 Module Documentation
-
-For detailed documentation on each module:
-
-<!-- - **DeepResearchCLI:** See `modules/DeepResearchCLI/README.md` -->
-
-- **TechSpecGenerator:** See `modules/TechSpecGenerator/README.md`
-- **Codegen:** See `modules/Codegen/README.md`
-- **CodegenLegacy:** See `modules/CodegenLegacy/README.md`
-
-## 🛠️ Development
-
-**Project Structure:**
-
+### Import Errors
+If LangGraph imports fail:
+```bash
+# Install core dependencies
+uv add langgraph langchain langchain-core
 ```
-grace/
-├── scripts/           # Core CLI scripts
-├── modules/           # Individual feature modules
-│   ├── TechSpecGenerator/
-│   ├── Codegen/
-│   └── CodegenLegacy/
-├── commands.json      # Command registry
-├── setup.sh          # Main installation script
-└── README.md         # This file
+
+## API Reference
+
+### Python API
+```python
+from grace_clio.research import run_research_workflow
+from grace_clio.techspec import run_techspec_workflow
+
+# Research workflow
+result = await run_research_workflow(
+    query="AI trends",
+    format_type="markdown",
+    depth=5,
+    max_sources=10
+)
+
+# Techspec workflow
+result = await run_techspec_workflow(
+    connector_name="stripe",
+    api_doc_path="stripe_api.yaml",
+    output_dir="./generated"
+)
 ```
+
+## License
+
+MIT License
