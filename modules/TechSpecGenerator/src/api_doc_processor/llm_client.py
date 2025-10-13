@@ -3,7 +3,6 @@
 from pathlib import Path
 from typing import List, Optional, Tuple
 import datetime
-
 try:
     import litellm
 except ImportError:
@@ -46,17 +45,20 @@ class LLMClient:
         try:
             # Read and combine markdown content
             combined_content = self._combine_markdown_files(markdown_files)
-            
-            if not combined_content.strip():
+
+            if not combined_content:
                 return False, "", "No content found in markdown files"
             
             # Prepare the prompt
-            prompt = prompt_config.template.format(content=combined_content)
+            # prompt = prompt_config.template
+            messages = [{"role": "user", "content": content} for content in combined_content]
+            messages.insert(0, {"role": "system", "content": prompt_config.system_instructions})
+            
             
             # Prepare completion arguments (following your pattern)
             completion_args = {
                 "model": self.config.model,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": messages,
                 "temperature": self.config.temperature,
                 "max_tokens": self.config.max_tokens,
                 "api_key": self.config.api_key
@@ -83,7 +85,7 @@ class LLMClient:
         except Exception as e:
             return False, "", f"LLM generation error: {str(e)}"
     
-    def _combine_markdown_files(self, markdown_files: List[Path]) -> str:
+    def _combine_markdown_files(self, markdown_files: List[Path], sendAsString: bool = False) -> str:
         """Combine multiple markdown files into a single content string."""
         combined_content = []
         
@@ -95,7 +97,9 @@ class LLMClient:
             except Exception as e:
                 combined_content.append(f"## Error reading {file_path.name}\n\nError: {str(e)}\n\n")
         
-        return "\n".join(combined_content)
+        if sendAsString:
+            combined_content = "\n".join(combined_content)
+        return combined_content
     
     def save_tech_spec(self, tech_spec: str, output_dir: Path) -> Path:
         """Save the generated tech spec to a file."""
@@ -157,7 +161,7 @@ class LLMClient:
     def estimate_token_usage(self, markdown_files: List[Path]) -> dict:
         """Estimate token usage for processing the given files."""
         try:
-            combined_content = self._combine_markdown_files(markdown_files)
+            combined_content = self._combine_markdown_files(markdown_files, True)
             
             # Rough estimation: 1 token ≈ 4 characters for English text
             estimated_input_tokens = len(combined_content) // 4

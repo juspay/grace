@@ -74,22 +74,22 @@ class FirecrawlClient:
             Dictionary mapping URLs to their processing results
         """
         results = {}
-        
-        for url in urls:
+
+        for idx, url in enumerate(urls, start=1):
             success, content, error = self.scrape_url(url)
-            
+
             if success:
                 # Save markdown content to file
                 filename = sanitize_filename(url)
                 filepath = output_dir / filename
-                
+
                 try:
                     with open(filepath, 'w', encoding='utf-8') as f:
                         f.write(f"# Documentation for {url}\n\n")
                         f.write(f"**Source URL:** {url}\n\n")
                         f.write("---\n\n")
                         f.write(content)
-                    
+
                     results[url] = {
                         "success": True,
                         "filepath": str(filepath),
@@ -110,10 +110,15 @@ class FirecrawlClient:
                     "content_length": 0,
                     "error": error
                 }
-            
+
             # Small delay to be respectful to the API
             time.sleep(0.5)
-        
+
+            # After every 10 URLs, wait for 1 minute before continuing
+            if idx % 10 == 0 and idx < len(urls):
+                print("Waiting for 1 minute before continuing...")
+                time.sleep(60)
+
         return results
     
     def test_connection(self) -> Tuple[bool, str]:

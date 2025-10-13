@@ -44,7 +44,7 @@ def print_header():
 @click.option(
     "--output-dir",
     type=click.Path(path_type=Path),
-    default="api-doc-processor-data",
+    default="techspec-output",
     help="Output directory for generated files"
 )
 @click.option(
