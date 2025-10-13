@@ -2,7 +2,18 @@
 """Grace CLI - Command line interface with research and techspec commands."""
 
 import sys
+import asyncio
 import click
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Import workflow modules
+from .research import run_research_workflow
+from .techspec import run_techspec_workflow
+from .config import get_config
 
 
 @click.group()
@@ -15,25 +26,78 @@ def cli():
 @cli.command()
 @click.argument('query', required=False)
 @click.option('--output', '-o', help='Output file path')
-@click.option('--format', '-f', type=click.Choice(['markdown', 'json', 'text']), default='markdown', help='Output format')
-@click.option('--depth', '-d', type=int, default=5, help='Research depth (1-10)')
-@click.option('--sources', '-s', type=int, default=10, help='Number of sources to analyze')
-def research(query, output, format, depth, sources):
-    """Perform deep research on a given topic."""
-    
+@click.option('--format', '-f', type=click.Choice(['markdown', 'json', 'text']),
+               help='Output format')
+@click.option('--depth', '-d', type=int,
+               help='Research depth (1-10)')
+@click.option('--sources', '-s', type=int,
+             help='Number of sources to analyze')
+@click.option('--verbose', '-v', is_flag=True,
+              help='Enable verbose output')
+def research(query, output, format, depth, sources, verbose):
+    """Perform deep research on a given topic using LangGraph workflow."""
+    config = get_config()
     if not query:
         query = input("Enter your research query: ").strip()
+        if not query:
+            click.echo("Error: Research query is required", err=True)
+            sys.exit(1)
 
-    click.echo(f"Starting research on: {query}")
-    click.echo(f"Research depth: {depth}")
-    click.echo(f"Analyzing {sources} sources...")
-    click.echo(f"Output format: {format}")
+    async def run_research():
+        """Async wrapper for research workflow."""
+        try:
+            if verbose:
+                click.echo(f"🔍 Starting research workflow...")
+                click.echo(f"Query: {query}")
+                click.echo(f"Research depth: {depth}")
+                click.echo(f"Max sources: {sources}")
+                click.echo(f"Output format: {format}")
+                click.echo()
 
-    click.echo("\nResearch functionality will be implemented")
-    click.echo("Integration with DeepResearchCLI module pending")
+            # Execute the research workflow
+            result = await run_research_workflow(
+                query=query,
+                format_type=format or config.getResearchConfig().formatType,
+                depth=depth or config.getResearchConfig().depth,
+            )
 
-    if output:
-        click.echo(f"\nResults will be saved to: {output}")
+            if result["success"]:
+                click.echo("✅ Research completed successfully!")
+
+                if verbose:
+                    click.echo(f"Sources analyzed: {result.get('sources_count', 0)}")
+                    click.echo(f"Confidence level: {result.get('analysis_confidence', 'unknown')}")
+                    click.echo()
+
+                # Handle output
+                if output:
+                    output_path = Path(output)
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    with open(output_path, 'w', encoding='utf-8') as f:
+                        f.write(result["output"])
+
+                    click.echo(f"📄 Results saved to: {output}")
+                else:
+                    click.echo("\n" + "="*80)
+                    click.echo(result["output"])
+                    click.echo("="*80)
+
+            else:
+                click.echo(f"Research failed: {result['error']}", err=True)
+                if verbose and result.get("metadata"):
+                    click.echo(f"Debug info: {result['metadata']}", err=True)
+                sys.exit(1)
+
+        except Exception as e:
+            click.echo(f"Unexpected error: {str(e)}", err=True)
+            if verbose:
+                import traceback
+                click.echo(f"Traceback: {traceback.format_exc()}", err=True)
+            sys.exit(1)
+
+    # Run the async workflow
+    asyncio.run(run_research())
 
 
 @cli.command()
@@ -46,39 +110,151 @@ def research(query, output, format, depth, sources):
 @click.option('--test-only', is_flag=True, help='Run in test mode without generating files')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
 def techspec(connector, api_doc, output, template, config, create_config, test_only, verbose):
-    """Generate technical specifications for a connector."""
+    """Generate technical specifications for a connector using LangGraph workflow."""
+
     if create_config:
-        click.echo("Creating sample configuration file...")
-        click.echo("Config creation functionality will be implemented")
+        env_content = """# Grace CLI Configuration
+# Copy this to .env and update values as needed
+
+# AI Configuration
+AI_PROVIDER=litellm
+AI_API_KEY=your_api_key_here
+AI_BASE_URL=https://grid.juspay.net
+AI_MODEL_ID=qwen3-coder-480b
+AI_PROJECT_ID=your_project_id
+AI_LOCATION=us-east5
+
+# TechSpec Configuration
+TECHSPEC_OUTPUT_DIR=./output
+TECHSPEC_TEMPLATE_DIR=./templates
+TECHSPEC_TEMPERATURE=0.7
+TECHSPEC_MAX_TOKENS=50000
+FIRECRACKER_API_KEY=your_firecracker_key
+USE_PLAYWRIGHT=false
+
+# Research Configuration
+SEARCH_TOOL=searxng
+SEARCH_BASE_URL=https://localhost:32678
+SEARCH_FORMAT_TYPE=markdown
+SEARCH_DEPTH=5
+
+# Logging Configuration
+LOG_LEVEL=INFO
+LOG_FILE=grace.log
+DEBUG=false
+"""
+        config_path = ".env"
+        with open(config_path, 'w') as f:
+            f.write(env_content)
+        click.echo(f"Configuration template created: {config_path}")
+        click.echo("Edit .env file to customize your settings")
         return
 
-    if not connector and not create_config:
+    if not connector:
         click.echo("Error: Please provide a connector name or use --create-config")
-        click.echo("Usage: grace techspec <connector>")
+        click.echo("Usage: grace techspec <connector_name>")
+        click.echo("Example: grace techspec stripe")
         sys.exit(1)
 
-    click.echo(f"Generating technical specification for: {connector}")
+    async def run_techspec():
+        """Async wrapper for techspec workflow."""
+        try:
+            if verbose:
+                click.echo(f"Starting techspec workflow...")
+                click.echo(f"Connector: {connector}")
+                if api_doc:
+                    click.echo(f"API doc: {api_doc}")
+                if output:
+                    click.echo(f"Output dir: {output}")
+                if template:
+                    click.echo(f"Template: {template}")
+                if config:
+                    click.echo(f"Config: {config}")
+                if test_only:
+                    click.echo("Mode: TEST ONLY")
+                click.echo()
 
-    if api_doc:
-        click.echo(f"Using API documentation: {api_doc}")
+            # Use config for output directory if not specified
+            config_instance = get_config()
+            output_dir = output or config_instance.getTechSpecConfig().output_dir
 
-    if output:
-        click.echo(f"Output directory: {output}")
+            # Execute the techspec workflow
+            result = await run_techspec_workflow(
+                connector_name=connector,
+                api_doc_path=api_doc,
+                output_dir=output_dir,
+                template_path=template,
+                config_path=config,
+                test_only=test_only,
+                verbose=verbose
+            )
 
-    if template:
-        click.echo(f"Using template: {template}")
+            if result["success"]:
+                click.echo("Techspec generation completed successfully!")
 
-    if config:
-        click.echo(f"Using configuration: {config}")
+                if verbose:
+                    click.echo(f"Validation status: {result.get('validation_status', 'unknown')}")
+                    click.echo(f"Files generated: {result.get('files_generated', 0)}")
+                    click.echo()
 
-    if test_only:
-        click.echo("Running in test mode...")
+                # Display output summary
+                output_data = result.get("output", {})
+                if output_data:
+                    click.echo("\nGeneration Summary:")
+                    click.echo(f"  • Connector: {output_data.get('connector_name', connector)}")
 
-    if verbose:
-        click.echo("Verbose mode enabled")
+                    summary = output_data.get("summary", {})
+                    if summary:
+                        click.echo(f"  • Total files: {summary.get('total_files', 0)}")
+                        click.echo(f"  • Code files: {summary.get('code_files', 0)}")
+                        click.echo(f"  • Test files: {summary.get('test_files', 0)}")
+                        click.echo(f"  • Documentation: {summary.get('documentation_files', 0)}")
 
-    click.echo("\nTechSpec generation functionality will be implemented")
-    click.echo("Integration with TechSpecGenerator module pending")
+                    output_dir_path = output_data.get("output_directory", f"./generated/{connector}")
+                    if not test_only:
+                        click.echo(f"  • Output directory: {output_dir_path}")
+
+                        # Create output directory and files (in real implementation)
+                        output_path = Path(output_dir_path)
+                        output_path.mkdir(parents=True, exist_ok=True)
+
+                        # Save a summary file
+                        summary_file = output_path / "generation_summary.json"
+                        import json
+                        with open(summary_file, 'w') as f:
+                            json.dump(result, f, indent=2, default=str)
+
+                        click.echo(f"  • Summary saved: {summary_file}")
+
+                    instructions = output_data.get("instructions", {})
+                    if instructions:
+                        click.echo("\nNext Steps:")
+                        for step in instructions.get("next_steps", []):
+                            click.echo(f"  • {step}")
+
+                        if not test_only:
+                            test_cmd = instructions.get("test_command")
+                            build_cmd = instructions.get("build_command")
+                            if test_cmd:
+                                click.echo(f"\nTest command: {test_cmd}")
+                            if build_cmd:
+                                click.echo(f"Build command: {build_cmd}")
+
+            else:
+                click.echo(f"Techspec generation failed: {result['error']}", err=True)
+                if verbose and result.get("metadata"):
+                    click.echo(f"Debug info: {result['metadata']}", err=True)
+                sys.exit(1)
+
+        except Exception as e:
+            click.echo(f"Unexpected error: {str(e)}", err=True)
+            if verbose:
+                import traceback
+                click.echo(f"Traceback: {traceback.format_exc()}", err=True)
+            sys.exit(1)
+
+    # Run the async workflow
+    asyncio.run(run_techspec())
 
 
 def main():
