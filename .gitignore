@@ -8,3 +8,17 @@ scripts/grace_cli.egg-info/
 venv/*
 
 .venv/*
+uv.lock
+grace_cli.egg-info/
+__pycache__/
+*.pyc
+.DS_Store
+.idea/
+.vscode/
+.env
+.ipynb_checkpoints/
+
+# Logs
+logs/
+*.log
+npm-debug.log*

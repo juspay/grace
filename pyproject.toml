@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "grace-cli"
 version = "1.0.0"
-description = "GRACE CLI - Global command executor for all grace modules"
+description = "Grace CLI - Intelligent research and technical specification generator"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "juspay/grace", email = "manideepk90@gmail.com"}
+    {name = "Grace Team", email = "manideepk90@gmail.com"}
 ]
-keywords = ["cli", "automation", "tools", "grace"]
+keywords = ["cli", "research", "techspec", "automation"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -27,7 +27,6 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.0.0",
-    "rich>=13.0.0",
 ]
 
 [project.urls]
@@ -35,10 +34,9 @@ Homepage = "https://github.com/juspay/grace"
 Repository = "https://github.com/juspay/grace"
 
 [project.scripts]
-grace = "grace_cli:main"
+grace = "src.cli:main"
 
 [tool.setuptools]
-package-dir = {"" = "scripts"}
-py-modules = ["grace_cli", "grace_registry"]
+packages = ["src", "src.ai", "src.research", "src.techspec", "src.tools", "src.utils", "src.workflows"]
 include-package-data = true
 zip-safe = false
