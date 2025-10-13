@@ -85,7 +85,7 @@ class LLMClient:
         except Exception as e:
             return False, "", f"LLM generation error: {str(e)}"
     
-    def _combine_markdown_files(self, markdown_files: List[Path], sendAsString: bool) -> str:
+    def _combine_markdown_files(self, markdown_files: List[Path], sendAsString: bool = False) -> str:
         """Combine multiple markdown files into a single content string."""
         combined_content = []
         
@@ -161,7 +161,7 @@ class LLMClient:
     def estimate_token_usage(self, markdown_files: List[Path]) -> dict:
         """Estimate token usage for processing the given files."""
         try:
-            combined_content = self._combine_markdown_files(markdown_files, true)
+            combined_content = self._combine_markdown_files(markdown_files, True)
             
             # Rough estimation: 1 token ≈ 4 characters for English text
             estimated_input_tokens = len(combined_content) // 4

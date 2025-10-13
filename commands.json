@@ -45,7 +45,7 @@
       "module_path": "./modules/TechSpecGenerator",
       "entry_point": "api-doc-processor",
       "main": "",
-      "aliases": ["ts"],
+      "aliases": ["ts","t"],
       "subcommands": ["--create-config", "--test-only", "--verbose"],
       "examples": [
         "grace techspec",
