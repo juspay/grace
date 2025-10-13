@@ -12,10 +12,6 @@ Step 1: To install grace CLI
 
 ```bash
 ./setup.sh
-# or inside grace folder use uv or pip after step 2 is done
-
-pip install -e . && pip install -e ./modules/TechSpecGenerator
-
 ```
 
 Step 2: To activate Grace CLI
@@ -24,22 +20,23 @@ Step 2: To activate Grace CLI
 source ./venv/bin/activate  # from grace folder
 ```
 
-Step 3: To use GRACE CLI
+# Manual Setup
+setup virtual python environment --> inside grace folder
 
 ```bash
-grace --help
+python3 -m venv venv
 
-# to setup techspec
-grace ts --create-config
+# or use uv
 
-# to generate techspec from links
-grace ts
-# or
-grace techspec
+uv venv venv
 
-#or
-api-doc-processor
+source ./venv/bin/active
 ```
+Install cli
+```bash
+pip install -e . && pip install -e ./modules/TechSpecGenerator
+```
+
 
 ## USAGE
 
