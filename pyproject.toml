@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "grace-cli"
+version = "1.0.0"
+description = "Grace CLI - Intelligent research and technical specification generator"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Grace Team", email = "manideepk90@gmail.com"}
+]
+keywords = ["cli", "research", "techspec", "automation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "click>=8.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/juspay/grace"
+Repository = "https://github.com/juspay/grace"
+
+[project.scripts]
+grace = "src.cli:main"
+
+[tool.setuptools]
+packages = ["src", "src.ai", "src.research", "src.techspec", "src.tools", "src.utils", "src.workflows"]
+include-package-data = true
+zip-safe = false
