@@ -6,10 +6,10 @@
 
 ```bash
 # Install in development mode
-pip install -e .
+uv pip install -e .
 
 # Or install with development dependencies
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 ```
 
 ### 2. Create Configuration
@@ -83,7 +83,7 @@ api-doc-processor
 ### Prerequisites
 
 - Python 3.8 or higher
-- pip
+- uv (fast Python package installer)
 
 ### Development Installation
 
@@ -96,7 +96,7 @@ python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install in development mode
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 ```
 
 ### Running Tests
@@ -129,7 +129,7 @@ mypy src
 
 ### Common Issues
 
-1. **Import Error for litellm**: Install with `pip install litellm`
+1. **Import Error for litellm**: Install with `uv pip install litellm`
 2. **API Key Errors**: Verify your API keys are correct and have proper permissions
 3. **Network Errors**: Check your internet connection and firewall settings
 4. **File Permission Errors**: Ensure you have write permissions in the output directory

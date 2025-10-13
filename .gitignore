@@ -4,3 +4,7 @@ scripts/__pycache__/
 scripts/grace_cli.egg-info/
 
 .grace_registry.json
+
+venv/*
+.venv/*
+*env*/

@@ -32,8 +32,8 @@ class AIConfig:
     """AI provider configuration."""
     provider: Literal['litellm', 'vertex', 'anthropic'] = 'litellm'
     api_key: Optional[str] = None
-    base_url: Optional[str] = "http://localhost:4000/v1"
-    model_id: str = "gpt-4"
+    base_url: Optional[str] = "https://grid.ai.juspay.net"
+    model_id: str = "claude-sonnet-4-20250514"
     project_id: Optional[str] = None
     location: Optional[str] = "us-east5"
     custom_instructions_file: Optional[str] = None

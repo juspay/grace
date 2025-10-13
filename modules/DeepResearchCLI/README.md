@@ -50,7 +50,7 @@ A powerful Python-based command-line interface for conducting comprehensive, AI-
 
 ### Prerequisites
 - Python 3.8 or higher
-- pip (Python package installer)
+- uv (fast Python package installer)
 - Docker Desktop or OrbStack (for SearxNG search engine - optional, auto-configured)
 
 ### ⚡ Fast Setup (Automated - Recommended)
@@ -63,9 +63,9 @@ cd /path/to/DeepResearchCLI
 ```
 
 This automated setup script will:
-- ✅ Check Python and pip installation
-- ✅ Install Python dependencies from requirements.txt
-- ✅ Install the `deep-research` command globally
+- ✅ Check Python and uv installation
+- ✅ Install Python dependencies from requirements.txt using uv
+- ✅ Install the `grace-research` command globally
 - ✅ Install Playwright browsers for web scraping
 - ✅ **Detect Docker/OrbStack and setup SearxNG automatically**
 - ✅ **Fallback to local SearxNG if Docker not available**
@@ -85,7 +85,7 @@ If you prefer manual installation:
 1. **Install the CLI package**:
 ```bash
 cd /path/to/DeepResearchCLI
-pip install -e .
+uv pip install -e .
 ```
 
 2. **Install Playwright browsers**:
@@ -122,8 +122,8 @@ deep-research --help
 
 **Option 2: Global Installation**
 ```bash
-pip install -e .
-# Command available system-wide: deep-research
+uv pip install -e .
+# Command available system-wide: grace-research
 ```
 
 **Option 3: Add Python bin to PATH**
@@ -164,8 +164,8 @@ The setup script creates a `.env` file automatically. Here's what it contains:
 # AI Configuration
 AI_PROVIDER=litellm                           # Options: litellm, vertex, anthropic
 LITELLM_API_KEY=your_api_key_here
-LITELLM_BASE_URL=http://localhost:4000/v1
-LITELLM_MODEL_ID=gpt-4
+LITELLM_BASE_URL=https://grid.ai.juspay.net
+LITELLM_MODEL_ID=claude-sonnet-4-20250514
 
 # Vertex AI Configuration (if AI_PROVIDER=vertex)
 # VERTEX_AI_PROJECT_ID=your_project_id
@@ -207,8 +207,8 @@ DEBUG_LOG_FILE=./logs/debug.log              # Debug log file
 ```env
 AI_PROVIDER=litellm
 LITELLM_API_KEY=your_api_key_here
-LITELLM_BASE_URL=http://localhost:4000/v1
-LITELLM_MODEL_ID=gpt-4
+LITELLM_BASE_URL=https://grid.ai.juspay.net
+LITELLM_MODEL_ID=claude-sonnet-4-20250514
 ```
 
 #### Vertex AI (Google Cloud)
@@ -669,7 +669,7 @@ python3 -m venv venv
 source venv/bin/activate
 
 # Install
-pip install -e .
+uv pip install -e .
 
 # Start
 export SEARXNG_SETTINGS_PATH=searxng/settings.yml
@@ -696,11 +696,11 @@ pip install -e .
 **"ModuleNotFoundError" or import errors**
 ```bash
 # Ensure all dependencies are installed
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 # Reinstall in editable mode
-pip uninstall deep-research-cli
-pip install -e .
+uv pip uninstall deep-research-cli
+uv pip install -e .
 ```
 
 **"No module named 'types'"**
@@ -797,10 +797,10 @@ git clone https://github.com/juspay/grace.git
 cd grace/modules/DeepResearchCLI
 
 # Install in development mode
-pip install -e .
+uv pip install -e .
 
 # Install development dependencies
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 # Run tests (when available)
 pytest

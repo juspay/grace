@@ -104,7 +104,7 @@ class AIService:
             # Prepend custom instructions
             enhanced_messages[system_msg_idx] = AIMessage(
                 role='system',
-                content=f"{self.config.custom_instructions}\n\n{enhanced_messages[system_msg_idx].content}"
+                content=f"Custom Instructions to follow: {self.config.custom_instructions}\n\n{enhanced_messages[system_msg_idx].content}"
             )
         else:
             # Add new system message
@@ -216,7 +216,7 @@ AI Configuration Help:
 
 1. Check your .env file:
    - LITELLM_API_KEY=your_api_key_here
-   - LITELLM_BASE_URL=http://localhost:4000/v1
+   - LITELLM_BASE_URL=https://grid.ai.juspay.net
    - LITELLM_MODEL_ID=qwen3-coder-480b
 
 2. Ensure LiteLLM server is running:
@@ -282,7 +282,7 @@ For more help, see: https://docs.litellm.ai/
         from google.auth import default
         from google.auth.transport.requests import Request
 
-        model_id = self.config.model_id or 'claude-3-5-sonnet-v2@20241022'
+        model_id = self.config.model_id or 'claude-sonnet-4-5@20250929'
 
         if 'claude' in model_id or 'anthropic' in model_id:
             return await self._call_vertex_anthropic_sdk(messages, temperature, max_tokens)
@@ -520,7 +520,8 @@ Query: "{query}"
 Top Search Results: {chr(10).join([f'{idx + 1}. {res.get("title")} - {res.get("snippet")} (url: {res.get("url")})' for idx, res in enumerate(results)])}
 
 Return as a JSON array of relevant url links from provided search results.
-["url1", "url2"] from the given list of search results."""
+["url1", "url2"] from the given list of search results.
+"""
 
         messages = [
             AIMessage(role='system', content=system_prompt),
@@ -539,7 +540,8 @@ Return as a JSON array of relevant url links from provided search results.
     async def synthesize_results(
         self,
         query: str,
-        all_content: List[Dict[str, Any]]
+        all_content: List[Dict[str, Any]],
+        isChunked: bool = False
     ) -> Dict[str, Any]:
         """Synthesize research results into final answer.
 
@@ -563,14 +565,15 @@ Also you have to give the summary which will satisfy this regex: '(?:summary|exe
 
 Important: The custom instructions contain the specific output format and requirements. Follow them exactly.
 
-customInstructions: {self.config.custom_instructions}
-
 Research Guidelines:
 1. Analyze all provided data thoroughly
 2. Extract relevant information for the requested format
 3. Ensure accuracy and completeness
 4. Include source references where applicable
-5. Maintain high attention to detail"""
+5. Maintain high attention to detail
+
+{ isChunked and "The data provided by user is actually a chunked data. So you have to consider that while synthesizing the results."}
+"""
         else:
             system_prompt = """You are an expert research analyst. Provide a comprehensive, well-structured answer based on the research data.
 
@@ -592,16 +595,18 @@ KEY POINTS:
 - [Main finding 2]
 - [Main finding 3]
 
-CONFIDENCE: [0.0-1.0 confidence score]"""
+CONFIDENCE: [0.0-1.0 confidence score]
+{ isChunked and "The data provided by user is actually a chunked data. So you have to consider that while synthesizing the results."}
+"""
 
-        content_summary = "\n\n---\n\n".join([
+        content_summary =[
             f"[{idx + 1}] {item.get('title', 'Unknown')} (Relevance: {item.get('relevance_score', 0.5):.2f})\nURL: {item.get('url', 'N/A')}\nContent: {item.get('content', '')[:500]}..."
             for idx, item in enumerate(sorted_content[:20])
-        ])
+        ]
 
         messages = [
             AIMessage(role='system', content=system_prompt),
-            AIMessage(role='user', content=f'Research Query: "{query}"\n\nResearch Data:\n{content_summary}\n\nProvide comprehensive analysis:')
+            *[AIMessage(role="user", content=f"source {idx} : {insight}" ) for idx, insight in enumerate(content_summary)],
         ]
 
         try:
@@ -768,6 +773,7 @@ Respond in JSON format:
   "confidence": 0.0-1.0
 }"""
             ),
+            *[AIMessage(role="user", content=f"source {idx} : {insight}" ) for idx, insight in enumerate(current_insights[:10])],
             AIMessage(
                 role='user',
                 content=f"""Research Query: "{query}"
@@ -862,7 +868,7 @@ Should we continue to depth {current_depth + 1}?"""
         messages = [
             AIMessage(
                 role='system',
-                content="Generate a short filename-safe name (3-5 words, no spaces, use hyphens) for this research query."
+                content="Generate a short filename-safe name (1-2 words, no spaces, use hyphens) add the query in single word for this research query."
             ),
             AIMessage(role='user', content=f'Query: "{query}"\n\nGenerate name:')
         ]

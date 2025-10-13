@@ -12,12 +12,12 @@ A command-line tool that automates the research and planning phase of API integr
 
 ## Installation
 ```bash
-pip install -e .  
+uv pip install -e .
 ```
 
-or 
+or
 ```bash
-pip install api-doc-processor
+uv pip install api-doc-processor
 ```
 
 ## Usage
@@ -60,7 +60,7 @@ The tool uses a `config.json` file for API keys and settings:
 
 ```bash
 # Install development dependencies
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 
 # Run tests
 pytest

@@ -201,7 +201,7 @@ class DirectResearchService:
             chunk_insights = []
             for i, chunk in enumerate(chunks):
                 console.print(f"[cyan]   Analyzing chunk {i + 1}/{len(chunks)} ({len(chunk)} pages)...[/cyan]")
-                chunk_analysis = await self.ai_service.synthesize_results(query, chunk)
+                chunk_analysis = await self.ai_service.synthesize_results(query, chunk, isChunked=True)
                 chunk_insights.append(chunk_analysis['answer'])
                 console.print(f"[green]   ✓ Chunk {i + 1}/{len(chunks)} complete[/green]")
 
@@ -218,7 +218,7 @@ class DirectResearchService:
                     }
                     for idx, insight in enumerate(chunk_insights)
                 ]
-                final_analysis = await self.ai_service.synthesize_results(query, combined_pages)
+                final_analysis = await self.ai_service.synthesize_results(query, combined_pages, isChunked=False)
             elif len(chunk_insights) > 0:
                 final_analysis = {'answer': chunk_insights[0], 'confidence': 0.8, 'summary': 'Research completed'}
             else:
@@ -296,7 +296,7 @@ class DirectResearchService:
             # Check if AI wants to continue
             if research_config.ai_driven_crawling and depth > 1:
                 console.print(f"[cyan]      AI evaluating whether to continue...[/cyan]")
-                current_insights = [p.title for p in initial_pages + deep_pages if p.title]
+                current_insights = [p.content for p in initial_pages + deep_pages if p.title]
                 ai_decision = await self.ai_service.should_continue_crawling(
                     query,
                     depth - 1,

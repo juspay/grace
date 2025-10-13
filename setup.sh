@@ -34,6 +34,30 @@ fi
 PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
 print_success "Python $PYTHON_VERSION found"
 
+# Check for uv package manager
+echo ""
+print_status "Checking for uv package manager..."
+if ! command_exists uv; then
+    print_error "uv package manager is not installed."
+    echo ""
+    echo "uv is a fast Python package installer and resolver."
+    echo "Please install it using one of the following methods:"
+    echo ""
+    echo "On macOS/Linux:"
+    echo -e "  ${CYAN}curl -LsSf https://astral.sh/uv/install.sh | sh${NC}"
+    echo ""
+    echo "On Windows:"
+    echo -e "  ${CYAN}powershell -c \"irm https://astral.sh/uv/install.ps1 | iex\"${NC}"
+    echo ""
+    echo "Using pip:"
+    echo -e "  ${CYAN}pip install uv${NC}"
+    echo ""
+    echo "For more information, visit: https://docs.astral.sh/uv/getting-started/installation/"
+    echo ""
+    exit 1
+fi
+print_success "uv package manager found"
+
 # Remove .grace_registry.json if it exists
 if [ -f ".grace_registry.json" ]; then
     print_status "Removing existing .grace_registry.json..."
@@ -53,11 +77,11 @@ if [ -d "venv" ]; then
     fi
 fi
 
-# Create virtual environment if it doesn't exist
+# Create virtual environment using uv if it doesn't exist
 if [ ! -d "venv" ]; then
     echo ""
-    print_status "Creating virtual environment..."
-    python3 -m venv venv
+    print_status "Creating virtual environment with uv..."
+    uv venv
     print_success "Virtual environment created"
 fi
 
@@ -67,16 +91,10 @@ print_status "Activating virtual environment..."
 source venv/bin/activate
 print_success "Virtual environment activated"
 
-# Upgrade pip
+# Install grace CLI using uv
 echo ""
-print_status "Upgrading pip..."
-pip install --upgrade pip > /dev/null 2>&1
-print_success "pip upgraded"
-
-# Install grace CLI
-echo ""
-print_status "Installing grace CLI..."
-pip install -e . > /dev/null 2>&1
+print_status "Installing grace CLI with uv..."
+uv pip install -e . > /dev/null 2>&1
 print_success "Grace CLI installed successfully"
 
 # Install dependencies

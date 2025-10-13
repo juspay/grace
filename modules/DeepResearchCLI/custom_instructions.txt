@@ -379,7 +379,7 @@ example_implementation:
 ## RESEARCH METHODOLOGY
 
 ### 1. Source Prioritization (In Order):
-1. **Official API Documentation** - Primary source
+1. **Official API Documentation** - Primary source which has query domain
 2. **Developer Portal/Guides** - Implementation details
 3. **SDK/Library Code** - Reference implementations
 4. **Community Forums** - Edge cases and clarifications

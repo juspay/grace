@@ -65,15 +65,9 @@ source "$GRACE_VENV/bin/activate"
 echo -e "${GREEN}✓ Virtual environment activated${NC}"
 echo ""
 
-# Upgrade pip
-echo -e "${YELLOW}Upgrading pip...${NC}"
-pip install --upgrade pip > /dev/null 2>&1
-echo -e "${GREEN}✓ pip upgraded${NC}"
-echo ""
-
-# Install package in development mode
-echo -e "${YELLOW}Installing package in development mode...${NC}"
-pip install -e ".[dev]"
+# Install package in development mode using uv
+echo -e "${YELLOW}Installing package in development mode with uv...${NC}"
+uv pip install -e ".[dev]"
 echo -e "${GREEN}✓ Package installed${NC}"
 echo ""
 

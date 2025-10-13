@@ -54,11 +54,11 @@ class ConfigService:
 
         # Determine model ID based on provider
         if provider == 'vertex':
-            model_id = os.getenv('VERTEX_AI_MODEL') or os.getenv('LITELLM_MODEL_ID') or 'claude-3-5-sonnet-v2@20241022'
+            model_id = os.getenv('VERTEX_AI_MODEL') or os.getenv('LITELLM_MODEL_ID') or 'claude-sonnet-4-5@20250929'
         elif provider == 'anthropic':
             model_id = os.getenv('ANTHROPIC_MODEL_ID') or os.getenv('LITELLM_MODEL_ID') or 'claude-3-5-sonnet-20241022'
         else:
-            model_id = os.getenv('LITELLM_MODEL_ID', 'gpt-4')
+            model_id = os.getenv('LITELLM_MODEL_ID', 'claude-sonnet-4-20250514')
 
         # Determine API key based on provider
         api_key = None
@@ -71,7 +71,7 @@ class ConfigService:
         self.ai_config = AIConfig(
             provider=provider,
             api_key=api_key,
-            base_url=os.getenv('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
+            base_url=os.getenv('LITELLM_BASE_URL', 'https://grid.ai.juspay.net'),
             model_id=model_id,
             project_id=project_id or os.getenv('VERTEX_AI_PROJECT_ID'),
             location=location or os.getenv('VERTEX_AI_LOCATION', 'us-east5'),

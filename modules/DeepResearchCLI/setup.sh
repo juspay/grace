@@ -240,8 +240,8 @@ setup_searxng_local() {
 
     source venv/bin/activate
 
-    pip install -U pip setuptools wheel >/dev/null 2>&1
-    pip install -e . >/dev/null 2>&1
+    uv pip install -U pip setuptools wheel >/dev/null 2>&1
+    uv pip install -e . >/dev/null 2>&1
 
     # Create settings if not exists
     if [ ! -f "searxng/settings.yml" ]; then
@@ -484,31 +484,34 @@ fi
 PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
 print_success "Python $PYTHON_VERSION found"
 
-# Check pip
-print_status "Checking pip installation..."
-if ! command_exists pip && ! command_exists pip3; then
-    print_error "pip is not installed. Please install pip."
+# Check uv
+print_status "Checking uv installation..."
+if ! command_exists uv; then
+    print_error "uv is not installed. Please install uv."
+    echo ""
+    echo "Install uv using:"
+    echo -e "  ${CYAN}curl -LsSf https://astral.sh/uv/install.sh | sh${NC}"
     exit 1
 fi
-print_success "pip is available"
+print_success "uv is available"
 
-# Install Python dependencies
+# Install Python dependencies using uv
 echo ""
-print_status "Installing Python dependencies..."
+print_status "Installing Python dependencies with uv..."
 echo "------------------------------------------------------------"
 if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt
+    uv pip install -r requirements.txt
     print_success "Python dependencies installed"
 else
     print_error "requirements.txt not found!"
     exit 1
 fi
 
-# Install the package
+# Install the package using uv
 echo ""
-print_status "Installing grace-research CLI command..."
+print_status "Installing grace-research CLI command with uv..."
 echo "------------------------------------------------------------"
-pip install -e .
+uv pip install -e .
 print_success "grace-research command installed"
 
 # Install Playwright browsers
