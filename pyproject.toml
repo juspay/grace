@@ -31,9 +31,11 @@ dependencies = [
     "langgraph>=0.2.0",
     "langchain>=0.1.0",
     "langchain-core>=0.1.0",
+    "litellm>=1.0.0",
     # Data processing
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
+    "typing-extensions>=4.5.0",
     # HTTP and async
     "httpx>=0.25.0",
     "requests>=2.31.0",
@@ -54,6 +56,8 @@ dev = [
     "black>=23.0.0",
     "flake8>=6.0.0",
     "mypy>=1.5.0",
+    "types-pyyaml>=6.0.12",
+    "types-requests>=2.32.0"
 ]
 scraping = [
     "beautifulsoup4>=4.12.0",
@@ -79,7 +83,7 @@ Repository = "https://github.com/juspay/grace"
 grace = "src.cli:main"
 
 [tool.setuptools]
-packages = ["src", "src.ai", "src.research", "src.techspec", "src.tools", "src.utils", "src.workflows", "src.types"]
+packages = ["src", "src.ai", "src.tools", "src.utils", "src.workflows", "src.types"]
 include-package-data = true
 zip-safe = false
 

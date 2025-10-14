@@ -11,8 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import workflow modules
-from .research import run_research_workflow
-from .techspec import run_techspec_workflow
+from .workflows.techspec.workflow import run_techspec_workflow
 from .config import get_config
 
 
@@ -23,81 +22,25 @@ def cli():
     pass
 
 
-@cli.command()
-@click.argument('query', required=False)
-@click.option('--output', '-o', help='Output file path')
-@click.option('--format', '-f', type=click.Choice(['markdown', 'json', 'text']),
-               help='Output format')
-@click.option('--depth', '-d', type=int,
-               help='Research depth (1-10)')
-@click.option('--sources', '-s', type=int,
-             help='Number of sources to analyze')
-@click.option('--verbose', '-v', is_flag=True,
-              help='Enable verbose output')
-def research(query, output, format, depth, sources, verbose):
-    """Perform deep research on a given topic using LangGraph workflow."""
-    config = get_config()
-    if not query:
-        query = input("Enter your research query: ").strip()
-        if not query:
-            click.echo("Error: Research query is required", err=True)
-            sys.exit(1)
-
-    async def run_research():
-        """Async wrapper for research workflow."""
-        try:
-            if verbose:
-                click.echo(f"🔍 Starting research workflow...")
-                click.echo(f"Query: {query}")
-                click.echo(f"Research depth: {depth}")
-                click.echo(f"Max sources: {sources}")
-                click.echo(f"Output format: {format}")
-                click.echo()
-
-            # Execute the research workflow
-            result = await run_research_workflow(
-                query=query,
-                format_type=format or config.getResearchConfig().formatType,
-                depth=depth or config.getResearchConfig().depth,
-            )
-
-            if result["success"]:
-                click.echo("✅ Research completed successfully!")
-
-                if verbose:
-                    click.echo(f"Sources analyzed: {result.get('sources_count', 0)}")
-                    click.echo(f"Confidence level: {result.get('analysis_confidence', 'unknown')}")
-                    click.echo()
-
-                # Handle output
-                if output:
-                    output_path = Path(output)
-                    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-                    with open(output_path, 'w', encoding='utf-8') as f:
-                        f.write(result["output"])
-
-                    click.echo(f"📄 Results saved to: {output}")
-                else:
-                    click.echo("\n" + "="*80)
-                    click.echo(result["output"])
-                    click.echo("="*80)
-
-            else:
-                click.echo(f"Research failed: {result['error']}", err=True)
-                if verbose and result.get("metadata"):
-                    click.echo(f"Debug info: {result['metadata']}", err=True)
-                sys.exit(1)
-
-        except Exception as e:
-            click.echo(f"Unexpected error: {str(e)}", err=True)
-            if verbose:
-                import traceback
-                click.echo(f"Traceback: {traceback.format_exc()}", err=True)
-            sys.exit(1)
-
-    # Run the async workflow
-    asyncio.run(run_research())
+# @cli.command()
+# @click.argument('query', required=False)
+# @click.option('--output', '-o', help='Output file path')
+# @click.option('--format', '-f', type=click.Choice(['markdown', 'json', 'text']),
+#                help='Output format')
+# @click.option('--depth', '-d', type=int,
+#                help='Research depth (1-10)')
+# @click.option('--sources', '-s', type=int,
+#              help='Number of sources to analyze')
+# @click.option('--verbose', '-v', is_flag=True,
+#               help='Enable verbose output')
+# def research(query, output, format, depth, sources, verbose):
+#     """Perform deep research on a given topic using LangGraph workflow."""
+#     # config = get_config()
+#     # if not query:
+#     #     query = input("Enter your research query: ").strip()
+#     #     if not query:
+#     #         click.echo("Error: Research query is required", err=True)
+#     #         sys.exit(1)
 
 
 @cli.command()
@@ -105,13 +48,13 @@ def research(query, output, format, depth, sources, verbose):
 @click.option('--api-doc', '-a', help='Path to API documentation')
 @click.option('--output', '-o', help='Output directory for generated specs')
 @click.option('--template', '-t', help='Template to use for spec generation')
-@click.option('--config', '-c', help='Configuration file path')
 @click.option('--create-config', is_flag=True, help='Create a sample configuration file')
 @click.option('--test-only', is_flag=True, help='Run in test mode without generating files')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
-def techspec(connector, api_doc, output, template, config, create_config, test_only, verbose):
+@click.option('--mock-server', '-m', is_flag=True, help='Enable mock server for API interactions (for testing)')
+def techspec(connector, api_doc, output, template, create_config, test_only, verbose, mock_server):
     """Generate technical specifications for a connector using LangGraph workflow."""
-
+    # we will use the other flags in future for more customization don't remove them
     if create_config:
         env_content = """# Grace CLI Configuration
 # Copy this to .env and update values as needed
@@ -150,12 +93,6 @@ DEBUG=false
         click.echo("Edit .env file to customize your settings")
         return
 
-    if not connector:
-        click.echo("Error: Please provide a connector name or use --create-config")
-        click.echo("Usage: grace techspec <connector_name>")
-        click.echo("Example: grace techspec stripe")
-        sys.exit(1)
-
     async def run_techspec():
         """Async wrapper for techspec workflow."""
         try:
@@ -168,8 +105,8 @@ DEBUG=false
                     click.echo(f"Output dir: {output}")
                 if template:
                     click.echo(f"Template: {template}")
-                if config:
-                    click.echo(f"Config: {config}")
+                if mock_server:
+                    click.echo("Mock server: ENABLED")
                 if test_only:
                     click.echo("Mode: TEST ONLY")
                 click.echo()
@@ -181,12 +118,10 @@ DEBUG=false
             # Execute the techspec workflow
             result = await run_techspec_workflow(
                 connector_name=connector,
-                api_doc_path=api_doc,
                 output_dir=output_dir,
-                template_path=template,
-                config_path=config,
                 test_only=test_only,
-                verbose=verbose
+                verbose=verbose,
+                mock_server=mock_server
             )
 
             if result["success"]:
