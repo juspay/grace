@@ -10,6 +10,7 @@ class AIConfig:
     base_url: str = "https://grid.juspay.net"
     model_id: str = "qwen3-coder-480b"
     project_id: Optional[str] = None
+    max_tokens: int = 50000
     location: str = "us-east5"
 
     def __post_init__(self) -> None:
@@ -24,7 +25,7 @@ class TechSpecConfig:
     template_dir: str = "./templates"
     temperature : float = 0.7
     max_tokens : int = 50000
-    firecracker_api_key: Optional[str] = None
+    firecrawl_api_key: Optional[str] = None
     use_playwright: bool = False
 
     def __post_init__(self) -> None:
@@ -33,7 +34,7 @@ class TechSpecConfig:
             raise ValueError("Output directory must be specified")
         if not self.template_dir:
             raise ValueError("Template directory must be specified")
-        if not self.firecracker_api_key:
+        if not self.firecrawl_api_key:
             self.use_playwright = True  # Default to True if no API key
 
 @dataclass

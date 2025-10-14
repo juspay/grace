@@ -3,6 +3,7 @@
 
 import os
 from pathlib import Path
+import click
 from dotenv import load_dotenv
 from typing import Optional
 from .types.config import AIConfig, ResearchConfig, TechSpecConfig, LogConfig
@@ -40,13 +41,14 @@ class Config:
             model_id=os.getenv("AI_MODEL_ID", "qwen3-coder-480b"),
             project_id=os.getenv("AI_PROJECT_ID"),
             location=os.getenv("AI_LOCATION", "us-east5"),
+            max_tokens=int(os.getenv("AI_MAX_TOKENS", "32768")),
         )
         self.techSpecConfig = TechSpecConfig(
             output_dir=os.getenv("TECHSPEC_OUTPUT_DIR", "./output"),
             template_dir=os.getenv("TECHSPEC_TEMPLATE_DIR", "./templates"),
             temperature=float(os.getenv("TECHSPEC_TEMPERATURE", "0.7")),
-            max_tokens=int(os.getenv("TECHSPEC_MAX_TOKENS", "50000")),
-            firecracker_api_key=os.getenv("FIRECRACKER_API_KEY"),
+            max_tokens=int(os.getenv("TECHSPEC_MAX_TOKENS", "32768")),
+            firecrawl_api_key=os.getenv("FIRECRAWL_API_KEY"),
             use_playwright=os.getenv("USE_PLAYWRIGHT", "false").lower() == "true",
         )
         self.logConfig = LogConfig(
@@ -79,14 +81,6 @@ _config_instance: Optional[Config] = None
 
 
 def get_config(env_file: Optional[str] = None) -> Config:
-    """Get or create singleton Config instance.
-
-    Args:
-        env_file: Path to .env file
-
-    Returns:
-        Config instance
-    """
     global _config_instance
     if _config_instance is None:
         _config_instance = Config(env_file)
@@ -94,11 +88,6 @@ def get_config(env_file: Optional[str] = None) -> Config:
 
 
 def reload_config(env_file: Optional[str] = None):
-    """Reload configuration from environment file.
-
-    Args:
-        env_file: Path to .env file
-    """
     global _config_instance
     _config_instance = Config(env_file)
     return _config_instance
