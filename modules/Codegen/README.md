@@ -188,6 +188,11 @@ grace-ucs/
 ├── .gracerules                          # Main AI instructions
 ├── README.md                            # This file
 ├── guides/
+│   ├── feedback.md                      # Quality feedback database with review template
+│   ├── quality/                         # Quality system documentation
+│   │   ├── README.md                    # Quality system overview
+│   │   ├── quality_review_template.md   # Standalone review template
+│   │   └── CONTRIBUTING_FEEDBACK.md     # Guide for adding feedback entries
 │   ├── connector_integration_guide.md   # Step-by-step UCS integration
 │   ├── patterns/                        # Flow-specific UCS patterns
 │   │   ├── README.md                    # Pattern directory index and usage guide
@@ -213,8 +218,10 @@ grace-ucs/
 2. **Complete Coverage**: All payment methods and flows supported
 3. **UCS-Optimized**: Patterns specific to UCS architecture
 4. **AI-Assisted**: Intelligent code generation and problem solving
-5. **Production-Ready**: Follows UCS best practices and patterns
-6. **Extensible**: Easy to add new flows and payment methods
+5. **Quality Assured**: Automated quality reviews ensure high code standards
+6. **Production-Ready**: Follows UCS best practices and patterns
+7. **Extensible**: Easy to add new flows and payment methods
+8. **Continuous Learning**: Feedback system captures and applies lessons learned
 
 ## 🚀 Getting Started
 
@@ -222,4 +229,110 @@ grace-ucs/
 2. **For existing connector**: Describe current state and desired additions
 3. **For debugging**: Explain the issue and AI will help diagnose and fix
 
-GRACE-UCS makes UCS connector development efficient, comprehensive, and resumable at any stage.# grace-ucs
+GRACE-UCS makes UCS connector development efficient, comprehensive, and resumable at any stage.
+
+---
+
+## 🛡️ Quality Enforcement System
+
+GRACE-UCS includes an automated **Quality Guardian Subagent** (8th subagent) that ensures every connector meets high quality standards.
+
+### Quality Review Process
+
+```
+Foundation → Flow Implementation → All Flows Complete → Cargo Build ✅
+                                                              ↓
+                                                    Quality Guardian Review
+                                                              ↓
+                                        Quality Score ≥ 60? ──┬── Yes → ✅ Approved
+                                                              │
+                                                              └── No → ❌ Blocked (Fix Required)
+```
+
+### When Quality Review Runs
+
+The Quality Guardian activates **ONCE** after all flows are implemented and code compiles successfully:
+- ✅ All 6 flows completed (Authorize, PSync, Capture, Refund, RSync, Void)
+- ✅ Cargo build passes without errors
+- 🛡️ Quality Guardian performs comprehensive review
+- ⚖️ Quality score calculated based on UCS compliance
+
+### Quality Scoring System
+
+```
+Quality Score = 100 - (Critical Issues × 20) - (Warnings × 5) - (Suggestions × 1)
+
+Thresholds:
+95-100: Excellent ✨ - Auto-approve, document success patterns
+80-94:  Good ✅ - Approve with minor notes
+60-79:  Fair ⚠️ - Approve with warnings, recommend fixes
+40-59:  Poor ❌ - Block until critical issues fixed
+0-39:   Critical 🚨 - Block immediately, requires rework
+```
+
+### What Gets Reviewed
+
+**UCS Pattern Compliance:**
+- RouterDataV2 usage (not RouterData)
+- ConnectorIntegrationV2 usage (not ConnectorIntegration)
+- domain_types imports (not hyperswitch_*)
+- Generic connector struct pattern
+
+**Code Quality:**
+- No code duplication across flows
+- Consistent error handling
+- Proper status mapping
+- Payment method support
+- Cross-flow consistency
+
+**Security & Performance:**
+- No exposed credentials
+- Efficient resource usage
+- Proper input validation
+- Security best practices
+
+### Feedback Database
+
+All quality issues and success patterns are captured in `guides/feedback.md`:
+
+```
+guides/feedback.md
+├── Quality Review Template (at top)
+├── Section 1: Critical Patterns (Must Follow)
+├── Section 2: UCS-Specific Guidelines
+├── Section 3: Flow-Specific Best Practices
+├── Section 4: Payment Method Patterns
+├── Section 5: Common Anti-Patterns
+├── Section 6: Success Patterns
+└── Section 7: Historical Feedback Archive
+```
+
+**Feedback Categories:**
+- UCS_PATTERN_VIOLATION - UCS architecture violations
+- RUST_BEST_PRACTICE - Idiomatic Rust issues
+- CONNECTOR_PATTERN - Payment connector patterns
+- CODE_QUALITY - General code quality
+- TESTING_GAP - Missing tests
+- DOCUMENTATION - Documentation issues
+- PERFORMANCE - Performance anti-patterns
+- SECURITY - Security concerns
+- SUCCESS_PATTERN - Exemplary implementations
+
+### Benefits of Quality System
+
+1. **Consistent Quality**: All connectors meet same high standards
+2. **Learning Loop**: Mistakes captured and prevented in future
+3. **Automated Review**: No manual code review needed for basics
+4. **Knowledge Base**: Growing repository of best practices
+5. **Production Ready**: High confidence in deployment
+
+### Resources
+
+- **Quality System Overview**: `guides/quality/README.md`
+- **Feedback Database**: `guides/feedback.md`
+- **Review Template**: `guides/quality/quality_review_template.md`
+- **Contributing Feedback**: `guides/quality/CONTRIBUTING_FEEDBACK.md`
+
+---
+
+# grace-ucs

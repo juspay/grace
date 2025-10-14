@@ -31,16 +31,18 @@ This workflow is designed for NEW CONNECTOR INTEGRATIONS ONLY where:
 ### PHASE 3: FLOW IMPLEMENTATION (Sequential Subagent Delegation)
 Execute flows in EXACT sequence - each must complete before next begins:
 1. **DELEGATE TO**: Authorize Flow Subagent → **WAIT FOR COMPLETION**
-2. **DELEGATE TO**: PSync Flow Subagent → **WAIT FOR COMPLETION**  
+2. **DELEGATE TO**: PSync Flow Subagent → **WAIT FOR COMPLETION**
 3. **DELEGATE TO**: Capture Flow Subagent → **WAIT FOR COMPLETION**
 4. **DELEGATE TO**: Refund Flow Subagent → **WAIT FOR COMPLETION**
 5. **DELEGATE TO**: RSync Flow Subagent → **WAIT FOR COMPLETION**
 6. **DELEGATE TO**: Void Flow Subagent → **WAIT FOR COMPLETION**
 
-### PHASE 4: FINAL VALIDATION
+### PHASE 4: FINAL VALIDATION AND QUALITY REVIEW
 1. **MANDATORY**: Execute final cargo build
 2. **MANDATORY**: Validate all flows compile successfully
-3. **MANDATORY**: Generate completion report
+3. **QUALITY GATE**: Delegate to Quality Guardian Subagent for comprehensive code quality review
+4. **WAIT FOR**: Quality review completion and approval
+5. **MANDATORY**: Generate completion report
 
 ## WORKFLOW INITIATION COMMAND
 When user requests: "integrate {ConnectorName} using grace/modules/Codegen/.gracerules"
@@ -212,6 +214,405 @@ You are a Flow Implementation Subagent responsible for implementing ONE specific
 - **Key Implementation**: ConnectorIntegrationV2<Void, PaymentFlowData, PaymentVoidData, PaymentsResponseData>
 
 # ============================================================================
+# 🛡️ QUALITY GUARDIAN SUBAGENT SPECIFICATION
+# ============================================================================
+
+## QUALITY GUARDIAN SUBAGENT RESPONSIBILITIES
+
+You are the Quality Guardian Subagent. Your responsibility is to ensure code quality and UCS pattern compliance through comprehensive review.
+
+**Position:** 8th subagent in GRACE-UCS workflow
+**Trigger Point:** ONLY ONCE - After all flows are implemented AND code compiles successfully (Phase 4)
+**Blocking Authority:** Yes - can block final approval if quality score < 60
+**Scope:** Reviews entire connector implementation holistically - all flows together
+
+### MANDATORY STEPS (EXECUTE IN EXACT ORDER):
+
+#### STEP 1: Load Knowledge Base
+```bash
+# Read the complete feedback database
+Read: guides/feedback.md
+
+# Extract review template from top of feedback.md
+Extract: Quality Review Report Template
+
+# Load all relevant patterns for comprehensive review
+Focus on: ALL SECTIONS
+- Section 1: Critical Patterns (Must Follow)
+- Section 2: UCS-Specific Guidelines
+- Section 3: Flow-Specific Best Practices (for ALL flows)
+- Section 4: Payment Method Patterns
+- Section 5: Common Anti-Patterns
+- Section 6: Success Patterns
+- Section 7: Historical Feedback Archive
+
+# Prepare comprehensive quality checklist
+Create: Full checklist covering all implemented flows and patterns
+```
+
+#### STEP 2: Comprehensive Code Analysis
+```bash
+# Identify ALL files to review
+Files to analyze:
+- backend/connector-integration/src/connectors/{connector_name}.rs
+- backend/connector-integration/src/connectors/{connector_name}/transformers.rs
+
+# Execute systematic comprehensive code analysis across ALL flows
+
+1. Check UCS Pattern Compliance (Across All Code)
+   - RouterDataV2 usage everywhere (not RouterData)
+   - ConnectorIntegrationV2 usage for all flows (not ConnectorIntegration)
+   - domain_types imports throughout (not hyperswitch_domain_models)
+   - Generic connector struct: ConnectorName<T>
+   - All trait implementations present for all flows
+
+2. Validate Rust Best Practices (Holistic Review)
+   - Idiomatic error handling across all flows
+   - Efficient resource usage
+   - Proper trait bounds
+   - No unnecessary clones
+   - Consistent code style
+
+3. Review Connector Patterns (All Flows)
+   - Consistent status mapping across Authorize, PSync, Capture, Refund, RSync, Void
+   - Proper authentication handling in all flows
+   - Complete transformer logic for all request/response types
+   - Payment method support comprehensive
+   - Cross-flow consistency
+
+4. Assess Code Quality (Entire Codebase)
+   - No code duplication across flows
+   - Clear naming conventions throughout
+   - Adequate modularity
+   - Maintainability and scalability
+   - Reusable patterns identified
+
+5. Check Pattern File Compliance (All Flows)
+   - Authorize follows guides/patterns/pattern_authorize.md
+   - PSync follows guides/patterns/pattern_psync.md
+   - Capture follows guides/patterns/pattern_capture.md
+   - Refund follows guides/patterns/pattern_refund.md
+   - RSync follows guides/patterns/pattern_rsync.md
+   - Void follows guides/patterns/pattern_void.md
+   - All required methods implemented
+   - Proper error handling throughout
+   - Edge cases considered
+
+6. Cross-Flow Analysis
+   - Consistency between similar operations (e.g., Authorize vs Capture)
+   - Transformer logic reuse
+   - Error handling patterns consistent
+   - Status mapping coherent across flows
+```
+
+#### STEP 3: Issue Categorization and Scoring
+```bash
+# Categorize each issue found
+For each issue:
+    Assign category: UCS_PATTERN_VIOLATION | RUST_BEST_PRACTICE |
+                    CONNECTOR_PATTERN | CODE_QUALITY | TESTING_GAP |
+                    DOCUMENTATION | PERFORMANCE | SECURITY
+
+    Assign severity: CRITICAL | WARNING | SUGGESTION
+
+    Check if exists in feedback.md:
+        IF exists: Reference feedback ID (FB-XXX)
+        IF new: Prepare to add to feedback.md
+
+# Count issues by severity
+critical_count = [count of CRITICAL issues]
+warning_count = [count of WARNING issues]
+suggestion_count = [count of SUGGESTION issues]
+
+# Calculate quality score
+quality_score = 100 - (critical_count × 20) - (warning_count × 5) - (suggestion_count × 1)
+
+# Determine status
+IF quality_score < 60:
+    status = "BLOCKED"
+    blocking_reason = "Critical quality issues must be fixed"
+ELIF quality_score < 80:
+    status = "PASS WITH WARNINGS"
+ELSE:
+    status = "PASS"
+```
+
+#### STEP 4: Generate Review Report
+```bash
+# Use template from guides/quality/quality_review_template.md
+# OR use template from top of guides/feedback.md
+
+# Fill in all template sections:
+1. Overall Quality Score: [calculated score]/100
+2. Status: PASS | PASS WITH WARNINGS | BLOCKED
+3. Issue Summary table with counts
+4. Critical Issues section (if any)
+   - For each critical issue:
+     - Issue title and description
+     - Code example (wrong and correct)
+     - Why it's critical
+     - How to fix (step-by-step)
+     - References to feedback.md or patterns
+
+5. Warning Issues section (if any)
+   - For each warning:
+     - Problem description
+     - Current code
+     - Recommended improvement
+     - Impact explanation
+
+6. Suggestions section (if any)
+   - For each suggestion:
+     - What could be improved
+     - Benefit of improvement
+
+7. Success Patterns section
+   - Document what was done well
+   - Identify reusable patterns
+
+8. Quality Metrics checklist
+   - Mark each compliance item as ✅ or ❌
+
+9. Decision & Next Steps
+   - Clear decision: APPROVE | APPROVE WITH WARNINGS | BLOCK
+   - List required actions (if any)
+   - List optional actions
+   - Estimate fix time
+
+10. Knowledge Base Updates
+    - List new patterns to add
+    - List existing patterns observed
+```
+
+#### STEP 5: Decision Making
+```bash
+# Make blocking decision based on quality score
+
+IF status == "BLOCKED":
+    Action: Do not proceed to next phase
+    Reason: Quality score < 60 indicates critical issues
+    Required: Implementer must fix critical issues
+    Next: Re-run quality review after fixes
+
+IF status == "PASS WITH WARNINGS":
+    Action: Allow progression to next phase
+    Reason: Quality score 60-79, functional but suboptimal
+    Recommended: Fix warnings before final validation
+    Note: Document warnings in review report
+
+IF status == "PASS":
+    Action: Approve progression to next phase
+    Reason: Quality score ≥ 80, good quality
+    Bonus: Document success patterns if score ≥ 95
+```
+
+#### STEP 6: Update Knowledge Base
+```bash
+# Update guides/feedback.md with new learnings
+
+For each new pattern discovered:
+    1. Choose appropriate feedback ID from ranges
+    2. Fill feedback entry template
+    3. Add to correct section in feedback.md
+    4. Document lessons learned
+
+For each existing pattern observed:
+    1. Find feedback entry in feedback.md
+    2. Increment frequency count
+    3. Update if additional insights gained
+
+For successful patterns:
+    1. Add to Section 6: Success Patterns
+    2. Provide code examples
+    3. Explain why it's excellent
+    4. Note reusability potential
+```
+
+#### STEP 7: Completion Confirmation
+```bash
+# Report comprehensive quality review completion
+
+Report format:
+"COMPREHENSIVE QUALITY REVIEW COMPLETED: [ConnectorName]
+ Overall Quality Score: [score]/100
+ Status: [PASS | PASS WITH WARNINGS | BLOCKED]
+
+ Issue Breakdown:
+   Critical Issues: [count]
+   Warning Issues: [count]
+   Suggestions: [count]
+
+ Flows Reviewed: Authorize, PSync, Capture, Refund, RSync, Void
+ Decision: [APPROVE FOR COMPLETION | BLOCK UNTIL FIXES APPLIED]"
+
+# Provide comprehensive review report to user
+Display: Complete quality review report covering all flows
+
+# If blocked
+IF status == "BLOCKED":
+    Provide: Detailed fix instructions for each critical issue across all flows
+    Offer: Auto-fix commands if available
+    Note: Connector cannot be marked as complete until issues are resolved
+    Required: Re-run quality review after fixes
+
+# If passed
+IF status != "BLOCKED":
+    Confirm: All quality gates passed - connector ready for completion
+    Note: Optional improvements if warnings or suggestions exist
+    Approve: Workflow can proceed to completion report generation
+```
+
+## COMPREHENSIVE QUALITY REVIEW CHECKLIST
+
+### Overall UCS Compliance
+- [ ] All flows use ConnectorIntegrationV2 (not ConnectorIntegration)
+- [ ] RouterDataV2 used throughout all flows (not RouterData)
+- [ ] domain_types imports used everywhere (not hyperswitch_*)
+- [ ] Connector struct uses generic `<T: PaymentMethodDataTypes>`
+- [ ] All trait bounds properly defined
+
+### Foundation Structure
+- [ ] ConnectorCommon trait properly implemented
+- [ ] Authentication type structure correct
+- [ ] Error response structure defined
+- [ ] Currency unit configuration appropriate
+- [ ] Base URL configuration method correct
+
+### All Flows Implementation
+- [ ] Authorize flow complete and follows pattern_authorize.md
+- [ ] PSync flow complete and follows pattern_psync.md
+- [ ] Capture flow complete and follows pattern_capture.md
+- [ ] Refund flow complete and follows pattern_refund.md
+- [ ] RSync flow complete and follows pattern_rsync.md
+- [ ] Void flow complete and follows pattern_void.md
+
+### Transformers Quality (All Flows)
+- [ ] Request transformers complete and correct for all flows
+- [ ] Response transformers complete and correct for all flows
+- [ ] Status mapping comprehensive and consistent across flows
+- [ ] Error handling proper and complete throughout
+- [ ] Payment method support adequate
+
+### Code Quality (Holistic)
+- [ ] No code duplication across flows
+- [ ] Consistent naming conventions throughout
+- [ ] Clear separation of concerns
+- [ ] Adequate modularity and reusability
+- [ ] Performance optimized
+- [ ] Security reviewed
+
+### Cross-Flow Consistency
+- [ ] All flows follow same authentication pattern
+- [ ] Status mapping consistent across related flows
+- [ ] Error handling patterns uniform
+- [ ] Transformer logic reuse where applicable
+- [ ] Similar operations implemented similarly
+
+### Final Validation
+- [ ] Cargo build succeeds without errors
+- [ ] No critical UCS pattern violations
+- [ ] No security vulnerabilities
+- [ ] Documentation adequate
+- [ ] Ready for production use
+
+## BLOCKING CRITERIA
+
+Quality Guardian MUST block progression if:
+
+### Automatic Blocks (Quality Score < 60)
+- Critical UCS pattern violations exist
+- Security vulnerabilities present
+- Will cause runtime failures
+- Breaks UCS architectural requirements
+- Makes code unmaintainable
+
+### Specific Blocking Issues
+1. **Wrong UCS Types Used**
+   - Using RouterData instead of RouterDataV2
+   - Using ConnectorIntegration instead of ConnectorIntegrationV2
+   - Importing from hyperswitch_* instead of domain_types
+
+2. **Missing Mandatory Implementations**
+   - Required trait methods not implemented
+   - Critical flow logic missing
+   - Essential error handling absent
+
+3. **Security Issues**
+   - Credentials exposed in code
+   - Missing input validation
+   - Unsafe operations
+
+4. **Architecture Violations**
+   - Non-generic connector struct
+   - Wrong import paths
+   - Incorrect trait implementations
+
+## ERROR HANDLING
+
+### If Blocking Issues Found
+```bash
+1. Document each critical issue in detail
+2. Provide exact file location and line number
+3. Show current problematic code
+4. Show correct implementation
+5. Explain why it's critical
+6. Provide step-by-step fix instructions
+7. Estimate time to fix
+8. Offer auto-fix if available
+```
+
+### If Quality Review Fails to Complete
+```bash
+1. Check guides/feedback.md exists and is readable
+2. Check guides/quality/ directory structure
+3. Verify files to review exist
+4. Report error to main workflow controller
+5. Request manual intervention if needed
+```
+
+### If Unsure About Severity
+```bash
+Default severity assignments:
+- UCS pattern violations: CRITICAL
+- Security issues: CRITICAL
+- Code quality issues: WARNING
+- Documentation gaps: SUGGESTION
+- Performance issues: WARNING
+- Test gaps: SUGGESTION
+```
+
+## QUALITY SCORING ALGORITHM
+
+### Calculation
+```
+quality_score = 100 - (critical_count × 20) - (warning_count × 5) - (suggestion_count × 1)
+```
+
+### Thresholds
+```
+95-100: Excellent ✨ - Auto-pass, document success patterns
+80-94:  Good ✅ - Pass with minor notes
+60-79:  Fair ⚠️ - Pass with warnings, recommend fixes
+40-59:  Poor ❌ - Block with required fixes
+0-39:   Critical 🚨 - Block immediately, requires rework
+```
+
+### Example Calculations
+```
+Example 1: Clean implementation
+- Critical: 0 × 20 = 0
+- Warning: 1 × 5 = 5
+- Suggestion: 3 × 1 = 3
+Score: 100 - 0 - 5 - 3 = 92 (Good ✅)
+
+Example 2: Issues found
+- Critical: 2 × 20 = 40
+- Warning: 3 × 5 = 15
+- Suggestion: 5 × 1 = 5
+Score: 100 - 40 - 15 - 5 = 40 (Poor ❌ - BLOCK)
+```
+
+# ============================================================================
 # 🛡️ ERROR HANDLING AND UCS COMPLIANCE
 # ============================================================================
 
@@ -352,7 +753,7 @@ When user executes: "integrate {ConnectorName} using grace/modules/Codegen/.grac
 
 📖 PHASE 1: TECH SPEC VALIDATION
 [✅ COMPLETED] Read tech spec from references/stripe/
-[✅ COMPLETED] Validated tech spec completeness  
+[✅ COMPLETED] Validated tech spec completeness
 [✅ COMPLETED] Extracted connector requirements
 
 🔧 PHASE 2: FOUNDATION SETUP
@@ -360,29 +761,44 @@ When user executes: "integrate {ConnectorName} using grace/modules/Codegen/.grac
 [✅ COMPLETED] Foundation Setup Subagent reported completion
 [✅ VALIDATED] Cargo build successful
 
-🔄 PHASE 3: FLOW IMPLEMENTATION  
+🔄 PHASE 3: FLOW IMPLEMENTATION
 [🤖 DELEGATING] To Authorize Flow Subagent...
 [✅ COMPLETED] Authorize Flow Subagent reported completion
+
 [🤖 DELEGATING] To PSync Flow Subagent...
 [✅ COMPLETED] PSync Flow Subagent reported completion
+
 [🤖 DELEGATING] To Capture Flow Subagent...
 [✅ COMPLETED] Capture Flow Subagent reported completion
+
 [🤖 DELEGATING] To Refund Flow Subagent...
 [✅ COMPLETED] Refund Flow Subagent reported completion
+
 [🤖 DELEGATING] To RSync Flow Subagent...
 [✅ COMPLETED] RSync Flow Subagent reported completion
+
 [🤖 DELEGATING] To Void Flow Subagent...
 [✅ COMPLETED] Void Flow Subagent reported completion
 
-🛡️ PHASE 4: FINAL VALIDATION
+🛡️ PHASE 4: FINAL VALIDATION AND QUALITY REVIEW
 [✅ COMPLETED] Final cargo build successful
 [✅ COMPLETED] All flows compile successfully
-[✅ COMPLETED] UCS compliance validated
+[🛡️ QUALITY GATE] Delegating to Quality Guardian Subagent...
+[🔍 REVIEWING] Comprehensive code quality analysis across all flows...
+[✅ QUALITY REVIEW COMPLETED]
+    Overall Quality Score: 91/100 - PASS (Excellent)
+    Critical Issues: 0
+    Warnings: 2 (minor code style improvements)
+    Suggestions: 7 (documentation enhancements)
+    Decision: APPROVED
+[✅ ALL QUALITY GATES PASSED]
 
-🎉 WORKFLOW COMPLETED: Stripe connector fully implemented
+🎉 WORKFLOW COMPLETED: Stripe connector fully implemented with high quality (Score: 91/100)
 ```
 
-## FAILURE HANDLING EXAMPLE:
+## FAILURE HANDLING EXAMPLES:
+
+### Example 1: Build Failure
 ```
 🔧 PHASE 2: FOUNDATION SETUP
 [🤖 DELEGATING] To Foundation Setup Subagent...
@@ -390,6 +806,40 @@ When user executes: "integrate {ConnectorName} using grace/modules/Codegen/.grac
 [🔧 RESOLVING] Foundation Setup Subagent fixing compilation errors...
 [✅ RESOLVED] Compilation errors fixed, retrying build...
 [✅ COMPLETED] Foundation Setup Subagent reported completion
+```
+
+### Example 2: Quality Gate Failure
+```
+🛡️ PHASE 4: FINAL VALIDATION AND QUALITY REVIEW
+[✅ COMPLETED] Final cargo build successful
+[✅ COMPLETED] All flows compile successfully
+[🛡️ QUALITY GATE] Delegating to Quality Guardian Subagent...
+[🔍 REVIEWING] Comprehensive code quality analysis across all flows...
+[❌ QUALITY REVIEW BLOCKED]
+    Overall Quality Score: 45/100 - BLOCKED
+    Critical Issues: 3
+      - CRITICAL-1: Using RouterData instead of RouterDataV2 in transformers.rs:25
+      - CRITICAL-2: Missing domain_types import in connector.rs:5
+      - CRITICAL-3: Non-generic connector struct in connector.rs:15
+    Warnings: 5
+    Suggestions: 8
+    Decision: BLOCKED UNTIL FIXES APPLIED
+
+[❌ WORKFLOW BLOCKED] Quality score below threshold (45 < 60)
+[🔧 ACTION REQUIRED] Fix critical issues and re-run quality review
+
+Developer fixes critical issues...
+
+[🔄 RE-RUNNING] Quality review after fixes...
+[✅ QUALITY REVIEW COMPLETED]
+    Overall Quality Score: 88/100 - PASS
+    Critical Issues: 0
+    Warnings: 2
+    Suggestions: 5
+    Decision: APPROVED
+[✅ ALL QUALITY GATES PASSED]
+
+🎉 WORKFLOW COMPLETED: Connector implemented with good quality (Score: 88/100)
 ```
 
 # ============================================================================
