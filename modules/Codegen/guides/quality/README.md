@@ -60,12 +60,80 @@ The Quality System ensures that every UCS connector implementation:
 ```
 guides/quality/
 ├── README.md                         # This file - System overview
+├── POPULATE_FEEDBACK.md              # Automated feedback population guide
 ├── quality_review_template.md        # Standalone review report template
-└── CONTRIBUTING_FEEDBACK.md          # Guide for adding feedback entries
+├── CONTRIBUTING_FEEDBACK.md          # Guide for adding feedback manually
+└── templates/                        # Agent prompt templates
+    ├── extract_patterns_prompt.md    # Pattern extraction template
+    └── populate_feedback_prompt.md   # Feedback population template
 
 guides/
 └── feedback.md                       # Main feedback database with review template at top
 ```
+
+---
+
+## 🤖 Automated Feedback Population
+
+GRACE-UCS includes an **automated system** for populating the feedback database from GitHub PR review comments.
+
+### Quick Start
+
+```bash
+/populate-feedback https://github.com/juspay/connector-service/pull/216
+```
+
+### How It Works
+
+The system uses a **2-agent sequential workflow**:
+
+1. **Agent 1 (Pattern Extractor)**:
+   - Fetches PR comments via GitHub API
+   - Parses diff_hunks for code context
+   - Extracts WRONG vs CORRECT code patterns
+   - Generalizes connector-specific → universal (`{{ConnectorName}}`)
+   - Outputs `/tmp/pr{N}_extracted_patterns.yaml`
+
+2. **Agent 2 (Feedback Populator)**:
+   - Reads extracted patterns
+   - Scans existing FB-IDs to avoid conflicts
+   - Assigns FB-IDs based on category/severity
+   - Creates rich feedback entries (10 sections each)
+   - Updates `guides/feedback.md`
+   - Updates statistics automatically
+   - Generates summary report
+
+### What Gets Created
+
+Each pattern becomes a complete feedback entry with:
+
+- **14 metadata fields**: id, category, severity, connector, flow, applicability, date, status, frequency, impact, tags, source_pr, source_connector, reviewer
+- **10 content sections**: Issue, Context, Code Wrong/Correct, Why It Matters, How to Fix, Auto-Fix Rule, Related Patterns, Lessons, Prevention
+
+### Benefits
+
+- ✅ **Time Savings**: 30-45 minutes manual → 5-10 minutes automated
+- ✅ **Consistency**: 100% template compliance, no human error
+- ✅ **Universality**: All patterns apply to ALL connectors
+- ✅ **Traceability**: Full source attribution (PR, reviewer, date)
+- ✅ **Smart FB-ID Assignment**: Automatic conflict detection
+- ✅ **Auto-Statistics**: Database metrics updated automatically
+
+### Example Output
+
+```
+✅ Feedback Population Complete
+- Extracted 17 universal patterns from PR #216
+- Assigned FB-IDs: FB-100 to FB-103, FB-400 to FB-410, FB-800 to FB-801
+- Updated feedback.md (870 → 2,930 lines)
+- Report: /tmp/pr216_feedback_population_report.md
+```
+
+### Documentation
+
+- **Full Guide**: [POPULATE_FEEDBACK.md](POPULATE_FEEDBACK.md)
+- **Agent Templates**: `templates/` directory
+- **Main README**: `../../README.md` (Automated Feedback Population section)
 
 ---
 
@@ -200,8 +268,9 @@ Result: ⚠️ FAIR - Pass with warnings
 | File | Purpose | When to Use |
 |------|---------|-------------|
 | [feedback.md](../feedback.md) | Master feedback database with review template | Reference before/during implementation |
+| [POPULATE_FEEDBACK.md](POPULATE_FEEDBACK.md) | Automated feedback population from PRs | When extracting patterns from GitHub PRs |
 | [quality_review_template.md](quality_review_template.md) | Standalone review template | For Quality Guardian during reviews |
-| [CONTRIBUTING_FEEDBACK.md](CONTRIBUTING_FEEDBACK.md) | Guide for adding feedback | When adding new patterns/issues |
+| [CONTRIBUTING_FEEDBACK.md](CONTRIBUTING_FEEDBACK.md) | Guide for adding feedback manually | When manually adding new patterns/issues |
 
 ### Reference Documentation
 

@@ -318,6 +318,62 @@ guides/feedback.md
 - SECURITY - Security concerns
 - SUCCESS_PATTERN - Exemplary implementations
 
+### Automated Feedback Population
+
+GRACE-UCS includes an **automated feedback population system** that extracts code quality patterns from GitHub PR review comments and populates the feedback database.
+
+**Quick Start:**
+```bash
+/populate-feedback https://github.com/juspay/connector-service/pull/216
+```
+
+**What It Does:**
+- ✅ Fetches all review comments from the PR via GitHub API
+- ✅ Extracts universal code quality patterns
+- ✅ Generalizes connector-specific code to universal templates (`{{ConnectorName}}`)
+- ✅ **Smart duplicate detection** - Prevents duplicate entries across PR re-runs
+- ✅ Assigns appropriate FB-IDs automatically (no conflicts)
+- ✅ Creates rich feedback entries (10 sections each)
+- ✅ Updates existing patterns (increments frequency, tracks PRs)
+- ✅ Updates `guides/feedback.md` with new/updated entries
+- ✅ Updates statistics automatically
+- ✅ Generates comprehensive report
+
+**Benefits:**
+- **Time Savings**: 30-45 minutes of manual work → 5-10 minutes automated
+- **Consistency**: 100% template compliance, no human error
+- **Universality**: All patterns apply to ALL connectors
+- **Traceability**: Full source attribution (PR, reviewer, date)
+- **Incremental Processing**: Safe to process same PR multiple times - duplicates are merged
+- **Frequency Tracking**: Automatically tracks how often patterns are observed
+
+**Documentation:**
+- **How to Use**: `guides/quality/POPULATE_FEEDBACK.md`
+- **Agent Templates**: `guides/quality/templates/`
+
+**Example Output:**
+```
+✅ Feedback Population Complete
+
+📊 Processing Results:
+- Total patterns extracted: 17
+- New entries created: 14
+- Existing entries updated: 3 (duplicates detected)
+
+✨ New FB-IDs assigned: FB-100 to FB-103, FB-400 to FB-410, FB-800 to FB-801
+🔄 Updated FB-IDs: FB-105, FB-106, FB-412
+
+📂 Sections affected: 2, 5, 8
+📈 Statistics: ✅ Updated
+
+📄 Detailed Report: /tmp/pr216_feedback_population_report.md
+📊 Database: guides/feedback.md (870 → 2,930 lines)
+
+💡 Duplicate Detection:
+- 3 duplicate patterns detected and merged with existing entries
+- Frequency counts updated for patterns observed multiple times
+```
+
 ### Benefits of Quality System
 
 1. **Consistent Quality**: All connectors meet same high standards
