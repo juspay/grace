@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Configuration management for Grace CLI."""
 
 import os
 from pathlib import Path
@@ -10,26 +9,56 @@ from .types.config import AIConfig, ResearchConfig, TechSpecConfig, LogConfig
 
 
 class Config:
-    """Configuration class to manage environment variables."""
     aiConfig: AIConfig
     techSpecConfig: TechSpecConfig
     logConfig: LogConfig
     researchConfig: ResearchConfig
 
     def __init__(self, env_file: Optional[str] = None):
-        """Initialize configuration and load environment variables.
-
-        Args:
-            env_file: Path to .env file. If None, looks for .env in project root.
-        """
-        if env_file is None:
-            project_root = Path(__file__).parent.parent
-            env_file = str(project_root / ".env")
-
-        if Path(env_file).exists():
-            load_dotenv(env_file)
-
+        self._load_env_files(env_file)
         self._load_config()
+
+    def _load_env_files(self, env_file: Optional[str] = None) -> None:
+        """Load environment variables with proper precedence.
+        
+        Precedence order:
+        1. Explicitly passed env_file parameter
+        2. .env file in current working directory (where command is run from)
+        3. .env file in grace-cli directory
+        4. .env file in root directory (parent of grace-cli)
+        """
+        # If env_file is explicitly provided, use it
+        if env_file is not None:
+            if Path(env_file).exists():
+                load_dotenv(env_file)
+                return
+            else:
+                click.echo(f"Warning: Specified env file '{env_file}' not found.")
+        
+        # Look for .env files in order of precedence
+        current_dir = Path.cwd()  # Current working directory where command is run
+        grace_cli_root = Path(__file__).parent.parent  # grace-cli directory
+        project_root = grace_cli_root.parent  # parent of grace-cli directory
+        
+        env_locations = [
+            current_dir / ".env",     # .env in current working directory
+            grace_cli_root / ".env",  # grace-cli/.env
+            project_root / ".env",    # root/.env
+        ]
+        
+        # Remove duplicates while preserving order
+        unique_locations = []
+        seen = set()
+        for path in env_locations:
+            path_resolved = path.resolve()
+            if path_resolved not in seen:
+                unique_locations.append(path)
+                seen.add(path_resolved)
+        
+        for env_path in unique_locations:
+            if env_path.exists():
+                load_dotenv(env_path)
+                break
 
     def _load_config(self) -> None:
         """Load all configuration from environment variables."""
