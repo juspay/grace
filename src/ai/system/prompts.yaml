@@ -71,3 +71,26 @@ techspecFileNamePrompt: |
   Only return the filename without any additional text or formatting.
   {isConnectorAvailable}
   strictly follow the instructions. 
+
+researchQueriesGenPrompt: |
+  Generate a list of 5-10 specific research queries to gather detailed information about the API documentation for the connector with the following URLs: {urls}.
+  The queries should focus on extracting comprehensive details about the API endpoints, authentication methods, request/response structures, error handling, and any other relevant technical specifications.
+  Ensure that the queries are clear, concise, and targeted towards obtaining the necessary information to create a complete technical specification document.
+  Return the queries in a numbered list format.
+  for this query/connector : {query}
+  strictly follow the instructions.
+
+researchVerifyLinksPrompt: |
+  Verify the following list of URLs to determine if they are valid and accessible API documentation links for the connector: {urls}.
+  For each URL, check if it leads to a page that contains comprehensive API documentation, including details about endpoints, authentication methods, request/response structures, and error handling.
+  Return a list of valid URLs that meet these criteria.
+  the format of out should be json array of strings. [url1, url2, ...]
+  If none of the URLs are valid, return an empty list.
+  strictly follow the instructions.
+  {linksVisited}
+  rules: 
+    - Only return the list of valid URLs in the specified format.
+    - Do not include any additional text or explanations.
+    - Ensure that the URLs are directly related to API documentation.
+    - If a URL is not accessible or does not contain relevant information, it should not be included in the output.
+    - return the all links which can lead to the api documentation pages.
