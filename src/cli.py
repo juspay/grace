@@ -176,6 +176,7 @@ DEBUG=false
                                 click.echo(f"Build command: {build_cmd}")
 
             else:
+                # click.echo(f"result: {result}")
                 click.echo(f"Techspec generation failed: {result['error']}", err=True)
                 if verbose and result.get("metadata"):
                     click.echo(f"Debug info: {result['metadata']}", err=True)
