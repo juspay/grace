@@ -1,29 +1,6 @@
-"""Workflows package for Grace CLI."""
+from .techspec.workflow import run_techspec_workflow, create_techspec_workflow
 
-from .base import (
-    BaseWorkflow,
-    BaseWorkflowState,
-    WorkflowStatus,
-    WorkflowStepStatus,
-    WorkflowMetadata,
-    WorkflowStep,
-    WorkflowProgressCallback,
-    WorkflowExecutor,
-    WorkflowConfig,
-    create_workflow_callback,
-    merge_workflow_results
-)
-
-__all__ = [
-    "BaseWorkflow",
-    "BaseWorkflowState",
-    "WorkflowStatus",
-    "WorkflowStepStatus",
-    "WorkflowMetadata",
-    "WorkflowStep",
-    "WorkflowProgressCallback",
-    "WorkflowExecutor",
-    "WorkflowConfig",
-    "create_workflow_callback",
-    "merge_workflow_results"
+all =[
+    "run_techspec_workflow",
+    "create_techspec_workflow"
 ]
