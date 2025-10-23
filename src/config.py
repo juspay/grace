@@ -66,8 +66,8 @@ class Config:
         self.aiConfig = AIConfig(
             api_key=os.getenv("AI_API_KEY", ""),
             provider=os.getenv("AI_PROVIDER", "litellm"),
-            base_url=os.getenv("AI_BASE_URL", "https://grid.juspay.net"),
-            model_id=os.getenv("AI_MODEL_ID", "qwen3-coder-480b"),
+            base_url=os.getenv("AI_BASE_URL", "https://grid.ai.juspay.net"),
+            model_id=os.getenv("AI_MODEL_ID", "openai/qwen3-coder-480b"),
             project_id=os.getenv("AI_PROJECT_ID"),
             location=os.getenv("AI_LOCATION", "us-east5"),
             max_tokens=int(os.getenv("AI_MAX_TOKENS", "32768")),
