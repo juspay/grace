@@ -125,10 +125,12 @@ class ResearchWorkflow:
                      mock_server: bool = False,
                      test_only: bool = False,
                      verbose: bool = False) -> Dict[str, Any]:
-        config = get_config().getTechSpecConfig()
+        global_config = get_config()
+        techspec_config = global_config.getTechSpecConfig()
+        ai_config = global_config.getAiConfig()
 
         # Convert output_dir to Path object
-        output_path = Path(output_dir) if output_dir else Path(config.output_dir)
+        output_path = Path(output_dir) if output_dir else Path(techspec_config.output_dir)
 
         # Initialize state
         initial_state: WorkflowState = {
@@ -136,12 +138,14 @@ class ResearchWorkflow:
             "urls": [],
             "visited_urls": [],
             "output_dir": output_path,
-            "mock_server" : mock_server,
-            "config": config,
+            "generate_mockserver" : mock_server,
+            "config": ai_config,
+            "techSpecConfig": techspec_config,
             "test_only": test_only,
             "verbose": verbose,
             "final_output": {},
             "error": None,
+            "errors": [],
             "metadata": {"workflow_started": True, "timestamp": datetime.now().isoformat()},
         }
 
