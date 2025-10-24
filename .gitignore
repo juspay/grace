@@ -26,4 +26,6 @@ npm-debug.log*
 output/
 
 
-*/references/
+# rulesbook/codegen/references/specs/*
+
+**/references/** 
