@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
-    {name = "Grace Team", email = "manideepk90@gmail.com"}
+    {name = "Grace Team"}
 ]
 keywords = ["cli", "research", "techspec", "automation"]
 classifiers = [
@@ -46,18 +46,18 @@ dependencies = [
     # Logging and rich output
     "structlog>=23.1.0",
     "rich>=13.5.0",
+    "flake8>=6.0.0",
+    "types-pyyaml>=6.0.12",
+    "types-requests>=2.32.0"
 ]
 
 [project.optional-dependencies]
-dev = [
+dev =[
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "pytest-mock>=3.11.0",
     "black>=23.0.0",
-    "flake8>=6.0.0",
     "mypy>=1.5.0",
-    "types-pyyaml>=6.0.12",
-    "types-requests>=2.32.0"
 ]
 scraping = [
     "beautifulsoup4>=4.12.0",

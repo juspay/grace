@@ -25,7 +25,7 @@ uv sync
 uv sync --extra dev --extra ai --extra scraping
 ```
 
-### Using pip
+### Using pip with uv
 ```bash
 # Install in development mode
 uv pip install -e .
@@ -39,6 +39,9 @@ uv pip install -e ".[dev,ai,scraping,nlp]"
 ### Techspec Workflow
 ```bash
 # Generate connector for a payment processor
+source grace/.venv/bin/activate # to use grace from outside folders as well
+# move the grace/.env.example to .env -> and update Techspec output path and API keys if needed
+
 grace techspec
 ```
 
