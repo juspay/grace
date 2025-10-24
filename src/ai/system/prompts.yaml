@@ -1,0 +1,109 @@
+# AI Prompt Templates Configuration
+
+techspecPrompt: |
+  You are tasked with creating comprehensive API documentation by extracting information from the provided context. Your role is to structure the available information into a standardized documentation format without making any modifications, assumptions, or interpretations.
+
+  ## Core Requirements:
+  - Extract ALL available endpoints from the following documentation
+  - Maintain exact 1:1 correspondence between source content and documentation
+  - Do not modify, enhance, or assume any missing information
+  - Structure only what is explicitly present in the source material
+  - Cover all API flows mentioned in the context, not just specific ones
+
+  ## Documentation Structure:
+
+  ### Connector Information
+  - Extract connector name and basic details as provided
+  - List all base URLs (production, sandbox, testing) mentioned
+  - Include any additional URLs found (webhooks, status endpoints, documentation links, etc.)
+
+  ### Authentication Details
+  - Document authentication methods exactly as described
+  - Include all authentication parameters, headers, and configurations mentioned
+  - Preserve exact format of API keys, tokens, or credentials structure
+
+  ### Complete Endpoint Inventory
+  For EVERY endpoint found in the context, document:
+  - Exact endpoint URL/path
+  - HTTP method
+  - All headers mentioned
+  - Complete request payload structure (as provided)
+  - Complete response payload structure (as provided)
+  - Any curl examples if present
+  - Error responses if documented
+
+  ### Flow Categories to Extract:
+  Document all flows present, which may include:
+  - Payment/Authorization flows
+  - Capture operations
+  - Refund processes
+  - Status/sync endpoints
+  - Dispute handling
+  - Tokenization/vaulting
+  - Webhook endpoints
+  - Account/configuration endpoints
+  - Any other flows mentioned
+
+  ### Configuration Parameters
+  - List all configuration requirements mentioned
+  - Environment variables or settings
+  - Supported features, currencies, regions as stated
+  - Integration requirements
+
+  ## Output Guidelines:
+  - Use the exact field names, values, and structures from the source
+  - Preserve original JSON formatting and data types
+  - Include all optional and required parameters as marked
+  - Maintain original error codes and messages
+  - Do not fill gaps or make educated guesses
+  - If information is partially available, document only what's explicitly provided
+  - Use "Not specified in source" for clearly missing but relevant information
+
+  Generate documentation that serves as a faithful representation of the API capabilities based solely on the provided context.
+
+  API Documentation:
+  {content}
+
+techspecFileNamePrompt: |
+  Generate a concise filename for the technical specification document without any spaces or special characters, 
+  just the name with single world with the same name as the connector name in the urls: {urls}
+  If unable to generate, return "tech_spec"
+  Only return the filename without any additional text or formatting.
+  {isConnectorAvailable}
+  strictly follow the instructions. 
+
+techspecMockServerPrompt: |
+  Create an express server which mocks all the api calls mentioned here. 
+  If encryption is required use crypto or some popular libraries to handle it. 
+  Print all endpoints created after server starts running.
+  IMPORTANT: Make the server run on port 5000 (not 3000) to avoid conflicts. Use const PORT = process.env.PORT || 5000;
+  Format your response exactly like the JSON given below and don't respond with any subscript like "of course" or "here you go":
+  \{
+    "server_js": "// Your server.js code here - MUST use port 5000",
+    "package_json": "// Your package.json content here", 
+    "info": "// Simple Markdown text providing all generated curls with port 5000"
+  \}
+  {tech_spec}
+
+researchQueriesGenPrompt: |
+  Generate a list of 5-10 specific research queries to gather detailed information about the API documentation for the connector with the following URLs: {urls}.
+  The queries should focus on extracting comprehensive details about the API endpoints, authentication methods, request/response structures, error handling, and any other relevant technical specifications.
+  Ensure that the queries are clear, concise, and targeted towards obtaining the necessary information to create a complete technical specification document.
+  Return the queries in a numbered list format.
+  for this query/connector : {query}
+  strictly follow the instructions.
+
+researchVerifyLinksPrompt: |
+  Verify the following list of URLs to determine if they are valid and accessible API documentation links for the connector: {urls}.
+  For each URL, check if it leads to a page that contains comprehensive API documentation, including details about endpoints, authentication methods, request/response structures, and error handling.
+  Return a list of valid URLs that meet these criteria.
+  the format of out should be json array of strings. [url1, url2, ...]
+  If none of the URLs are valid, return an empty list.
+  strictly follow the instructions.
+  {linksVisited}
+  rules: 
+    - Only return the list of valid URLs in the specified format.
+    - Do not include any additional text or explanations.
+    - Ensure that the URLs are directly related to API documentation.
+    - If a URL is not accessible or does not contain relevant information, it should not be included in the output.
+    - return the all links which can lead to the api documentation pages.
