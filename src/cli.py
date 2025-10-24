@@ -18,7 +18,14 @@ from .config import get_config
 @click.group()
 @click.version_option(version='1.0.0')
 def cli():
-    """Grace CLI - Intelligent research and technical specification generator."""
+    """ Grace CLI - Intelligent research and technical specification generator.\n
+        usage:\n
+        grace techspec [OPTIONS] [CONNECTOR]\n
+        options:\n
+            --output TEXT            Output directory for generated specs\n
+            --verbose                Enable verbose output\n
+            --mock-server or -m      Enable mock server\n
+    """
     pass
 
 
@@ -45,66 +52,22 @@ def cli():
 
 @cli.command()
 @click.argument('connector', required=False)
-@click.option('--api-doc', '-a', help='Path to API documentation')
 @click.option('--output', '-o', help='Output directory for generated specs')
-@click.option('--template', '-t', help='Template to use for spec generation')
-@click.option('--create-config', is_flag=True, help='Create a sample configuration file')
 @click.option('--test-only', is_flag=True, help='Run in test mode without generating files')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
 @click.option('--mock-server', '-m', is_flag=True, help='Enable mock server for API interactions (for testing)')
-def techspec(connector, api_doc, output, template, create_config, test_only, verbose, mock_server):
-    """Generate technical specifications for a connector using LangGraph workflow."""
+def techspec(connector, output, test_only, verbose, mock_server):
     # we will use the other flags in future for more customization don't remove them
-    if create_config:
-        env_content = """# Grace CLI Configuration
-# Copy this to .env and update values as needed
-
-# AI Configuration
-AI_PROVIDER=litellm
-AI_API_KEY=your_api_key_here
-AI_BASE_URL=https://grid.juspay.net
-AI_MODEL_ID=qwen3-coder-480b
-AI_PROJECT_ID=your_project_id
-AI_LOCATION=us-east5
-
-# TechSpec Configuration
-TECHSPEC_OUTPUT_DIR=./output
-TECHSPEC_TEMPLATE_DIR=./templates
-TECHSPEC_TEMPERATURE=0.7
-TECHSPEC_MAX_TOKENS=50000
-FIRECRACKER_API_KEY=your_firecracker_key
-USE_PLAYWRIGHT=false
-
-# Research Configuration
-SEARCH_TOOL=searxng
-SEARCH_BASE_URL=https://localhost:32678
-SEARCH_FORMAT_TYPE=markdown
-SEARCH_DEPTH=5
-
-# Logging Configuration
-LOG_LEVEL=INFO
-LOG_FILE=grace.log
-DEBUG=false
-"""
-        config_path = ".env"
-        with open(config_path, 'w') as f:
-            f.write(env_content)
-        click.echo(f"Configuration template created: {config_path}")
-        click.echo("Edit .env file to customize your settings")
-        return
-
+    """ -m flag to mock server and use --help for more details
+    """
     async def run_techspec():
         """Async wrapper for techspec workflow."""
         try:
             if verbose:
                 click.echo(f"Starting techspec workflow...")
                 click.echo(f"Connector: {connector}")
-                if api_doc:
-                    click.echo(f"API doc: {api_doc}")
                 if output:
                     click.echo(f"Output dir: {output}")
-                if template:
-                    click.echo(f"Template: {template}")
                 if mock_server:
                     click.echo("Mock server: ENABLED")
                 if test_only:

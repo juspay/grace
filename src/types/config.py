@@ -12,6 +12,7 @@ class AIConfig:
     project_id: Optional[str] = None
     max_tokens: int = 50000
     location: str = "us-east5"
+    temperature: float = 0.7
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""

@@ -2,7 +2,6 @@ import input_node
 import analyse_pages
 import generate_queries
 import markdown_generation
-import mock_server
 import scrap_links
 import search_queries
 import techspec_generation
@@ -14,7 +13,6 @@ all = [
     "analyse_pages",
     "generate_queries",
     "markdown_generation",
-    "mock_server",
     "scrap_links",
     "search_queries",
     "techspec_generation",

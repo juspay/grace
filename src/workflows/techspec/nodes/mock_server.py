@@ -1,6 +1,3 @@
-"""Mock server generation node for the research workflow."""
-
-import asyncio
 import json
 import re
 import subprocess
@@ -8,32 +5,22 @@ import time
 from pathlib import Path
 from typing import Dict, Any
 
-import litellm
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
-
-from ..states.research_state import WorkflowState
+from src.ai.ai_service import AIService
+from ...research.states.research_state import WorkflowState
+from src.config import get_config
 
 console = Console()
 
 
 class MockServerGenerationError(Exception):
-    """Raised when mock server generation fails."""
     pass
 
 
 async def mock_server(state: WorkflowState) -> WorkflowState:
-    """
-    Generate a mock server from the technical specification.
-    
-    Args:
-        state: Current workflow state
-        
-    Returns:
-        Updated state with mock server generation results
-    """
     # Check if mock server generation is enabled
-    if not state.get("generate_mockserver", False):
+    if not state.get("mock_server", False):
         console.print("[dim]Skipping mock server generation (not enabled)[/dim]")
         return state
     
@@ -42,10 +29,7 @@ async def mock_server(state: WorkflowState) -> WorkflowState:
     
     # Priority order for finding tech spec content
     content_sources = [
-        state.get("techspec_content"),
-        state.get("final_output", {}).get("techspec_content"),
-        state.get("final_output", {}).get("content"),
-        state.get("markdown_content"),  # If coming from markdown generation
+        state.get("tech_spec"),
     ]
     
     for content in content_sources:
@@ -136,46 +120,21 @@ async def mock_server(state: WorkflowState) -> WorkflowState:
 
 
 async def _generate_server_code(tech_spec: str, state: WorkflowState) -> str:
-    """Generate server code using AI."""
-    prompt = f"""Create an express server which mocks all the api calls mentioned here. If encryption is required use crypto or some popular libraries to handle it. Print all endpoints created after server starts running.
-
-IMPORTANT: Make the server run on port 5000 (not 3000) to avoid conflicts. Use const PORT = process.env.PORT || 5000;
-
-Format your response exactly like the JSON given below and don't respond with any subscript like "of course" or "here you go":
-
-{{
-  "server_js": "// Your server.js code here - MUST use port 5000",
-  "package_json": "// Your package.json content here", 
-  "info": "// Simple Markdown text providing all generated curls with port 5000"
-}}
-
-{tech_spec}"""
-
     try:
-        # Get AI config from state
-        ai_config = state.get("config")
-        if not ai_config:
-            raise MockServerGenerationError("AI configuration not found in state")
-        
-        # Prepare completion arguments
-        completion_args = {
-            "model": ai_config.model_id,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.7,
-            "max_tokens": ai_config.max_tokens,
-            "api_key": ai_config.api_key
-        }
-        
-        # Add custom base URL if specified
-        if ai_config.base_url:
-            completion_args["api_base"] = ai_config.base_url
-        
-        response = await litellm.acompletion(**completion_args)
-        
-        return response.choices[0].message.content
-        
+        ai_config = get_config().getAiConfig()
+        llm_client = AIService(ai_config)
     except Exception as e:
-        raise MockServerGenerationError(f"AI code generation failed: {str(e)}")
+        error_msg = f"Failed to initialize LLM client: {str(e)}"
+        if "errors" not in state:
+            state["errors"] = []
+        state["errors"].append(error_msg)
+        return state
+    spec_success, mock_server_code, spec_error= llm_client.generate_mock_server(tech_spec)
+    if spec_success and mock_server_code:
+        return mock_server_code
+    else:
+        raise MockServerGenerationError(f"Mock server code generation failed: {spec_error}")
+
 
 
 def _parse_ai_response(ai_response: str) -> Dict[str, Any]:

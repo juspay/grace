@@ -8,7 +8,7 @@ from src.config import Config, TechSpecConfig, get_config
 from langgraph.graph import StateGraph, START, END
 from .states.techspec_state import TechspecWorkflowState
 from datetime import datetime
-from .nodes import collect_urls, scrap_urls, llm_analysis, output_node
+from .nodes import collect_urls, scrap_urls, llm_analysis, output_node, mock_server
 class TechspecWorkflow:
     """LangGraph-based techspec workflow orchestrator."""
 
@@ -26,7 +26,7 @@ class TechspecWorkflow:
         workflow.add_node("collect_urls", collect_urls)
         workflow.add_node("crawling", scrap_urls)
         workflow.add_node("llm_analysis", llm_analysis)
-        # workflow.add_node("mock_server", lambda state: asyncio.run(mock_server_node(state)))
+        workflow.add_node("mock_server", lambda state: asyncio.run(mock_server(state)))
         workflow.add_node("output", output_node)
         workflow.add_node("end", lambda state: state)  # Terminal node
 
@@ -58,20 +58,20 @@ class TechspecWorkflow:
             "llm_analysis",
             self._should_continue_after_llm,
             {
-                # "mock_server": "mock_server",
+                "mock_server": "mock_server",
                 "output": "output",
                 "end": "end"
             }
         )
                 
-        # workflow.add_conditional_edges(
-        #     "mock_server",
-        #     self._should_continue_after_mock_server,
-        #     {
-        #         "output": "output",
-        #         "end": "end"
-        #     }
-        # )
+        workflow.add_conditional_edges(
+            "mock_server",
+            self._should_continue_after_mock_server,
+            {
+                "output": "output",
+                "end": "end"
+            }
+        )
         
         workflow.add_edge("output", "end")
         workflow.add_edge("end", END)

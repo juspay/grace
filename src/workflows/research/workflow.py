@@ -4,11 +4,12 @@ import asyncio
 import click
 from typing import Dict, Any, List, Literal, Optional
 from pathlib import Path
+from ..techspec.nodes import mock_server
 from src.config import get_config
 from langgraph.graph import StateGraph, START, END
 from .states.research_state import WorkflowState
 from datetime import datetime
-from .nodes import input_node, generate_queries, analyse_pages, scrap_links, search_queries, verify_content, verify_links, mock_server, markdown_generation,techspec_generation
+from .nodes import input_node, generate_queries, analyse_pages, scrap_links, search_queries, verify_content, verify_links, markdown_generation,techspec_generation
 class ResearchWorkflow:
 
     def __init__(self):
@@ -29,7 +30,6 @@ class ResearchWorkflow:
         workflow.add_node("verify_content", verify_content)
         workflow.add_node("markdown_generation", markdown_generation)
         workflow.add_node("techspec_generation", techspec_generation)
-        workflow.add_node("mock_server", mock_server)
         workflow.add_node("end", lambda state: state)
 
         # Define conditions for branching

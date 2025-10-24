@@ -71,6 +71,7 @@ class Config:
             project_id=os.getenv("AI_PROJECT_ID"),
             location=os.getenv("AI_LOCATION", "us-east5"),
             max_tokens=int(os.getenv("AI_MAX_TOKENS", "32768")),
+            temperature=float(os.getenv("AI_TEMPERATURE", "0.7"))
         )
         self.techSpecConfig = TechSpecConfig(
             output_dir=os.getenv("TECHSPEC_OUTPUT_DIR", "./output"),

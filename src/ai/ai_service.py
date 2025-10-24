@@ -36,7 +36,7 @@ class AIService:
                     "messages": messages,
                     "max_tokens": max_tokens,
                     "api_key": self.config.api_key,
-                    "temperature": 0.3,
+                    "temperature": self.config.temperature,
                 }
             if self.config.base_url:
                     completion_args["api_base"] = self.config.base_url
@@ -77,4 +77,17 @@ class AIService:
         except Exception as e:
             return base_name
        
-        
+    def generate_mock_server(self, tech_spec: str) -> Tuple[bool, Optional[dict], Optional[str]]:
+        try:
+            prompt = prompt_config().get_with_values("techspecMockServerPrompt", {"tech_spec": tech_spec or ""}) or ""
+            messages = [
+                {"role": "user", "content": prompt},
+            ]
+            response, success, error = self.generate(messages)
+            if not success:
+                return False, None, error
+            
+            return True, response, None
+
+        except Exception as e:
+            return False, None, str(e)
