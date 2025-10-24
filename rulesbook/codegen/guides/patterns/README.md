@@ -129,10 +129,18 @@ All pattern files maintain:
 
 ## 🔗 Related Documentation
 
+### Integration & Implementation
 - [`../connector_integration_guide.md`](../connector_integration_guide.md) - Complete UCS integration process
 - [`../types/types.md`](../types/types.md) - UCS type system reference
 - [`../learnings/learnings.md`](../learnings/learnings.md) - Implementation lessons learned
 - [`../../README.md`](../../README.md) - GRACE-UCS overview and usage
+
+### Quality & Standards
+- [`../feedback.md`](../feedback.md) - Quality feedback database and review template
+- [`../quality/README.md`](../quality/README.md) - Quality system overview
+- [`../quality/CONTRIBUTING_FEEDBACK.md`](../quality/CONTRIBUTING_FEEDBACK.md) - Guide for adding quality feedback
+
+**🛡️ Quality Note**: All implementations using these patterns are reviewed by the Quality Guardian Subagent to ensure UCS compliance and code quality. Review common issues in `feedback.md` before implementing to avoid known anti-patterns.
 
 ---
 
