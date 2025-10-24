@@ -4,7 +4,6 @@ Intelligent research and technical specification generator using LangGraph workf
 
 ## Features
 
-- **Research Workflow**: Deep research with intelligent source discovery, content analysis, and synthesis
 - **Techspec Workflow**: Automated connector code generation with validation and documentation
 - **LangGraph Integration**: State-based workflow orchestration with parallel processing
 - **Rich Output**: Multiple formats (Markdown, JSON, Text) with comprehensive metadata
@@ -29,10 +28,10 @@ uv sync --extra dev --extra ai --extra scraping
 ### Using pip
 ```bash
 # Install in development mode
-pip install -e .
+uv pip install -e .
 
 # Or with optional dependencies
-pip install -e ".[dev,ai,scraping,nlp]"
+uv pip install -e ".[dev,ai,scraping,nlp]"
 ```
 
 ## Quick Start
@@ -40,14 +39,12 @@ pip install -e ".[dev,ai,scraping,nlp]"
 ### Techspec Workflow
 ```bash
 # Generate connector for a payment processor
-grace techspec \
-  --output ./codegen/stripe \
-  --verbose
+grace techspec
 ```
 
 ## LangGraph Workflow Architecture
 
-Both workflows use LangGraph for sophisticated state management and parallel processing:
+workflows use LangGraph for sophisticated state management and parallel processing:
 
 
 ### Techspec Workflow States
@@ -65,7 +62,6 @@ Finalize Output <- Generate Docs <- Validate Code
 # Payment processor connector
 grace techspec adyen
 
-# E-commerce platform with custom output
 grace techspec shopify --verbose
 ```
 
