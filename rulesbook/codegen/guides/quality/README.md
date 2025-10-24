@@ -219,6 +219,8 @@ Result: ⚠️ FAIR - Pass with warnings
 ### For Quality Guardian Subagent
 
 **Before Each Review:**
+
+**Steps:**
 ```markdown
 1. Read guides/feedback.md completely
 2. Extract patterns relevant to current phase/flow
@@ -227,6 +229,8 @@ Result: ⚠️ FAIR - Pass with warnings
 ```
 
 **During Review:**
+
+**Steps:**
 ```markdown
 1. Analyze code against UCS patterns
 2. Check Rust best practices
@@ -237,6 +241,8 @@ Result: ⚠️ FAIR - Pass with warnings
 ```
 
 **After Review:**
+
+**Steps:**
 ```markdown
 1. Generate review report
 2. Make pass/warn/block decision
@@ -248,6 +254,8 @@ Result: ⚠️ FAIR - Pass with warnings
 ### For Developers
 
 **Before Implementation:**
+
+**Steps:**
 ```markdown
 1. Review Section 1: Critical Patterns in feedback.md
 2. Read flow-specific patterns for your flow
@@ -256,6 +264,8 @@ Result: ⚠️ FAIR - Pass with warnings
 ```
 
 **After Quality Review:**
+
+**Steps:**
 ```markdown
 1. Read quality review report carefully
 2. Fix all CRITICAL issues immediately
@@ -265,6 +275,8 @@ Result: ⚠️ FAIR - Pass with warnings
 ```
 
 **When Adding Feedback:**
+
+**Steps:**
 ```markdown
 1. Read CONTRIBUTING_FEEDBACK.md
 2. Follow feedback entry template

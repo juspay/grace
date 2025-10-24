@@ -394,6 +394,8 @@ if status == "PASS":
 
 ### Example 1: Excellent Implementation (Score: 98)
 
+**Complete Example:**
+
 ```markdown
 ## Quality Review Report: Stripe - Authorize Flow
 
@@ -470,6 +472,8 @@ Excellent implementation! Proceed to PSync flow.
 ```
 
 ### Example 2: Blocked Implementation (Score: 35)
+
+**Complete Example:**
 
 ```markdown
 ## Quality Review Report: ExampleConnector - Authorize Flow

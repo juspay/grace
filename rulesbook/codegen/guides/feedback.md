@@ -582,16 +582,49 @@ THEN suggest: "Replace RouterData with RouterDataV2"
 
 ## Feedback ID Numbering Convention
 
-- **FB-001 to FB-099:** Critical UCS Pattern Violations
-- **FB-100 to FB-199:** UCS-Specific Guidelines
-- **FB-200 to FB-299:** Flow-Specific Best Practices
-- **FB-300 to FB-399:** Payment Method Patterns
-- **FB-400 to FB-499:** Common Anti-Patterns
-- **FB-500 to FB-599:** Success Patterns
-- **FB-600 to FB-699:** Rust Best Practices
-- **FB-700 to FB-799:** Performance Patterns
-- **FB-800 to FB-899:** Security Guidelines
-- **FB-900 to FB-999:** Testing Patterns
+The feedback database uses semantic category-based prefixes for feedback IDs, allowing unlimited entries per category:
+
+### Active ID Prefixes
+
+- **UCS-XXX:** UCS-Specific Architectural Guidelines
+  - Example: UCS-001, UCS-002, UCS-003...
+  - Use for: UCS architecture patterns, RouterDataV2, ConnectorIntegrationV2, domain_types
+
+- **ANTI-XXX:** Common Anti-Patterns to Avoid
+  - Example: ANTI-001, ANTI-002, ANTI-003...
+  - Use for: What NOT to do, common mistakes, problematic patterns
+
+- **SEC-XXX:** Security Guidelines and Patterns
+  - Example: SEC-001, SEC-002, SEC-003...
+  - Use for: Security concerns, unsafe code, credential handling
+
+- **FLOW-XXX:** Flow-Specific Best Practices
+  - Example: FLOW-001, FLOW-002, FLOW-003...
+  - Use for: Patterns specific to Authorize, Capture, Void, Refund, PSync, RSync
+
+- **METHOD-XXX:** Payment Method Patterns
+  - Example: METHOD-001, METHOD-002, METHOD-003...
+  - Use for: Card, wallet, bank transfer, BNPL patterns
+
+- **SUCCESS-XXX:** Success Patterns and Examples
+  - Example: SUCCESS-001, SUCCESS-002, SUCCESS-003...
+  - Use for: Exemplary implementations worth celebrating
+
+- **PERF-XXX:** Performance Patterns and Optimizations
+  - Example: PERF-001, PERF-002, PERF-003...
+  - Use for: Performance anti-patterns, optimizations
+
+- **TEST-XXX:** Testing Patterns and Gaps
+  - Example: TEST-001, TEST-002, TEST-003...
+  - Use for: Test coverage, testing strategies
+
+- **DOC-XXX:** Documentation Patterns
+  - Example: DOC-001, DOC-002, DOC-003...
+  - Use for: Documentation standards, clarity improvements
+
+### Legacy FB-XXX Range (Deprecated)
+
+The old FB-XXX numbering system (FB-001 to FB-999) has been replaced by semantic prefixes. All new feedback entries should use the category-based prefixes above. The FB-XXX range is maintained for the example in Section 1 only.
 
 ---
 
@@ -689,11 +722,11 @@ THEN suggest: "Replace RouterData with RouterDataV2 and add flow data parameter"
 
 ---
 
-### FB-100: Use amount conversion framework instead of manual conversion
+### UCS-001: Use amount conversion framework instead of manual conversion
 
 **Metadata:**
 ```yaml
-id: FB-100
+id: UCS-001
 category: UCS_PATTERN_VIOLATION
 severity: CRITICAL
 connector: general
@@ -763,7 +796,7 @@ UCS provides a standardized amount conversion framework that handles currency co
    - Create converter structs implementing the amount conversion trait
    - Register them in the `amount_converters` array
 4. Remove any manual amount conversion logic from transformers
-5. Use the `MinorUnit` type for all amount fields (see FB-101)
+5. Use the `MinorUnit` type for all amount fields (see UCS-002)
 
 **Auto-Fix Rule:**
 ```
@@ -772,7 +805,7 @@ THEN suggest: "Add amount converters for all payment flows: Authorize, Capture, 
 ```
 
 **Related Patterns:**
-- See: FB-101 (Use MinorUnit type for amounts)
+- See: UCS-002 (Use MinorUnit type for amounts)
 - See: guides/patterns/pattern_authorize.md#amount-handling
 - Reference: domain_types documentation on amount conversion
 
@@ -788,11 +821,11 @@ THEN suggest: "Add amount converters for all payment flows: Authorize, Capture, 
 
 ---
 
-### FB-101: Use MinorUnit type for amount fields instead of primitive types
+### UCS-002: Use MinorUnit type for amount fields instead of primitive types
 
 **Metadata:**
 ```yaml
-id: FB-101
+id: UCS-002
 category: UCS_PATTERN_VIOLATION
 severity: CRITICAL
 connector: general
@@ -851,7 +884,7 @@ The `MinorUnit` type ensures:
 2. Find all fields with types `i64`, `u64`, `i32`, `u32`, or `f64` that represent amounts
 3. Replace the primitive type with `MinorUnit`
 4. Update any serialization/deserialization logic to handle `MinorUnit`
-5. Ensure amount converters are properly declared (see FB-100)
+5. Ensure amount converters are properly declared (see UCS-001)
 6. Update transformers to work with `MinorUnit` instead of raw numbers
 
 **Auto-Fix Rule:**
@@ -861,7 +894,7 @@ THEN suggest: "Replace primitive type with domain_types::MinorUnit"
 ```
 
 **Related Patterns:**
-- See: FB-100 (Amount conversion framework)
+- See: UCS-001 (Amount conversion framework)
 - See: guides/patterns/README.md#domain-types
 - Reference: domain_types::MinorUnit documentation
 
@@ -878,11 +911,11 @@ THEN suggest: "Replace primitive type with domain_types::MinorUnit"
 
 ---
 
-### FB-102: Separate 3DS authentication into Pre-Authenticate and Post-Authenticate flows
+### UCS-003: Separate 3DS authentication into Pre-Authenticate and Post-Authenticate flows
 
 **Metadata:**
 ```yaml
-id: FB-102
+id: UCS-003
 category: CONNECTOR_PATTERN
 severity: CRITICAL
 connector: general
@@ -991,11 +1024,11 @@ THEN suggest: "Split into PreAuthenticate (device data) and PostAuthenticate (ch
 
 ---
 
-### FB-103: Use flow-specific request types in macro configuration
+### UCS-004: Use flow-specific request types in macro configuration
 
 **Metadata:**
 ```yaml
-id: FB-103
+id: UCS-004
 category: CONNECTOR_PATTERN
 severity: WARNING
 connector: general
@@ -1175,11 +1208,11 @@ Organize by payment method:
 
 ## Code Quality Anti-Patterns (CRITICAL)
 
-### FB-400: Avoid hardcoding values - use constants or extract from data
+### ANTI-001: Avoid hardcoding values - use constants or extract from data
 
 **Metadata:**
 ```yaml
-id: FB-400
+id: ANTI-001
 category: CODE_QUALITY
 severity: CRITICAL
 connector: general
@@ -1203,7 +1236,7 @@ This applies anywhere values are used in connector code:
 - API endpoints and URLs
 - API versions
 - Fixed string values (payment types, method names, etc.)
-- Reference IDs and transaction identifiers (see FB-401)
+- Reference IDs and transaction identifiers (see ANTI-002)
 - Configuration values
 
 **Code Example - WRONG:**
@@ -1275,9 +1308,9 @@ THEN error: "Never hardcode reference IDs - extract from router_data"
 ```
 
 **Related Patterns:**
-- See: FB-401 (Use reference IDs from router data)
-- See: FB-402 (Never mutate reference IDs)
-- See: FB-403 (Reuse existing constants)
+- See: ANTI-002 (Use reference IDs from router data)
+- See: ANTI-003 (Never mutate reference IDs)
+- See: ANTI-004 (Reuse existing constants)
 - Reference: Rust const guidelines
 
 **Lessons Learned:**
@@ -1293,11 +1326,11 @@ THEN error: "Never hardcode reference IDs - extract from router_data"
 
 ---
 
-### FB-401: Use reference IDs from router data, never hardcode them
+### ANTI-002: Use reference IDs from router data, never hardcode them
 
 **Metadata:**
 ```yaml
-id: FB-401
+id: ANTI-002
 category: CODE_QUALITY
 severity: CRITICAL
 connector: general
@@ -1391,7 +1424,7 @@ Hardcoding or generating reference IDs causes:
        field_name: "connector_transaction_id"
    })?
    ```
-5. Never apply transformations to IDs (see FB-402)
+5. Never apply transformations to IDs (see ANTI-003)
 
 **Auto-Fix Rule:**
 ```
@@ -1403,8 +1436,8 @@ THEN error: "Don't generate IDs - use values from router_data"
 ```
 
 **Related Patterns:**
-- See: FB-400 (Avoid hardcoding values)
-- See: FB-402 (Never mutate reference IDs)
+- See: ANTI-001 (Avoid hardcoding values)
+- See: ANTI-003 (Never mutate reference IDs)
 - Reference: UCS idempotency documentation
 
 **Lessons Learned:**
@@ -1420,11 +1453,11 @@ THEN error: "Don't generate IDs - use values from router_data"
 
 ---
 
-### FB-402: Never mutate reference IDs or transaction identifiers
+### ANTI-003: Never mutate reference IDs or transaction identifiers
 
 **Metadata:**
 ```yaml
-id: FB-402
+id: ANTI-003
 category: CODE_QUALITY
 severity: CRITICAL
 connector: general
@@ -1519,8 +1552,8 @@ THEN error: "Don't modify reference IDs - use exactly as provided"
 ```
 
 **Related Patterns:**
-- See: FB-401 (Use reference IDs from router data)
-- See: FB-400 (Avoid hardcoding values)
+- See: ANTI-002 (Use reference IDs from router data)
+- See: ANTI-001 (Avoid hardcoding values)
 - Reference: Payment system idempotency guarantees
 
 **Lessons Learned:**
@@ -1539,11 +1572,11 @@ THEN error: "Don't modify reference IDs - use exactly as provided"
 
 ## Code Quality Anti-Patterns (WARNING)
 
-### FB-403: Reuse existing constants instead of redeclaring them
+### ANTI-004: Reuse existing constants instead of redeclaring them
 
 **Metadata:**
 ```yaml
-id: FB-403
+id: ANTI-004
 category: CODE_QUALITY
 severity: WARNING
 connector: general
@@ -1623,8 +1656,8 @@ THEN suggest: "Declare in requests.rs as pub, import in other files"
 ```
 
 **Related Patterns:**
-- See: FB-400 (Avoid hardcoding values)
-- See: FB-404 (Remove duplicate functions)
+- See: ANTI-001 (Avoid hardcoding values)
+- See: ANTI-005 (Remove duplicate functions)
 - Reference: DRY principle
 
 **Lessons Learned:**
@@ -1640,11 +1673,11 @@ THEN suggest: "Declare in requests.rs as pub, import in other files"
 
 ---
 
-### FB-404: Remove duplicate function implementations across modules
+### ANTI-005: Remove duplicate function implementations across modules
 
 **Metadata:**
 ```yaml
-id: FB-404
+id: ANTI-005
 category: CODE_QUALITY
 severity: WARNING
 connector: general
@@ -1740,8 +1773,8 @@ THEN suggest: "Implement once in canonical location, import elsewhere"
 ```
 
 **Related Patterns:**
-- See: FB-403 (Reuse existing constants)
-- See: FB-405 (Use existing helper functions)
+- See: ANTI-004 (Reuse existing constants)
+- See: ANTI-006 (Use existing helper functions)
 - Reference: DRY principle, code reuse patterns
 
 **Lessons Learned:**
@@ -1757,11 +1790,11 @@ THEN suggest: "Implement once in canonical location, import elsewhere"
 
 ---
 
-### FB-405: Use existing helper functions instead of reimplementing logic
+### ANTI-006: Use existing helper functions instead of reimplementing logic
 
 **Metadata:**
 ```yaml
-id: FB-405
+id: ANTI-006
 category: CODE_QUALITY
 severity: WARNING
 connector: general
@@ -1861,8 +1894,8 @@ THEN suggest: "Check domain_types, common_utils for existing helper functions"
 ```
 
 **Related Patterns:**
-- See: FB-404 (Remove duplicate functions)
-- See: FB-403 (Reuse existing constants)
+- See: ANTI-005 (Remove duplicate functions)
+- See: ANTI-004 (Reuse existing constants)
 - Reference: domain_types documentation
 - Reference: common_utils documentation
 
@@ -1881,11 +1914,11 @@ THEN suggest: "Check domain_types, common_utils for existing helper functions"
 
 ## Connector Pattern Anti-Patterns
 
-### FB-406: Use correct authentication configuration - avoid hardcoding and verify required fields
+### ANTI-007: Use correct authentication configuration - avoid hardcoding and verify required fields
 
 **Metadata:**
 ```yaml
-id: FB-406
+id: ANTI-007
 category: CONNECTOR_PATTERN
 severity: CRITICAL
 connector: general
@@ -1988,8 +2021,8 @@ THEN suggest: "Remove unnecessary auth fields, use only what connector requires"
 ```
 
 **Related Patterns:**
-- See: FB-400 (Avoid hardcoding values)
-- See: FB-800 (Avoid unsafe code)
+- See: ANTI-001 (Avoid hardcoding values)
+- See: SEC-001 (Avoid unsafe code)
 - Reference: UCS authentication patterns
 
 **Lessons Learned:**
@@ -2005,11 +2038,11 @@ THEN suggest: "Remove unnecessary auth fields, use only what connector requires"
 
 ---
 
-### FB-407: Map unknown/error connector statuses to Pending, not Failure
+### ANTI-008: Map unknown/error connector statuses to Pending, not Failure
 
 **Metadata:**
 ```yaml
-id: FB-407
+id: ANTI-008
 category: CONNECTOR_PATTERN
 severity: CRITICAL
 connector: general
@@ -2119,7 +2152,7 @@ THEN suggest: "Add default case: _ => AttemptStatus::Pending"
 ```
 
 **Related Patterns:**
-- See: FB-408 (Refund status to Charged)
+- See: ANTI-009 (Refund status to Charged)
 - See: Flow-specific status mapping patterns
 - Reference: UCS state machine documentation
 
@@ -2137,11 +2170,11 @@ THEN suggest: "Add default case: _ => AttemptStatus::Pending"
 
 ---
 
-### FB-408: Map refund statuses to Charged state - refunds only occur on charged payments
+### ANTI-009: Map refund statuses to Charged state - refunds only occur on charged payments
 
 **Metadata:**
 ```yaml
-id: FB-408
+id: ANTI-009
 category: CONNECTOR_PATTERN
 severity: CRITICAL
 connector: general
@@ -2241,7 +2274,7 @@ THEN suggest: "Map refund payment statuses to Charged - refunds only occur on ch
 ```
 
 **Related Patterns:**
-- See: FB-407 (Map unknown to Pending)
+- See: ANTI-008 (Map unknown to Pending)
 - See: RSync flow patterns for refund status tracking
 - Reference: UCS payment state machine documentation
 
@@ -2261,11 +2294,11 @@ THEN suggest: "Map refund payment statuses to Charged - refunds only occur on ch
 
 ## Rust Best Practice Anti-Patterns
 
-### FB-409: Replace single-variant enums with constant strings
+### ANTI-010: Replace single-variant enums with constant strings
 
 **Metadata:**
 ```yaml
-id: FB-409
+id: ANTI-010
 category: RUST_BEST_PRACTICE
 severity: WARNING
 connector: general
@@ -2360,7 +2393,7 @@ THEN suggest: "Replace with const string unless multiple variants expected"
 ```
 
 **Related Patterns:**
-- See: FB-403 (Reuse existing constants)
+- See: ANTI-004 (Reuse existing constants)
 - Reference: Rust API guidelines on enums
 
 **Lessons Learned:**
@@ -2375,11 +2408,11 @@ THEN suggest: "Replace with const string unless multiple variants expected"
 
 ---
 
-### FB-410: Use ? operator for error propagation instead of explicit return
+### ANTI-011: Use ? operator for error propagation instead of explicit return
 
 **Metadata:**
 ```yaml
-id: FB-410
+id: ANTI-011
 category: RUST_BEST_PRACTICE
 severity: WARNING
 connector: general
@@ -2566,11 +2599,11 @@ THEN suggest: "Use ? operator: Err(...)?;"
 
 ---
 
-### FB-800: Avoid using unsafe code blocks in connector implementations
+### SEC-001: Avoid using unsafe code blocks in connector implementations
 
 **Metadata:**
 ```yaml
-id: FB-800
+id: SEC-001
 category: SECURITY
 severity: CRITICAL
 connector: general
@@ -2672,8 +2705,8 @@ THEN error: "CRITICAL - Unsafe code not allowed in connectors. Use safe Rust alt
 ```
 
 **Related Patterns:**
-- See: FB-801 (Avoid direct memory manipulation)
-- See: FB-406 (Correct authentication - security concern)
+- See: SEC-002 (Avoid direct memory manipulation)
+- See: ANTI-007 (Correct authentication - security concern)
 - Reference: Rust unsafe code guidelines
 - Reference: UCS security requirements
 
@@ -2692,11 +2725,11 @@ THEN error: "CRITICAL - Unsafe code not allowed in connectors. Use safe Rust alt
 
 ---
 
-### FB-801: Avoid direct memory manipulation in connector code
+### SEC-002: Avoid direct memory manipulation in connector code
 
 **Metadata:**
 ```yaml
-id: FB-801
+id: SEC-002
 category: SECURITY
 severity: CRITICAL
 connector: general
@@ -2823,8 +2856,8 @@ THEN error: "CRITICAL - Direct memory manipulation not allowed. Use safe standar
 ```
 
 **Related Patterns:**
-- See: FB-800 (Avoid unsafe code)
-- See: FB-406 (Correct authentication configuration)
+- See: SEC-001 (Avoid unsafe code)
+- See: ANTI-007 (Correct authentication configuration)
 - Reference: Rust ownership and borrowing
 - Reference: Rust standard library documentation
 
@@ -2854,31 +2887,31 @@ THEN error: "CRITICAL - Direct memory manipulation not allowed. Use safe standar
 **Total Feedback Entries:** 17
 
 **By Category:**
-- UCS_PATTERN_VIOLATION: 2 (FB-100, FB-101)
-- RUST_BEST_PRACTICE: 2 (FB-409, FB-410)
-- CONNECTOR_PATTERN: 5 (FB-102, FB-103, FB-406, FB-407, FB-408)
-- CODE_QUALITY: 6 (FB-400, FB-401, FB-402, FB-403, FB-404, FB-405)
-- SECURITY: 2 (FB-800, FB-801)
+- UCS_PATTERN_VIOLATION: 2 (UCS-001, UCS-002)
+- CONNECTOR_PATTERN: 5 (UCS-003, UCS-004, ANTI-007, ANTI-008, ANTI-009)
+- CODE_QUALITY: 6 (ANTI-001, ANTI-002, ANTI-003, ANTI-004, ANTI-005, ANTI-006)
+- RUST_BEST_PRACTICE: 2 (ANTI-010, ANTI-011)
+- SECURITY: 2 (SEC-001, SEC-002)
 - TESTING_GAP: 0
 - DOCUMENTATION: 0
 - PERFORMANCE: 0
 - SUCCESS_PATTERN: 0
 
 **By Severity:**
-- CRITICAL: 12 (FB-100, FB-101, FB-102, FB-400, FB-401, FB-402, FB-406, FB-407, FB-408, FB-800, FB-801)
-- WARNING: 5 (FB-103, FB-403, FB-404, FB-405, FB-410)
+- CRITICAL: 11 (UCS-001, UCS-002, UCS-003, ANTI-001, ANTI-002, ANTI-003, ANTI-007, ANTI-008, ANTI-009, SEC-001, SEC-002)
+- WARNING: 6 (UCS-004, ANTI-004, ANTI-005, ANTI-006, ANTI-010, ANTI-011)
 - SUGGESTION: 0
 - INFO: 0
 
 **By Section:**
 - Section 1 (Critical Patterns): 1 (FB-001 example provided)
-- Section 2 (UCS-Specific Guidelines): 4 (FB-100 to FB-103)
+- Section 2 (UCS-Specific Guidelines): 4 (UCS-001 to UCS-004)
 - Section 3 (Flow-Specific Best Practices): 0 (awaiting population)
 - Section 4 (Payment Method Patterns): 0 (awaiting population)
-- Section 5 (Common Anti-Patterns): 11 (FB-400 to FB-410)
+- Section 5 (Common Anti-Patterns): 11 (ANTI-001 to ANTI-011)
 - Section 6 (Success Patterns): 0 (awaiting population)
 - Section 7 (Historical Archive): 0 (awaiting population)
-- Section 8 (Security Guidelines): 2 (FB-800 to FB-801)
+- Section 8 (Security Guidelines): 2 (SEC-001 to SEC-002)
 
 **Most Frequent Issues:**
 All entries have frequency: 1 (first occurrence from worldpay connector review)
@@ -2890,11 +2923,11 @@ All entries have frequency: 1 (first occurrence from worldpay connector review)
 - Date Added: 2025-10-14
 
 **Coverage:**
-- Total FB-IDs assigned: 17
-- FB-ID ranges used:
-  - FB-100 to FB-103 (UCS-Specific Guidelines)
-  - FB-400 to FB-410 (Common Anti-Patterns)
-  - FB-800 to FB-801 (Security Guidelines)
+- Total IDs assigned: 17
+- ID ranges used:
+  - UCS-001 to UCS-004 (UCS-Specific Guidelines)
+  - ANTI-001 to ANTI-011 (Common Anti-Patterns)
+  - SEC-001 to SEC-002 (Security Guidelines)
 - FB-ID ranges available for future use:
   - FB-001 to FB-099 (Critical UCS Pattern Violations)
   - FB-104 to FB-199 (More UCS-Specific Guidelines)
@@ -2913,9 +2946,9 @@ All entries have frequency: 1 (first occurrence from worldpay connector review)
 
 **v1.1.0** - 2025-10-14
 - Added 17 feedback entries from worldpay connector review
-- Populated Section 2: UCS-Specific Guidelines (FB-100 to FB-103)
-- Populated Section 5: Common Anti-Patterns (FB-400 to FB-410)
-- Added Section 8: Security Guidelines (FB-800 to FB-801)
+- Populated Section 2: UCS-Specific Guidelines (UCS-001 to UCS-004)
+- Populated Section 5: Common Anti-Patterns (ANTI-001 to ANTI-011)
+- Added Section 8: Security Guidelines (SEC-001 to SEC-002)
 - Updated statistics and metrics
 - Source: juspay/connector-service#216 (worldpay), reviewer: jarnura
 

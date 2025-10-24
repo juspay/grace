@@ -316,8 +316,8 @@ For each issue:
     Assign severity: CRITICAL | WARNING | SUGGESTION
 
     Check if exists in feedback.md:
-        IF exists: Reference feedback ID (FB-XXX)
-        IF new: Prepare to add to feedback.md
+        IF exists: Reference feedback ID (e.g., UCS-001, ANTI-001, SEC-001)
+        IF new: Prepare to add to feedback.md with appropriate semantic prefix
 
 # Count issues by severity
 critical_count = [count of CRITICAL issues]

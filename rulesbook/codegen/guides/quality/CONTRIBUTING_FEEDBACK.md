@@ -47,6 +47,8 @@ Add feedback entries in these scenarios:
 
 Every feedback entry must follow this structure:
 
+**Template:**
+
 ```markdown
 ### FB-[ID]: [Brief Descriptive Title]
 
@@ -122,19 +124,18 @@ THEN [action]
 Follow the [Feedback ID System](#feedback-id-system):
 
 ```
-FB-001 to FB-099: Critical UCS Pattern Violations
-FB-100 to FB-199: UCS-Specific Guidelines
-FB-200 to FB-299: Flow-Specific Best Practices
-FB-300 to FB-399: Payment Method Patterns
-FB-400 to FB-499: Common Anti-Patterns
-FB-500 to FB-599: Success Patterns
-FB-600 to FB-699: Rust Best Practices
-FB-700 to FB-799: Performance Patterns
-FB-800 to FB-899: Security Guidelines
-FB-900 to FB-999: Testing Patterns
+UCS-XXX:     UCS-Specific Architectural Guidelines
+ANTI-XXX:    Common Anti-Patterns to Avoid
+SEC-XXX:     Security Guidelines and Patterns
+FLOW-XXX:    Flow-Specific Best Practices
+METHOD-XXX:  Payment Method Patterns
+SUCCESS-XXX: Success Patterns and Examples
+PERF-XXX:    Performance Patterns and Optimizations
+TEST-XXX:    Testing Patterns and Gaps
+DOC-XXX:     Documentation Patterns
 ```
 
-**Example:** If adding a critical UCS pattern violation, use next available ID in FB-001 to FB-099 range.
+**Example:** If adding a UCS architectural guideline, use next available ID in UCS-XXX range (e.g., UCS-005 if UCS-001 to UCS-004 exist).
 
 ### Step 3: Categorize and Set Severity
 
@@ -158,7 +159,7 @@ FB-900 to FB-999: Testing Patterns
 ### Step 4: Fill Metadata
 
 ```yaml
-id: FB-042                           # Next available ID in appropriate range
+id: ANTI-012                         # Next available ID in appropriate category
 category: CONNECTOR_PATTERN          # Primary category
 severity: WARNING                    # Based on impact
 connector: general                   # 'general' or specific connector name
@@ -225,6 +226,8 @@ let status = match response.status {
 
 **Be specific and actionable:**
 
+**Example Format:**
+
 ```markdown
 **How to Fix:**
 1. Define ConnectorStatus enum in transformers.rs with all statuses
@@ -247,6 +250,8 @@ CONFIDENCE: Medium
 ```
 
 ### Step 10: Link Related Resources
+
+**Example Format:**
 
 ```markdown
 **Related Patterns:**
@@ -271,37 +276,48 @@ Place your feedback entry in the correct section of `feedback.md`:
 
 ## Feedback ID System
 
-### ID Ranges and Their Purpose
+### Semantic Category-Based ID Prefixes
 
-| Range | Purpose | Severity Typical | Example |
-|-------|---------|------------------|---------|
-| FB-001 to FB-099 | Critical UCS Pattern Violations | CRITICAL | FB-001: Use RouterDataV2 |
-| FB-100 to FB-199 | UCS-Specific Guidelines | WARNING/CRITICAL | FB-101: Generic struct pattern |
-| FB-200 to FB-299 | Flow-Specific Best Practices | WARNING/SUGGESTION | FB-201: Authorize error handling |
-| FB-300 to FB-399 | Payment Method Patterns | WARNING/SUGGESTION | FB-301: Card validation |
-| FB-400 to FB-499 | Common Anti-Patterns | WARNING/CRITICAL | FB-401: Hardcoded status mapping |
-| FB-500 to FB-599 | Success Patterns | INFO | FB-501: Excellent transformer design |
-| FB-600 to FB-699 | Rust Best Practices | WARNING/SUGGESTION | FB-601: Avoid unnecessary clones |
-| FB-700 to FB-799 | Performance Patterns | WARNING/SUGGESTION | FB-701: Efficient iteration |
-| FB-800 to FB-899 | Security Guidelines | CRITICAL/WARNING | FB-801: Sanitize input |
-| FB-900 to FB-999 | Testing Patterns | SUGGESTION | FB-901: Comprehensive test coverage |
+The feedback database uses semantic category-based prefixes instead of numerical ranges. This allows unlimited entries per category and makes IDs more meaningful.
+
+| Prefix | Purpose | Severity Typical | Example |
+|--------|---------|------------------|---------|
+| UCS-XXX | UCS-Specific Architectural Guidelines | WARNING/CRITICAL | UCS-001: Use amount conversion framework |
+| ANTI-XXX | Common Anti-Patterns to Avoid | WARNING/CRITICAL | ANTI-001: Avoid hardcoding values |
+| SEC-XXX | Security Guidelines and Patterns | CRITICAL/WARNING | SEC-001: Avoid unsafe code |
+| FLOW-XXX | Flow-Specific Best Practices | WARNING/SUGGESTION | FLOW-001: Authorize error handling |
+| METHOD-XXX | Payment Method Patterns | WARNING/SUGGESTION | METHOD-001: Card validation |
+| SUCCESS-XXX | Success Patterns and Examples | INFO | SUCCESS-001: Excellent transformer |
+| PERF-XXX | Performance Patterns and Optimizations | WARNING/SUGGESTION | PERF-001: Avoid allocations in hot path |
+| TEST-XXX | Testing Patterns and Gaps | SUGGESTION | TEST-001: Comprehensive coverage |
+| DOC-XXX | Documentation Patterns | SUGGESTION | DOC-001: Document complex logic |
 
 ### How to Choose an ID
 
-1. Determine which range fits your feedback type
-2. Check existing IDs in that range (in feedback.md)
-3. Choose next available number
+1. Determine which category prefix fits your feedback type
+2. Check existing IDs with that prefix (in feedback.md)
+3. Choose next available number in sequence
 4. Reserve the ID by adding it immediately
 
 **Example Process:**
 
 ```bash
-# Adding a new UCS pattern violation
-1. Check Section 1 of feedback.md
-2. Find highest ID (e.g., FB-003)
-3. Use next available (FB-004)
-4. Add your entry with FB-004
+# Adding a new UCS architectural guideline
+1. Check Section 2 (UCS-Specific Guidelines) of feedback.md
+2. Find highest UCS ID (e.g., UCS-004)
+3. Use next available (UCS-005)
+4. Add your entry with UCS-005
+
+# Adding a new anti-pattern
+1. Check Section 5 (Common Anti-Patterns) of feedback.md
+2. Find highest ANTI ID (e.g., ANTI-011)
+3. Use next available (ANTI-012)
+4. Add your entry with ANTI-012
 ```
+
+### Legacy FB-XXX System
+
+The old FB-XXX numbering system (FB-001 to FB-999) has been replaced by semantic prefixes. All new feedback entries should use category-based prefixes (UCS-XXX, ANTI-XXX, etc.). The FB-XXX range is maintained only for the example in Section 1 of feedback.md.
 
 ---
 
@@ -537,30 +553,40 @@ Place your feedback entry in the correct section of `feedback.md`:
 ### Do's ✅
 
 **Be Specific:**
+
+**Example:**
 ```markdown
 Good: "The status mapping in transformers.rs:45 uses hardcoded string matching which is error-prone"
 Bad: "Status mapping is bad"
 ```
 
 **Provide Context:**
+
+**Example:**
 ```markdown
 Good: "When implementing authorize flow, ensure status field uses enum instead of String to prevent typos"
 Bad: "Use enum"
 ```
 
 **Show Examples:**
+
+**Example:**
 ```markdown
 Good: [Includes both WRONG and CORRECT code examples]
 Bad: [Only says "fix the status mapping"]
 ```
 
 **Explain Impact:**
+
+**Example:**
 ```markdown
 Good: "This matters because typos in status strings won't be caught at compile time, leading to runtime bugs"
 Bad: "This is wrong"
 ```
 
 **Give Action Steps:**
+
+**Example:**
 ```markdown
 Good:
 1. Define ConnectorStatus enum
@@ -573,30 +599,40 @@ Bad: "Fix it"
 ### Don'ts ❌
 
 **Don't Be Vague:**
+
+**Example:**
 ```markdown
 Bad: "The code is not good"
 Good: "The transformer duplicates currency conversion logic from common_utils"
 ```
 
 **Don't Assume Knowledge:**
+
+**Example:**
 ```markdown
 Bad: "Just use the standard pattern"
 Good: "Use RouterDataV2 instead of RouterData, as required by UCS architecture (see guides/patterns/)"
 ```
 
 **Don't Skip Examples:**
+
+**Example:**
 ```markdown
 Bad: "Wrong status mapping approach"
 Good: [Includes code examples of wrong and correct approaches]
 ```
 
 **Don't Forget References:**
+
+**Example:**
 ```markdown
 Bad: [No references provided]
 Good: "See guides/patterns/pattern_authorize.md#status-mapping for detailed pattern"
 ```
 
 **Don't Be Prescriptive Without Explanation:**
+
+**Example:**
 ```markdown
 Bad: "Must use enum"
 Good: "Use enum instead of String for type safety and compile-time validation"
@@ -607,6 +643,8 @@ Good: "Use enum instead of String for type safety and compile-time validation"
 ## Examples
 
 ### Example 1: Critical UCS Pattern Violation
+
+**Complete Example:**
 
 ```markdown
 ### FB-002: Use ConnectorIntegrationV2, Not ConnectorIntegration
@@ -696,6 +734,8 @@ Always start with UCS templates which have correct trait implementations. Refere
 
 ### Example 2: Success Pattern
 
+**Complete Example:**
+
 ```markdown
 ### FB-501: Reusable Amount Conversion Utility
 
@@ -761,6 +801,8 @@ Review common_utils and domain_types modules before implementing transformers to
 ```
 
 ### Example 3: Performance Warning
+
+**Complete Example:**
 
 ```markdown
 ### FB-701: Avoid String Allocations in Hot Path
@@ -892,7 +934,7 @@ When feedback becomes irrelevant:
 3. Move to Section 7: Historical Feedback Archive
 4. Keep for historical reference
 
-**Example:**
+**Example Format:**
 
 ```markdown
 ### FB-042: [Archived] Old Pattern Name
@@ -911,7 +953,7 @@ When feedback becomes irrelevant:
 If you're unsure about:
 - **Which category to use**: Default to CODE_QUALITY and refine later
 - **Severity assignment**: Start with WARNING and adjust based on review
-- **ID selection**: Ask in code review or choose next available in range 400-499 (general)
+- **ID prefix selection**: Use ANTI-XXX for general anti-patterns, or ask in code review
 - **Writing style**: Review existing feedback entries as templates
 
 ---
