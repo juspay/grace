@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union
 from pathlib import Path
 
 from src.types.config import AIConfig
@@ -7,7 +7,7 @@ def estimate_tokens(text: str) -> int:
     # Rough estimation: 1 token ≈ 4 characters for English text
     return len(text) // 4
 
-def combine_markdown_files(markdown_files: List[Path], sendAsString: bool = False) -> str | List[str]:
+def combine_markdown_files(markdown_files: List[Path], sendAsString: bool = False) -> Union[str, List[str]]:
     combined_content: List[str] = []
     for file_path in markdown_files:
         try:
