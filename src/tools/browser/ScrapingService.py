@@ -49,7 +49,8 @@ class ScrappingService:
             self.console.log(f"Error occurred while AI scraping {url}: {e}")
             return None
         finally:
-            await service.close()
+            if not browser_service is None:
+                await service.close()
 
     async def _scrape_with_browser(self, url: str) -> Optional[dict]:
         browser_service = BrowserService()
