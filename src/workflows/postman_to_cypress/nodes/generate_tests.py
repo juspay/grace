@@ -26,6 +26,18 @@ def generate_tests(state: PostmanWorkflowState) -> PostmanWorkflowState:
             state["warnings"] = state.get("warnings", []) + ["No execution sequence found to generate tests"]
             return state
         
+        # Get progress tracker from state
+        progress = state.get("_progress_tracker")
+        if progress:
+            progress.start_step(
+                "Generating Test Structures",
+                {
+                    "Total Tests": len(execution_sequence),
+                    "Test Type": "Python (Cypress-inspired)",
+                    "Output Format": "Deterministic test files"
+                }
+            )
+        
         if state.get("verbose", False):
             print(f"🏗️ Generating test structures for {len(execution_sequence)} endpoints...")
         
@@ -40,6 +52,9 @@ def generate_tests(state: PostmanWorkflowState) -> PostmanWorkflowState:
         
         # Generate test structures
         for i, endpoint in enumerate(execution_sequence):
+            if progress:
+                progress.update_details("Current", f"Generating test {i+1}/{len(execution_sequence)}: {endpoint['name']}")
+            
             test_structure = generate_single_test(endpoint, i, execution_sequence, state)
             test_structures.append(test_structure)
             
@@ -58,6 +73,12 @@ def generate_tests(state: PostmanWorkflowState) -> PostmanWorkflowState:
         state["test_structures"] = test_structures
         state["test_files"] = test_files
         state["test_config"] = test_config
+        
+        # Update progress tracker
+        if progress:
+            progress.update_details("Generated Files", len(test_files))
+            progress.update_details("Test Structures", len(test_structures))
+            progress.complete_step(f"✅ Generated {len(test_structures)} tests with {len(test_files)} files")
         
         # Update metadata
         if "metadata" not in state:

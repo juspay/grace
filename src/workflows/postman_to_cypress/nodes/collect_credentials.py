@@ -27,6 +27,18 @@ def collect_credentials(state: PostmanWorkflowState) -> PostmanWorkflowState:
             state["warnings"] = state.get("warnings", []) + ["No credential requirements found"]
             return state
         
+        # Get progress tracker from state
+        progress = state.get("_progress_tracker")
+        if progress:
+            progress.start_step(
+                "Collecting API Credentials",
+                {
+                    "Auth Types": len(credential_requirements),
+                    "Mode": "Headless" if state.get("headless") else "Interactive",
+                    "Status": "Checking existing credentials"
+                }
+            )
+        
         if state.get("verbose", False):
             print(f"🔑 Collecting credentials for {len(credential_requirements)} authentication types...")
         
@@ -36,10 +48,14 @@ def collect_credentials(state: PostmanWorkflowState) -> PostmanWorkflowState:
         # Check if credentials already exist
         existing_creds = load_existing_credentials(state)
         if existing_creds:
+            if progress:
+                progress.update_details("Status", "Using existing credentials")
             if state.get("verbose", False):
                 print("📂 Found existing credentials, using those...")
             collected_credentials = existing_creds
         else:
+            if progress:
+                progress.update_details("Status", "Collecting credentials interactively")
             # Interactive credential collection
             collected_credentials = interactive_credential_collection(credential_requirements, state)
         
@@ -55,6 +71,12 @@ def collect_credentials(state: PostmanWorkflowState) -> PostmanWorkflowState:
             
             state["collected_credentials"] = collected_credentials
             state["auth_config"] = auth_config
+            
+            # Update progress tracker
+            if progress:
+                progress.update_details("Status", "Credentials validated and saved")
+                progress.update_details("Auth Types Collected", len(credential_requirements))
+                progress.complete_step("✅ Credentials collected successfully")
             
             # Update metadata
             if "metadata" not in state:

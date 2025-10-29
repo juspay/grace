@@ -176,3 +176,72 @@ pageContentValidationPrompt: |
   In pages, it may contain links in a way like /api/authoritations or /docs/api/reference etc. then you have to give like actual url by combining with the base url (domain url example: https://connector.com/ even the url is https://connector.com/docs/*). try to generate on the content and give the relevant links only in further field.
   for now give the is_relevant as true always.
   Only respond with {"is_relevant": true, "reason": "...", "further": [url1, url2]} based on whether the page meets the above criteria.
+
+# PostmanToCypress Claude Code Service Prompts
+
+postmanApiCategorizationPrompt: |
+  You are an expert payment API analyst. Analyze this API endpoint and categorize it into one of these payment flow patterns:
+
+  CATEGORIES:
+  1. "authorize" - APIs that authorize payments, create payment intents, or initiate transactions
+  2. "capture" - APIs that capture previously authorized payments or confirm transactions  
+  3. "psync" - APIs that sync payment status, retrieve payment details, or check transaction state
+  4. "other" - APIs that don't fit the above patterns (webhooks, refunds, customers, etc.)
+
+  API ENDPOINT ANALYSIS:
+  Name: {endpoint_name}
+  Method: {endpoint_method}
+  URL: {endpoint_url}
+  Folder: {endpoint_folder}
+  Description: {endpoint_description}
+
+  Headers: {endpoint_headers}
+  Body Structure: {endpoint_body_structure}
+
+  PAYMENT FLOW CONTEXT:
+  - Authorize: Create payment intent, authorize card, initiate payment, setup transactions
+  - Capture: Capture authorized payment, confirm payment, complete transaction, settle funds
+  - Psync: Get payment status, retrieve payment details, sync transaction state, check status
+
+  ANALYSIS INSTRUCTIONS:
+  1. Examine the endpoint name, URL path, HTTP method, and request body structure
+  2. Consider the folder organization and any description provided
+  3. Think about the typical payment flow: authorize → capture → sync
+  4. Look for keywords and patterns that indicate the endpoint's purpose
+
+  Respond with ONLY the category name: authorize, capture, psync, or other
+
+  Category:
+
+postmanExecutionOrderPrompt: |
+  You are an expert in payment flow testing. Analyze these categorized API endpoints and determine the optimal execution order for a complete payment test flow.
+
+  CATEGORIZED ENDPOINTS:
+  {categorized_endpoints}
+
+  PAYMENT FLOW LOGIC:
+  1. AUTHORIZE endpoints should come first (create payment intent, authorize payment)
+  2. CAPTURE endpoints should come second (capture authorized payment)  
+  3. PSYNC endpoints should come third (verify payment status)
+  4. OTHER endpoints can be interspersed as needed (customer creation, etc.)
+
+  DEPENDENCY CONSIDERATIONS:
+  - Some endpoints may need output from previous calls (payment ID, customer ID, etc.)
+  - Prerequisites like customer creation should come before payment operations
+  - Status checks should come after the operations they're checking
+  - Consider logical payment flow progression
+
+  ANALYSIS TASK:
+  Provide the execution order as a JSON array of objects with "category" and "name" fields:
+
+  Example format:
+  [
+      {{"category": "other", "name": "Create Customer"}},
+      {{"category": "authorize", "name": "Create Payment Intent"}},
+      {{"category": "capture", "name": "Capture Payment"}},
+      {{"category": "psync", "name": "Get Payment Status"}}
+  ]
+
+  Consider the logical dependencies and flow requirements. Return ONLY the JSON array, no other text.
+
+  Execution Order:

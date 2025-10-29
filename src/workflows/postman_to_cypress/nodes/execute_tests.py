@@ -30,6 +30,18 @@ def execute_tests(state: PostmanWorkflowState) -> PostmanWorkflowState:
             state["warnings"] = state.get("warnings", []) + ["No test structures or files found to execute"]
             return state
         
+        # Get progress tracker from state
+        progress = state.get("_progress_tracker")
+        if progress:
+            progress.start_step(
+                "Executing Generated Tests",
+                {
+                    "Total Tests": len(test_structures),
+                    "Mode": "Headless" if state.get("headless") else "Interactive",
+                    "Status": "Writing test files to disk"
+                }
+            )
+        
         if state.get("verbose", False):
             print(f"🚀 Executing {len(test_structures)} tests...")
         
@@ -40,11 +52,19 @@ def execute_tests(state: PostmanWorkflowState) -> PostmanWorkflowState:
         
         write_test_files(test_files, test_dir, state)
         
+        if progress:
+            progress.update_details("Status", "Test files written, starting execution")
+            progress.update_details("Test Directory", str(test_dir))
+        
         # Execute tests
         execution_results = []
         if state.get("headless", False):
+            if progress:
+                progress.update_details("Execution Mode", "Headless (automated)")
             execution_results = execute_headless(test_structures, test_dir, state)
         else:
+            if progress:
+                progress.update_details("Execution Mode", "Interactive (user prompted)")
             execution_results = execute_interactive(test_structures, test_dir, state)
         
         # Aggregate results
@@ -67,6 +87,15 @@ def execute_tests(state: PostmanWorkflowState) -> PostmanWorkflowState:
         }
         
         state["success"] = test_results["overall_success"]
+        
+        # Update progress tracker
+        if progress:
+            progress.update_details("Test Results", f"{test_results['passed_count']}/{test_results['passed_count'] + test_results['failed_count']} passed")
+            progress.update_details("Success Rate", f"{test_results['success_rate']:.1f}%")
+            progress.update_details("Total Time", f"{test_results['total_time']:.2f}s")
+            
+            result_emoji = "✅" if test_results["overall_success"] else "⚠️"
+            progress.complete_step(f"{result_emoji} Tests executed - {test_results['success_rate']:.1f}% success rate")
         
         # Update metadata
         if "metadata" not in state:

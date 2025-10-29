@@ -17,6 +17,7 @@ from .nodes import (
     execute_tests
 )
 from src.config import get_config
+from src.utils.progress import create_workflow_progress
 
 
 class PostmanToCypressWorkflow:
@@ -135,12 +136,27 @@ class PostmanToCypressWorkflow:
     async def run(self, initial_state: PostmanWorkflowState) -> PostmanWorkflowState:
         """Run the workflow asynchronously"""
         try:
+            # Initialize workflow progress tracker
+            progress = create_workflow_progress(
+                total_steps=5,  # parse, categorize, generate, collect_creds, execute
+                verbose=initial_state.get("verbose", False)
+            )
+            
+            if initial_state.get("verbose", False):
+                print(f"\n🚀 Starting PostmanToCypress Workflow")
+                print(f"📄 Collection: {initial_state.get('collection_file', Path('unknown')).name}")
+                print(f"🎯 Mode: {'Headless' if initial_state.get('headless') else 'Interactive'}")
+                print(f"💡 Tip: Press Ctrl+C to toggle detailed progress view")
+            
             # Add workflow metadata
             initial_state["metadata"] = {
                 "start_time": time.time(),
                 "workflow_started": True,
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
             }
+            
+            # Store progress tracker in state for nodes to use
+            initial_state["_progress_tracker"] = progress
             
             # Execute the workflow
             result = await self.graph.ainvoke(initial_state)
@@ -149,6 +165,10 @@ class PostmanToCypressWorkflow:
             end_time = time.time()
             result["metadata"]["end_time"] = end_time
             result["metadata"]["duration"] = end_time - result["metadata"]["start_time"]
+            
+            # Show final summary
+            if result.get("verbose", False):
+                progress.show_summary()
             
             return result
             

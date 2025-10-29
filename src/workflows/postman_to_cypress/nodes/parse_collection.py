@@ -21,10 +21,24 @@ def parse_collection(state: PostmanWorkflowState) -> PostmanWorkflowState:
         Updated state with parsed endpoints and collection info
     """
     try:
+        # Get progress tracker
+        progress = state.get("_progress_tracker")
+        if progress:
+            progress.start_step(
+                "Parsing Postman Collection", 
+                {
+                    "File": str(state["collection_file"]),
+                    "Status": "Loading JSON"
+                }
+            )
+        
         # Load Postman collection
         collection_path = state["collection_file"]
         with open(collection_path, 'r', encoding='utf-8') as f:
             raw_collection = json.load(f)
+        
+        if progress:
+            progress.update_details("Status", "JSON loaded successfully")
         
         state["raw_collection"] = raw_collection
         
@@ -71,6 +85,13 @@ def parse_collection(state: PostmanWorkflowState) -> PostmanWorkflowState:
         
         state["api_endpoints"] = api_endpoints
         state["credential_requirements"] = credential_requirements
+        
+        # Update progress tracker
+        if progress:
+            progress.update_details("Endpoints Found", len(api_endpoints))
+            progress.update_details("Folders", len(set(ep['folder'] for ep in api_endpoints)))
+            progress.update_details("Auth Types", len(credential_requirements))
+            progress.complete_step(f"✅ Parsed {len(api_endpoints)} endpoints")
         
         # Update metadata
         if "metadata" not in state:
