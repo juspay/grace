@@ -8,11 +8,13 @@ class AIConfig:
     api_key: str
     provider: str = "litellm"
     base_url: str = "https://grid.juspay.net"
-    model_id: str = "qwen3-coder-480b"
+    model_id: str = "openai/qwen3-coder-480b"
+    vision_model_id: str = "openai/glm-46-fp8"
     project_id: Optional[str] = None
     max_tokens: int = 50000
     location: str = "us-east5"
     temperature: float = 0.7
+    browser_headless: bool = True
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -40,11 +42,21 @@ class TechSpecConfig:
 
 @dataclass
 class ResearchConfig:
-    """Research configuration."""
+    
+    # Search configuration
     searchTool: str = "searxng"
     baseURL: str = "https://localhost:32678"
+
     formatType: str = "markdown"
     depth: int = 5
+
+    with_ai_browser: bool = False
+    
+    
+    # Proxy configuration
+    proxy_url: Optional[str] = None
+    proxy_username: Optional[str] = None
+    proxy_password: Optional[str] = None
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
