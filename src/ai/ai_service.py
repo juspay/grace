@@ -109,3 +109,39 @@ class AIService:
 
         except Exception as e:
             return False, None, str(e)
+    
+    def get_ai_response(self, prompt: str, max_tokens: Optional[int] = None) -> str:
+        """
+        Get a simple AI response for a given prompt.
+        
+        Args:
+            prompt: The prompt to send to the AI
+            max_tokens: Maximum tokens for the response
+            
+        Returns:
+            AI response string
+        """
+        try:
+            messages = [{"role": "user", "content": prompt}]
+            response, success, error = self.generate(messages, max_tokens)
+            
+            if success:
+                return response
+            else:
+                raise Exception(f"AI generation failed: {error}")
+                
+        except Exception as e:
+            raise Exception(f"Failed to get AI response: {str(e)}")
+
+
+def get_ai_service(config: Union[AIConfig, None] = None) -> AIService:
+    """
+    Get an AIService instance.
+    
+    Args:
+        config: Optional AI configuration
+        
+    Returns:
+        AIService instance
+    """
+    return AIService(config)

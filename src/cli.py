@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import workflow modules
-from .workflows import run_techspec_workflow, run_research_workflow
+from .workflows import run_techspec_workflow, run_research_workflow, run_postman_to_cypress_workflow
 from .config import get_config
 from .scripts.searxng_setup import setup_docker, setup_local, check_docker
 
@@ -32,6 +32,11 @@ def cli():
             --format [markdown|json|text]  Output format\n
             --depth INTEGER          Research depth (1-10)\n
             --sources INTEGER        Number of sources to analyze\n
+            --verbose                Enable verbose output\n
+        grace postman-to-cypress [OPTIONS] [COLLECTION_FILE]\n
+        options:\n
+            --output TEXT            Output directory for generated tests\n
+            --headless               Run tests headlessly without user interaction\n
             --verbose                Enable verbose output\n
     """
     pass
@@ -218,6 +223,80 @@ def research(query, output, tech_spec, format, depth, ai_browser, sources, verbo
     asyncio.run(run_research())
 
 
+@cli.command()
+@click.argument('collection_file', required=True)
+@click.option('--output', '-o', help='Output directory for generated tests')
+@click.option('--headless', is_flag=True, help='Run tests headlessly without user interaction')
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+def postman_to_cypress(collection_file, output, headless, verbose):
+    """Convert Postman collection to executable test structures."""
+    
+    async def run_postman_conversion():
+        """Async wrapper for postman to cypress workflow."""
+        try:
+            if verbose:
+                click.echo(f"Starting Postman to Cypress conversion...")
+                click.echo(f"Collection file: {collection_file}")
+                if output:
+                    click.echo(f"Output directory: {output}")
+                click.echo(f"Mode: {'Headless' if headless else 'Interactive'}")
+                click.echo()
+
+            # Execute the postman to cypress workflow
+            result = await run_postman_to_cypress_workflow(
+                collection_file=collection_file,
+                output_dir=output,
+                headless=headless,
+                verbose=verbose
+            )
+
+            if result["success"]:
+                click.echo("✅ Postman to Cypress conversion completed successfully!")
+
+                if verbose:
+                    click.echo(f"Validation status: {result.get('validation_status', 'unknown')}")
+                    click.echo(f"Files generated: {result.get('files_generated', 0)}")
+                    click.echo()
+
+                # Display output summary
+                output_data = result.get("output", {})
+                if output_data:
+                    click.echo("\n📊 Conversion Summary:")
+                    click.echo(f"  • Collection: {output_data.get('collection_name', 'Unknown')}")
+                    click.echo(f"  • API Endpoints: {output_data.get('total_endpoints', 0)}")
+                    click.echo(f"  • Generated Tests: {output_data.get('generated_tests', 0)}")
+                    
+                    output_dir_path = output_data.get("output_directory", "./generated_tests")
+                    click.echo(f"  • Output Directory: {output_dir_path}")
+
+                    execution_results = output_data.get("execution_results")
+                    if execution_results:
+                        click.echo(f"\n🚀 Test Execution Results:")
+                        click.echo(f"  • Total Tests: {execution_results.get('total_tests', 0)}")
+                        click.echo(f"  • Passed: {execution_results.get('passed_tests', 0)}")
+                        click.echo(f"  • Failed: {execution_results.get('failed_tests', 0)}")
+                        click.echo(f"  • Success Rate: {execution_results.get('success_rate', 0):.1f}%")
+
+                    click.echo("\n📋 Next Steps:")
+                    click.echo(f"  • Review generated tests in: {output_dir_path}")
+                    click.echo(f"  • Run tests: cd {output_dir_path} && python test_runner.py")
+                    click.echo(f"  • Run headless: cd {output_dir_path} && python test_runner.py --headless")
+
+            else:
+                click.echo(f"❌ Conversion failed: {result['error']}", err=True)
+                if verbose and result.get("metadata"):
+                    click.echo(f"Debug info: {result['metadata']}", err=True)
+                sys.exit(1)
+
+        except Exception as e:
+            click.echo(f"Unexpected error: {str(e)}", err=True)
+            if verbose:
+                import traceback
+                click.echo(f"Traceback: {traceback.format_exc()}", err=True)
+            sys.exit(1)
+
+    # Run the async workflow
+    asyncio.run(run_postman_conversion())
 
 
 def main():
