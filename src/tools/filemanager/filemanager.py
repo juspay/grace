@@ -4,8 +4,12 @@ from pathlib import Path
 
 class FileManager:
     
-    def __init__(self, base_path: str):
-        self.base_path = Path(base_path)
+    def __init__(self, base_path: str = None):
+        self.base_path = Path(__file__).parent.parent.parent.parent / Path(base_path) # to root of grace
+        self.base_path.mkdir(parents=True, exist_ok=True)
+    
+    def update_base_path(self, new_base_path: str) -> None:
+        self.base_path = Path(__file__).parent.parent.parent.parent / Path(new_base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
 
     def list_files(self, extension: str = ".md") -> list[Path]:

@@ -11,9 +11,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import workflow modules
-from .workflows.techspec.workflow import run_techspec_workflow
+from .workflows import run_techspec_workflow, run_research_workflow
 from .config import get_config
-
+from .scripts.searxng_setup import setup_docker, setup_local, check_docker
 
 @click.group()
 @click.version_option(version='1.0.0')
@@ -25,30 +25,28 @@ def cli():
             --output TEXT            Output directory for generated specs\n
             --verbose                Enable verbose output\n
             --mock-server or -m      Enable mock server\n
+        grace research [OPTIONS] [QUERY]\n
+        options:\n
+            --output TEXT            Output file path\n
+            --tech-spec              Generate technical specification\n
+            --format [markdown|json|text]  Output format\n
+            --depth INTEGER          Research depth (1-10)\n
+            --sources INTEGER        Number of sources to analyze\n
+            --verbose                Enable verbose output\n
     """
     pass
 
 
-# @cli.command()
-# @click.argument('query', required=False)
-# @click.option('--output', '-o', help='Output file path')
-# @click.option('--format', '-f', type=click.Choice(['markdown', 'json', 'text']),
-#                help='Output format')
-# @click.option('--depth', '-d', type=int,
-#                help='Research depth (1-10)')
-# @click.option('--sources', '-s', type=int,
-#              help='Number of sources to analyze')
-# @click.option('--verbose', '-v', is_flag=True,
-#               help='Enable verbose output')
-# def research(query, output, format, depth, sources, verbose):
-#     """Perform deep research on a given topic using LangGraph workflow."""
-#     # config = get_config()
-#     # if not query:
-#     #     query = input("Enter your research query: ").strip()
-#     #     if not query:
-#     #         click.echo("Error: Research query is required", err=True)
-#     #         sys.exit(1)
-
+@cli.command()
+@click.option('--local', '-l', is_flag=True, help='Use local installation instead of Docker')
+def setupsearch(local):
+    """Setup SearXNG search engine for Grace Research."""
+    if local:
+        setup_local()
+    elif check_docker():
+        setup_docker()
+    else:
+        setup_local()
 
 @cli.command()
 @click.argument('connector', required=False)
@@ -154,6 +152,72 @@ def techspec(connector, output, test_only, verbose, mock_server):
 
     # Run the async workflow
     asyncio.run(run_techspec())
+
+@cli.command()
+@click.argument('query', required=False)
+@click.option('--output', '-o', help='Output file path')
+@click.option('--tech-spec', '-ts', is_flag=True, help='Generate technical specification')
+@click.option('--format', '-f', type=click.Choice(['markdown', 'json', 'text']),
+              help='Output format')
+@click.option('--depth', '-d', type=int, help='Research depth (1-10)')
+@click.option('--ai-browser', '-ai', is_flag=True, help='Enable AI assistance')
+@click.option('--sources', '-s', type=int, help='Number of sources to analyze')
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+def research(query, output, tech_spec, format, depth, ai_browser, sources, verbose):
+    """Perform research on a given connector."""
+    while not query or query.strip() == "":
+        query = click.prompt("Enter your research query: ", type=str, default="", show_default=False)
+        if not query:
+            click.echo("Error: Research query is required", err=True)
+            continue
+
+    async def run_research():
+        """Async wrapper for research workflow."""
+        try:
+            if verbose:
+                click.echo(f"Starting research workflow...")
+                click.echo(f"Query: {query}")
+                if output:
+                    click.echo(f"Output file: {output}")
+                if tech_spec:
+                    click.echo("Technical specification generation: ENABLED")
+                if format:
+                    click.echo(f"Output format: {format}")
+                if depth:
+                    click.echo(f"Research depth: {depth}")
+                if sources:
+                    click.echo(f"Number of sources: {sources}")
+                if ai_browser:
+                    click.echo("AI assistance: ENABLED")
+                click.echo()
+
+            # Use config for output file if not specified
+            config_instance = get_config()
+            output_file = output or config_instance.getTechSpecConfig().output_dir
+
+            # Execute the research workflow 
+            result = await run_research_workflow(
+                connector_name=query,
+                output_dir=output_file,
+                tech_spec=tech_spec,
+                format=format,
+                depth=depth,
+                ai_browser=ai_browser,
+                sources=sources,
+                verbose=verbose
+            )
+            click.echo(f"Research result: {result}")
+        except Exception as e:
+            click.echo(f"Unexpected error: {str(e)}", err=True)
+            if verbose:
+                import traceback
+                click.echo(f"Traceback: {traceback.format_exc()}", err=True)
+            sys.exit(1)
+        
+
+    asyncio.run(run_research())
+
+
 
 
 def main():

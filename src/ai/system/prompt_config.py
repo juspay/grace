@@ -5,10 +5,10 @@ from typing import Dict, Any, Optional, List
 
 class PromptConfig:
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, promptfile: Optional[str] = "prompts.yaml"):
         if config_path is None:
             # Default to prompts.yaml in the same directory
-            self.config_path: Path = Path(__file__).parent / "prompts.yaml"
+            self.config_path: Path = Path(__file__).parent / promptfile
         else:
             self.config_path = Path(config_path)
 
@@ -56,10 +56,10 @@ class PromptConfig:
 _prompt_config_instance: Optional[PromptConfig] = None
 
 
-def prompt_config(config_path: Optional[str] = None) -> PromptConfig:
+def prompt_config(config_path: Optional[str] = None, promptfile: Optional[str] = "prompts.yaml") -> PromptConfig:
     global _prompt_config_instance
 
     if _prompt_config_instance is None:
-        _prompt_config_instance = PromptConfig(config_path)
+        _prompt_config_instance = PromptConfig(config_path, promptfile)
 
     return _prompt_config_instance
