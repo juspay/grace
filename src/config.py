@@ -14,6 +14,7 @@ class Config:
     logConfig: LogConfig
     researchConfig: ResearchConfig
 
+
     def __init__(self, env_file: Optional[str] = None):
         self._load_env_files(env_file)
         self._load_config()
@@ -68,10 +69,12 @@ class Config:
             provider=os.getenv("AI_PROVIDER", "litellm"),
             base_url=os.getenv("AI_BASE_URL", "https://grid.ai.juspay.net"),
             model_id=os.getenv("AI_MODEL_ID", "openai/qwen3-coder-480b"),
+            vision_model_id=os.getenv("AI_VISION_MODEL_ID", "openai/glm-46-fp8"),
             project_id=os.getenv("AI_PROJECT_ID"),
             location=os.getenv("AI_LOCATION", "us-east5"),
             max_tokens=int(os.getenv("AI_MAX_TOKENS", "32768")),
-            temperature=float(os.getenv("AI_TEMPERATURE", "0.7"))
+            temperature=float(os.getenv("AI_TEMPERATURE", "0.7")),
+            browser_headless=os.getenv("BROWSER_HEADLESS", "true").lower() == "true",
         )
         self.techSpecConfig = TechSpecConfig(
             output_dir=os.getenv("TECHSPEC_OUTPUT_DIR", "./output"),
@@ -79,7 +82,7 @@ class Config:
             temperature=float(os.getenv("TECHSPEC_TEMPERATURE", "0.7")),
             max_tokens=int(os.getenv("TECHSPEC_MAX_TOKENS", "32768")),
             firecrawl_api_key=os.getenv("FIRECRAWL_API_KEY"),
-            use_playwright=os.getenv("USE_PLAYWRIGHT", "false").lower() == "true",
+            use_playwright=os.getenv("USE_PLAYWRIGHT", "true").lower() == "true",
         )
         self.logConfig = LogConfig(
             debug=os.getenv("DEBUG", "false").lower() == "true",
@@ -92,6 +95,10 @@ class Config:
             baseURL=os.getenv("SEARCH_BASE_URL", "https://localhost:32678"),
             formatType=os.getenv("SEARCH_FORMAT_TYPE", "markdown"),
             depth=int(os.getenv("SEARCH_DEPTH", "5")),
+            proxy_url=os.getenv("SEARCH_PROXY_URL"),
+            proxy_username=os.getenv("SEARCH_PROXY_USERNAME"),
+            proxy_password=os.getenv("SEARCH_PROXY_PASSWORD"),
+            with_ai_browser=os.getenv("WITH_AI_BROWSER", "true").lower() == "true",
         )
 
     def getAiConfig(self) -> AIConfig:
