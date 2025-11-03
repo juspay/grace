@@ -27,7 +27,7 @@ readonly SCRIPT_NAME="Hyperswitch Connector Generator"
 
 # Paths configuration
 readonly ROOT_DIR="$(pwd)"
-readonly TEMPLATE_DIR="$ROOT_DIR/grace/rulebook/codegen/template-generation"
+readonly TEMPLATE_DIR="$ROOT_DIR/grace/rulesbook/codegen/template-generation"
 readonly BACKEND_DIR="$ROOT_DIR/backend"
 readonly CONFIG_DIR="$ROOT_DIR/config"
 
@@ -445,23 +445,30 @@ check_naming_conflicts() {
     # Check if connector files already exist
     local connector_file="$BACKEND_DIR/connector-integration/src/connectors/$NAME_SNAKE.rs"
     local connector_dir="$BACKEND_DIR/connector-integration/src/connectors/$NAME_SNAKE"
-    
+
     if [[ -f "$connector_file" ]] || [[ -d "$connector_dir" ]]; then
-        fatal_error "Connector '$NAME_SNAKE' already exists"
-        
+        if [[ "$FORCE_MODE" == "false" ]]; then
+            fatal_error "Connector '$NAME_SNAKE' already exists. Use --force to override."
+        else
+            log_warning "Connector files exist but will be overwritten due to --force mode"
+        fi
     fi
 
-    # Check protobuf enum
-    if grep -q "$NAME_UPPER =" "$PROTO_FILE" 2>/dev/null; then
+    # Check protobuf enum (skip if --force mode)
+    if [[ "$FORCE_MODE" == "false" ]] && grep -q "$NAME_UPPER =" "$PROTO_FILE" 2>/dev/null; then
         fatal_error "Connector '$NAME_UPPER' already exists in protobuf enum"
+    elif grep -q "$NAME_UPPER =" "$PROTO_FILE" 2>/dev/null; then
+        log_warning "Connector '$NAME_UPPER' already in protobuf enum, will skip protobuf update"
     fi
 
-    # Check domain types
-    if grep -q "$NAME_PASCAL" "$DOMAIN_TYPES_FILE" 2>/dev/null; then
+    # Check domain types (skip if --force mode)
+    if [[ "$FORCE_MODE" == "false" ]] && grep -q "$NAME_PASCAL" "$DOMAIN_TYPES_FILE" 2>/dev/null; then
         fatal_error "Connector '$NAME_PASCAL' already exists in domain types"
+    elif grep -q "$NAME_PASCAL" "$DOMAIN_TYPES_FILE" 2>/dev/null; then
+        log_warning "Connector '$NAME_PASCAL' already in domain types, will skip domain types update"
     fi
 
-    log_success "No naming conflicts found"
+    log_success "Conflict check completed"
 }
 
 # =============================================================================
@@ -565,6 +572,12 @@ create_connector_files() {
 update_protobuf() {
     log_step "Updating protobuf definitions"
 
+    # Check if already exists
+    if grep -q "$NAME_UPPER =" "$PROTO_FILE" 2>/dev/null; then
+        log_warning "Skipping protobuf update - $NAME_UPPER already exists"
+        return 0
+    fi
+
     # Add new connector to enum before closing brace
     sed -i.bak "/enum Connector {/,/}/ s/}/  $NAME_UPPER = $ENUM_ORDINAL;\n}/" "$PROTO_FILE"
     rm -f "$PROTO_FILE.bak"
@@ -574,6 +587,12 @@ update_protobuf() {
 
 update_domain_types() {
     log_step "Updating domain types"
+
+    # Check if already exists in ConnectorEnum
+    if grep -q "^[[:space:]]*$NAME_PASCAL," "$DOMAIN_TYPES_FILE" 2>/dev/null; then
+        log_warning "Skipping domain types update - $NAME_PASCAL already exists"
+        return 0
+    fi
 
     # Add to ConnectorEnum
     sed -i.bak "/pub enum ConnectorEnum {/,/}/ s/}/    $NAME_PASCAL,\\n}/" "$DOMAIN_TYPES_FILE"
