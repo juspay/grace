@@ -67,10 +67,10 @@ class AIService:
         return result
 
 
-    def generate_tech_spec(self, markdown_files: List[Path], prompt: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    def generate_tech_spec(self, filemanager, markdown_files: List[Path], prompt: str) -> Tuple[bool, Optional[str], Optional[str]]:
         
         try:
-            combined_content : List[str] = combine_markdown_files(markdown_files)
+            combined_content : List[str] = combine_markdown_files(filemanager,markdown_files)
             if not combined_content or len(combined_content) == 0:
                 return False, "", "No content found in markdown files"
             prompt = prompt_config().get_with_values("techspecPrompt", {"content": "check in user message"}) or ""

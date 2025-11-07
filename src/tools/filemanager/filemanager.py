@@ -1,6 +1,6 @@
 
 from pathlib import Path
-
+from typing import List
 
 class FileManager:
     
@@ -20,6 +20,24 @@ class FileManager:
             with open(self.base_path / file_path, 'r', encoding='utf-8') as f:
                 return f.read()
         return ""
+    
+    def get_all_files(self, folder_path: Path) -> List[Path]:
+        full_folder_path = self.base_path / folder_path
+        if not full_folder_path.exists():
+            return []
+        
+        if not full_folder_path.is_dir():
+            return []
+        
+        # Get all files recursively using rglob
+        file_paths = []
+        for file_path in full_folder_path.rglob("*"):
+            if file_path.is_file():
+                # Return path relative to base_path as string
+                relative_path = file_path.relative_to(self.base_path)
+                file_paths.append(Path(relative_path))
+        
+        return file_paths
 
     def write_file(self, file_path: Path, content: str) -> None:
         full_path = self.base_path / file_path
