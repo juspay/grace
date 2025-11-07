@@ -74,8 +74,7 @@ def techspec(connector, folder, output, test_only, verbose, mock_server):
                 click.echo()
 
             # Use config for output directory if not specified
-            config_instance = get_config()
-            output_dir = output or config_instance.getTechSpecConfig().output_dir
+            output_dir = output or None
             # Execute the techspec workflow
             result = await run_techspec_workflow(
                 connector_name=connector,

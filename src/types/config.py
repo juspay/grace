@@ -1,6 +1,7 @@
 from typing import Optional
 from dataclasses import dataclass
-
+from rich.console import Console
+console = Console()
 
 @dataclass
 class AIConfig:
@@ -38,6 +39,7 @@ class TechSpecConfig:
         if not self.template_dir:
             raise ValueError("Template directory must be specified")
         if not self.firecrawl_api_key:
+            console.print("[red]Firecrawl is not found, using playwright[/red]")
             self.use_playwright = True  # Default to True if no API key
 
 @dataclass
