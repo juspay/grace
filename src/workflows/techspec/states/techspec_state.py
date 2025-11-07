@@ -34,6 +34,7 @@ class TechspecWorkflowState(TypedDict, total=False):
     # Configuration
     config: TechSpecConfig
     output_dir: Path
+    folder : Optional[str]
 
     # Workflow control
     connector_name: str

@@ -28,7 +28,14 @@ class TechspecWorkflow:
 
 
 
-        workflow.add_edge(START, "collect_urls")
+        workflow.add_conditional_edges(
+            START,
+            self._should_continue_for_tech_spec_from_folder,
+            {
+                "collect_urls": "collect_urls",
+                "llm_analysis": "llm_analysis"
+            }
+        )
 
         workflow.add_conditional_edges(
             "collect_urls",
@@ -72,6 +79,11 @@ class TechspecWorkflow:
 
         # Compile the graph
         return workflow.compile()
+    def _should_continue_for_tech_spec_from_folder(self, state: TechspecWorkflowState) -> Literal["collect_urls", "llm_analysis"]:
+        if state["folder"] != None:
+            click.echo(f"Using existing docs in side {state['folder']}")
+            return "llm_analysis"
+        return "collect_urls"
     
     def _should_continue_after_url_collection(self, state: TechspecWorkflowState) -> Literal["crawling", "end"]:
         if not state["urls"]:
@@ -101,6 +113,7 @@ class TechspecWorkflow:
      
     async def execute(self,
                      connector_name: str,
+                     folder: Optional[str],
                      output_dir: Optional[str] = None,
                      mock_server: bool = False,
                      test_only: bool = False,
@@ -116,6 +129,7 @@ class TechspecWorkflow:
             "connector_name": connector_name,
             "urls": [],
             "visited_urls": [],
+            "folder" : folder or None,
             "output_dir": output_path,
             "mock_server" : mock_server,
             "config": config,
@@ -161,13 +175,16 @@ def create_techspec_workflow() -> TechspecWorkflow:
 
 # CLI integration function
 async def run_techspec_workflow(connector_name: str,
+                               folder: Optional[str],
                                output_dir: Optional[str] = None,
                                mock_server: bool = False,
                                test_only: bool = False,
-                               verbose: bool = False) -> Dict[str, Any]:
+                               verbose: bool = False,
+                               ) -> Dict[str, Any]:
     workflow = create_techspec_workflow()
     return await workflow.execute(
         connector_name=connector_name,
+        folder=folder,
         output_dir=output_dir,
         mock_server=mock_server,
         test_only=test_only,

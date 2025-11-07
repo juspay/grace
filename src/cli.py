@@ -50,11 +50,12 @@ def setupsearch(local):
 
 @cli.command()
 @click.argument('connector', required=False)
+@click.option('folder', '-f', help="the docs folder")
 @click.option('--output', '-o', help='Output directory for generated specs')
 @click.option('--test-only', is_flag=True, help='Run in test mode without generating files')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
 @click.option('--mock-server', '-m', is_flag=True, help='Enable mock server for API interactions (for testing)')
-def techspec(connector, output, test_only, verbose, mock_server):
+def techspec(connector, folder, output, test_only, verbose, mock_server):
     # we will use the other flags in future for more customization don't remove them
     """ -m flag to mock server and use --help for more details
     """
@@ -75,14 +76,15 @@ def techspec(connector, output, test_only, verbose, mock_server):
             # Use config for output directory if not specified
             config_instance = get_config()
             output_dir = output or config_instance.getTechSpecConfig().output_dir
-
             # Execute the techspec workflow
             result = await run_techspec_workflow(
                 connector_name=connector,
+                folder=folder,
                 output_dir=output_dir,
                 test_only=test_only,
                 verbose=verbose,
-                mock_server=mock_server
+                mock_server=mock_server,
+
             )
 
             if result["success"]:

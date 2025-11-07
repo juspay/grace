@@ -6,9 +6,11 @@ from ..states.techspec_state import TechspecWorkflowState
 from src.ai.ai_service import AIService
 from src.utils.ai_utils import estimate_token_usage
 from src.config import get_config
+from pathlib import Path
+from src.tools.filemanager.filemanager import FileManager
 
 def llm_analysis(state: TechspecWorkflowState) -> TechspecWorkflowState:
-    if not state.get("markdown_files"):
+    if not state.get("markdown_files") and state.get("folder") == None:
         if "errors" not in state:
             state["errors"] = []
         state["errors"].append("No markdown files to process")
@@ -29,9 +31,20 @@ def llm_analysis(state: TechspecWorkflowState) -> TechspecWorkflowState:
         click.echo(f"Error: {error_msg}")
         return state
 
+
+    output_dir = state.get("output_dir")
+    if not output_dir:
+        raise ValueError("Output directory not configured")
+    filemanager = FileManager(
+        base_path=str(output_dir)
+    )
+    if state["folder"] != None:
+        filemanager.update_base_path("")
+        state["markdown_files"] = filemanager.get_all_files( Path(state["folder"]))
+
     # Show token estimation
     try:
-        token_estimate = estimate_token_usage(state["markdown_files"], ai_config)
+        token_estimate = estimate_token_usage(filemanager, state["markdown_files"], ai_config)
         if "error" not in token_estimate:
             if "metadata" not in state:
                 state["metadata"] = {}
@@ -45,20 +58,14 @@ def llm_analysis(state: TechspecWorkflowState) -> TechspecWorkflowState:
     # Generate tech spec
     try:
         spec_success, tech_spec, spec_error = llm_client.generate_tech_spec(
+            filemanager,
             state["markdown_files"], prompt=""
         )
 
         if spec_success and tech_spec:
             # Save the tech spec
-            from pathlib import Path
-            from src.tools.filemanager.filemanager import FileManager
-            output_dir = state.get("output_dir")
-            if not output_dir:
-                raise ValueError("Output directory not configured")
-            filemanager = FileManager(
-                base_path=str(output_dir)
-            )
-            spec_filepath = filemanager.save_tech_spec(tech_spec, llm_client.get_file_name(state.get("urls"),))
+            filemanager.update_base_path(output_dir)
+            spec_filepath = filemanager.save_tech_spec(tech_spec, llm_client.get_file_name(state.get("urls") if state["folder"] == None else state["folder"]))
 
             # Update state
             state["tech_spec"] = tech_spec

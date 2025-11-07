@@ -121,11 +121,11 @@ GRACE-UCS tracks and can resume from any implementation state:
 - Performance optimized
 - Documentation complete
 
-## 📖 How to Use GRACE-UCS
+## 📖 How to Use GRACE
 
 ### For New Implementation:
-1. Place connector API documentation in `grace-ucs/references/{{connector_name}}/`
-2. Run: `integrate [ConnectorName] using grace-ucs/.gracerules`
+1. Place connector API documentation in `grace/rulebook/codegen/references/{{connector_name}}/`
+2. Run: `integrate [ConnectorName] using .gracerules`
 3. AI will create complete implementation plan and code
 
 ### For Resuming Work:
@@ -184,7 +184,7 @@ External Response → Connector Transform → RouterDataV2 → gRPC Response
 ## 📁 Directory Structure
 
 ```
-grace-ucs/
+grace/rulbook/codegen/
 ├── .gracerules                          # Main AI instructions
 ├── README.md                            # This file
 ├── guides/
