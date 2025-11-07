@@ -12,80 +12,56 @@ import re
 
 
 def _parse_urls_from_input(input_text: str) -> List[str]:
-    urls: List[str] = []
-    input_text = input_text.strip()
-
-    if not input_text:
-        return urls
-
-    try:
-        parsed = json.loads(input_text)
-        if isinstance(parsed, list):
-            urls.extend([str(item).strip() for item in parsed if item])
-            return urls
-    except (json.JSONDecodeError, ValueError):
-        pass
-
-    try:
-        if input_text.startswith('[') and input_text.endswith(']'):
-            content = input_text[1:-1]
-            # Split by comma and clean up quotes
-            items = re.split(r',\s*', content)
-            for item in items:
-                item = item.strip().strip('"').strip("'").strip()
-                if item:
-                    urls.append(item)
-            if urls:
-                return urls
-    except Exception:
-        pass
-
-    url_pattern = r'https?://[^\s,\'""\[\]]+|www\.[^\s,\'""\[\]]+'
-    found_urls = re.findall(url_pattern, input_text)
-
-    if found_urls:
-        urls.extend([url.strip() for url in found_urls if url.strip()])
-        return urls
-
-    delimiters = [',', '\n', ';', '\t', ' ']
-    for delimiter in delimiters:
-        if delimiter in input_text:
-            parts = input_text.split(delimiter)
-            urls.extend([part.strip().strip('"').strip("'").strip() for part in parts if part.strip()])
-            break
-
-    if not urls:
-        urls.append(input_text)
-
-    return [url for url in urls if url]
+    """Parse URLs from input text, splitting by newlines only."""
+    if not input_text.strip():
+        return []
+    
+    # Split by newlines and return non-empty lines as URLs
+    urls = [line.strip() for line in input_text.split('\n') if line.strip()]
+    return urls
 
 
 def collect_urls(state: TechspecWorkflowState) -> TechspecWorkflowState:
 
     # Placeholder implementation for URL collection
     urls = []
-    click.echo("Supports: single URLs, JSON arrays, comma/space/newline separated lists")
+    click.echo("Enter URLs (one per line). Press Enter on an empty line to finish:")
 
+    # Collect multi-line input until an empty line is entered (after content)
+    lines = []
+    
     while True:
-        user_input = input("Enter a URL (or click Enter to finish): ")
-        if not user_input.strip() or user_input.strip().lower() == '':
+        try:
+            line = input()
+            is_empty = not line.strip()
+            
+            if is_empty:
+                # If we have content and get an empty line, finish
+                # If no content yet, allow one empty line (for two consecutive newlines case)
+                if lines:
+                    break
+            else:
+                lines.append(line)
+        except EOFError:
             break
-
-
+    
+    # Combine all lines into a single input string
+    user_input = '\n'.join(lines)
+    
+    if user_input.strip():
         parsed_urls = _parse_urls_from_input(user_input)
         if not parsed_urls:
             click.echo("No URLs found in input")
-            continue
-        
-        for url in parsed_urls:
-            is_valid, error = validate_url(url)
-            if not is_valid:
-                click.echo(f"Invalid URL: {url} - {error}")
-                # state["warning"].append(f"Invalid URL: {url} - {error}")
-                continue
+        else:
+            for url in parsed_urls:
+                is_valid, error = validate_url(url)
+                if not is_valid:
+                    click.echo(f"Invalid URL: {url} - {error}")
+                    # state["warning"].append(f"Invalid URL: {url} - {error}")
+                    continue
 
-            urls.append(url)
-            click.echo(f"Added: {url}")
+                urls.append(url)
+                click.echo(f"Added: {url}")
 
     urls = deduplicate_urls(urls)
 
