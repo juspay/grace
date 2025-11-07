@@ -26,8 +26,6 @@ class TechspecWorkflow:
 
         # Add edges to define workflow flow
 
-
-
         workflow.add_conditional_edges(
             START,
             self._should_continue_for_tech_spec_from_folder,

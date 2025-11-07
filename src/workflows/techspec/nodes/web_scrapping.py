@@ -1,10 +1,15 @@
 
 import click
 from typing import Dict
+import asyncio
+from src.tools.filemanager.filemanager import FileManager
 from ..states.techspec_state import CrawlResult, TechspecWorkflowState
 from pathlib import Path
 from src.tools.firecrawl.firecrawl import FirecrawlClient
-
+from src.tools.browser.ScrapingService import ScrappingService
+from rich.console import Console
+from src.utils.filemanager_tools import save_file
+console = Console()
 def scrap_urls(state: TechspecWorkflowState) -> TechspecWorkflowState:
 
     if not state.get("urls"):
@@ -15,10 +20,14 @@ def scrap_urls(state: TechspecWorkflowState) -> TechspecWorkflowState:
     click.echo("Scraping documentation...")
 
     try:
-        config = state.get('config')
-        if not config or not config.firecrawl_api_key:
-            raise ValueError("Firecrawl API key not configured")
-        firecrawl_client = FirecrawlClient(config.firecrawl_api_key)
+        config = state["config"]
+        scrapping_service: ScrappingService | FirecrawlClient = None
+        if (config.use_playwright):
+            scrapping_service = ScrappingService()
+        else:
+            if not config or not config.firecrawl_api_key:
+               raise ValueError("Firecrawl API key not configured")
+            scrapping_service = FirecrawlClient(config.firecrawl_api_key)
     except Exception as e:
         click.echo(f"Failed to initialize Firecrawl client: {e}")
         if "errors" not in state:
@@ -38,10 +47,35 @@ def scrap_urls(state: TechspecWorkflowState) -> TechspecWorkflowState:
     crawl_results: Dict[str, CrawlResult] = dict()
 
     try:
-        click.echo(f"Scraping {len(urls)} URLs using Firecrawl...")
         # Use the existing batch processing method
-        raw_results = firecrawl_client.scrape_urls_batch(urls, markdown_dir)
-
+        filemanager = FileManager(base_path=str(markdown_dir))
+        raw_results = {}
+        if config.use_playwright:
+            click.echo(f"Scraping {len(urls)} URLs using Playwright...")
+            def callback(result):
+                try:
+                    if result and result["status"] == "success":
+                        filepath = save_file(result, filemanager)
+                        raw_results[result["url"]] = {
+                            "success": True,
+                            "filepath": str(filepath),
+                            "content_length": len(result["html_content"]),
+                            "error": None
+                        }
+                    elif result and result["status"] == "error":
+                        raw_results[result["url"]] = {
+                            "success": False,
+                            "filepath": None,
+                            "content_length": 0,
+                            "error": result.get("error", "Unknown error")
+                        }
+                except Exception as e:
+                    console.print(f"Error occurred while processing {result['url']}: {e}")
+            asyncio.run(scrapping_service.scrape_multiple_pages(urls=urls, callback=callback))
+        else:
+            click.echo(f"Scraping {len(urls)} URLs using Firecrawl...")
+            raw_results = scrapping_service.scrape_urls_batch(urls, markdown_dir)
+        
         # Convert to our typed format
         for url, result in raw_results.items():
             crawl_result: CrawlResult = {
