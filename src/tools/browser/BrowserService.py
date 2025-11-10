@@ -119,18 +119,19 @@ class BrowserService:
         try:
             if not self.page:
                 raise RuntimeError("Browser not started. Call start() first.")
-            
+            # self.browser.close()
+            # await self.start()
+            self.page = await self.context.new_page()
             # Use domcontentloaded instead of networkidle for better reliability
-            response = await self.page.goto(url, wait_until='load')
+            response = await self.page.goto(url, wait_until='load')            
             success = response.status < 400 if response else False
             
             if success:
                 logger.info(f"Successfully navigated to {url}")
                 # Additional wait for dynamic content to load
-                await self.page.wait_for_timeout(500)
+                await self.page.wait_for_timeout(3000)
             else:
                 logger.warning(f"Navigation to {url} returned status {response.status if response else 'None'}")
-
             return success
         except Exception as e:
             logger.error(f"Failed to navigate to {url}: {e}")
