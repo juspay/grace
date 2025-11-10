@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import workflow modules
-from .workflows import run_techspec_workflow, run_research_workflow
+from .workflows import run_techspec_workflow, run_research_workflow, run_pr_workflow
 from .config import get_config
 from .scripts.searxng_setup import setup_docker, setup_local, check_docker
 
@@ -32,6 +32,10 @@ def cli():
             --format [markdown|json|text]  Output format\n
             --depth INTEGER          Research depth (1-10)\n
             --sources INTEGER        Number of sources to analyze\n
+            --verbose                Enable verbose output\n
+        grace pr [OPTIONS] [PR_URL]\n
+        options:\n
+            --output TEXT            Output directory for PR data\n
             --verbose                Enable verbose output\n
     """
     pass
@@ -219,10 +223,86 @@ def research(query, output, tech_spec, format, depth, ai_browser, sources, verbo
     asyncio.run(run_research())
 
 
+@cli.command()
+@click.argument('pr_url', required=False)
+@click.option('--output', '-o', help='Output directory for PR data')
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+def pr(pr_url, output, verbose):
+    while not pr_url or pr_url.strip() == "":
+        pr_url = click.prompt(
+            "Enter GitHub PR URL (e.g., https://github.com/owner/repo/pull/123)",
+            type=str,
+            default="",
+            show_default=False
+        )
+        if not pr_url:
+            click.echo("Error: PR URL is required", err=True)
+            continue
+
+    async def run_pr():
+        try:
+            if verbose:
+                click.echo(f"Starting PR workflow...")
+                click.echo(f"PR URL: {pr_url}")
+                if output:
+                    click.echo(f"Output directory: {output}")
+                click.echo()
+
+            config_instance = get_config()
+            output_dir = output or config_instance.getTechSpecConfig().output_dir
+
+            result = await run_pr_workflow(
+                pr_url=pr_url,
+                output_dir=output_dir,
+                verbose=verbose
+            )
+
+            if result["success"]:
+                output_data = result.get("output", {})
+                if output_data:
+                    connector_name = output_data.get('connector_name')
+                    if connector_name and connector_name != 'unknown':
+                        click.echo(f"  • Connector: {connector_name}")
+
+                    stats = output_data.get("statistics", {})
+                    if stats:
+                        click.echo(f"\n  Statistics:")
+                        click.echo(f"    - Files changed: {stats.get('files_changed', 0)}")
+                        click.echo(f"    - Total comments: {stats.get('total_comments', 0)}")
+                        click.echo(f"      • Review comments (inline): {stats.get('review_comments', 0)}")
+                        click.echo(f"      • Issue comments (general): {stats.get('issue_comments', 0)}")
+
+                    # Show AI summary status
+                    if output_data.get('has_ai_summary'):
+                        click.echo(f"\n  ✓ AI analysis completed")
+
+                    # Show storage locations
+                    grace_dir = output_data.get("grace_storage_directory")
+                    summary_file = output_data.get("summary_file")
+
+                    click.echo(f"\n  Storage Locations:")
+                    if grace_dir:
+                        click.echo(f"    - Raw data: {grace_dir}")
+                    if summary_file:
+                        click.echo(f"    - AI summary: {summary_file}")
+
+            else:
+                click.echo(f"PR workflow failed: {result['error']}", err=True)
+                if verbose and result.get("metadata"):
+                    click.echo(f"Debug info: {result['metadata']}", err=True)
+                sys.exit(1)
+
+        except Exception as e:
+            click.echo(f"Unexpected error: {str(e)}", err=True)
+            if verbose:
+                import traceback
+                click.echo(f"Traceback: {traceback.format_exc()}", err=True)
+            sys.exit(1)
+
+    asyncio.run(run_pr())
 
 
 def main():
-    """Main entry point for Grace CLI."""
     try:
         cli()
     except KeyboardInterrupt:
