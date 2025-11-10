@@ -15,11 +15,11 @@ class ScrappingService:
         try:
             if service.browser is None:
                 await service.start()
-            await service.wait_for_load(1000)
+            await service.wait_for_load(3000)
             if not await service.navigate_to(url):
                 self.console.print(f"Failed to navigate to {url}")
                 return None
-            await service.wait_for_load(1000)
+            await service.wait_for_load(3000)
             page_info = await service.get_page_info()
             html_content = await service.get_markdown_content()
             page_data = {
