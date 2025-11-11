@@ -11,16 +11,17 @@ This directory contains comprehensive implementation patterns for each payment f
 | [`pattern_authorize.md`](./pattern_authorize.md) | **Authorization** | ✅ Complete | Complete authorization flow patterns for any payment connector |
 | [`pattern_capture.md`](./pattern_capture.md) | **Capture** | ✅ Complete | Comprehensive capture flow patterns and implementations |
 | [`pattern_psync.md`](./pattern_psync.md) | **Payment Sync** | ✅ Complete | Payment status synchronization (Psync) flow patterns across 22 connectors |
-| `pattern_void.md` | **Void/Cancel** | 🚧 Planned | Void payment authorization patterns |
-| `pattern_refund.md` | **Refund** | 🚧 Planned | Full and partial refund flow patterns |
-| `pattern_refund_sync.md` | **Refund Sync** | 🚧 Planned | Refund status synchronization patterns |
+| `pattern_void.md` | **Void/Cancel** | ✅ Complete | Void payment authorization patterns |
+| `pattern_refund.md` | **Refund** | ✅ Complete | Full and partial refund flow patterns |
+| `pattern_rsync.md` | **Refund Sync** | ✅ Complete | Refund status synchronization patterns |
 
 ### Advanced Flows
 
 | Pattern File | Flow Type | Status | Description |
 |-------------|-----------|---------|-------------|
 | `pattern_webhook.md` | **Webhooks** | 🚧 Planned | Webhook handling and signature verification patterns |
-| `pattern_mandate.md` | **Recurring** | 🚧 Planned | Mandate setup and recurring payment patterns |
+| [`pattern_setup_mandate.md`](./pattern_setup_mandate.md) | **SetupMandate** | ✅ Complete | Comprehensive SetupMandate flow patterns for recurring payments across 8 connectors |
+| [`repeat_payment_flow_patterns.md`](./repeat_payment_flow_patterns.md) | **RepeatPayment** | ✅ Complete | Comprehensive RepeatPayment flow patterns for processing recurring payments using stored mandates across 7 connectors |
 | `pattern_dispute.md` | **Disputes** | 🚧 Planned | Dispute handling and evidence submission patterns |
 | `pattern_session.md` | **Session Token** | 🚧 Planned | Secure session management patterns |
 | `pattern_order.md` | **Create Order** | 🚧 Planned | Multi-step payment initiation patterns |
@@ -44,6 +45,8 @@ This directory contains comprehensive implementation patterns for each payment f
 # Use specific patterns for implementation
 implement authorization flow for [ConnectorName] using pattern_authorize.md
 add capture flow to [ConnectorName] using pattern_capture.md
+implement setup mandate flow for [ConnectorName] using pattern_setup_mandate.md
+add repeat payment flow to [ConnectorName] using repeat_payment_flow_patterns.md
 implement webhooks for [ConnectorName] using pattern_webhook.md
 ```
 
