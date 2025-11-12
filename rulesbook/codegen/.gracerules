@@ -5,7 +5,7 @@
 # ALL steps are mandatory and must be executed in the exact sequence specified
 
 # ============================================================================
-# 🎯 MAIN WORKFLOW CONTROLLER
+# MAIN WORKFLOW CONTROLLER
 # ============================================================================
 
 You are the GRACE-UCS Main Workflow Controller for deterministic UCS connector integration.
@@ -57,7 +57,7 @@ STEP 4: Upon all flows completion, perform final validation
 ```
 
 # ============================================================================
-# 🔧 FOUNDATION SETUP SUBAGENT SPECIFICATION
+# FOUNDATION SETUP SUBAGENT SPECIFICATION
 # ============================================================================
 
 ## FOUNDATION SETUP SUBAGENT RESPONSIBILITIES
@@ -115,7 +115,7 @@ You are the Foundation Setup Subagent. Your ONLY responsibility is to establish 
 - **NEVER PROCEED** to next phase until all steps complete successfully
 
 # ============================================================================
-# 🔄 FLOW IMPLEMENTATION SUBAGENT TEMPLATE
+# FLOW IMPLEMENTATION SUBAGENT TEMPLATE
 # ============================================================================
 
 ## FLOW SUBAGENT RESPONSIBILITIES
@@ -140,7 +140,17 @@ You are a Flow Implementation Subagent responsible for implementing ONE specific
 # Review code templates and best practices
 ```
 
-#### STEP 3: Generate Implementation Plan
+#### STEP 3: Read Available Utils & Enums
+```bash
+# Read corresponding files: 
+- backend/grpc-server/src/utils.rs
+- backend/domain_types/src/utils.rs
+- backend/connector-integration/src/utils.rs
+- backend/common_enums/src/enums.rs
+# Study utils and enums and reuse as much as possible
+```
+
+#### STEP 4: Generate Implementation Plan
 ```bash
 # Create detailed plan for this specific flow
 # List all required methods to implement
@@ -149,7 +159,7 @@ You are a Flow Implementation Subagent responsible for implementing ONE specific
 # Define error handling strategy
 ```
 
-#### STEP 4: Execute Implementation Plan
+#### STEP 5: Execute Implementation Plan
 ```bash
 # Implement ConnectorIntegrationV2 trait for this flow
 # Create request/response transformers in transformers.rs
@@ -158,7 +168,7 @@ You are a Flow Implementation Subagent responsible for implementing ONE specific
 # Add payment method support as specified in tech spec
 ```
 
-#### STEP 5: Cargo Build and Debug
+#### STEP 6: Cargo Build and Debug
 ```bash
 # Execute: cargo build
 # If compilation errors, analyze and fix immediately
@@ -167,7 +177,7 @@ You are a Flow Implementation Subagent responsible for implementing ONE specific
 # MUST achieve successful build
 ```
 
-#### STEP 6: Flow Completion Confirmation
+#### STEP 7: Flow Completion Confirmation
 ```bash
 # Report: "{FlowName} Flow Implementation COMPLETED"
 # Confirm: Cargo build successful for this flow
@@ -214,7 +224,7 @@ You are a Flow Implementation Subagent responsible for implementing ONE specific
 - **Key Implementation**: ConnectorIntegrationV2<Void, PaymentFlowData, PaymentVoidData, PaymentsResponseData>
 
 # ============================================================================
-# 🛡️ QUALITY GUARDIAN SUBAGENT SPECIFICATION
+# QUALITY GUARDIAN SUBAGENT SPECIFICATION
 # ============================================================================
 
 ## QUALITY GUARDIAN SUBAGENT RESPONSIBILITIES
@@ -265,6 +275,7 @@ Files to analyze:
    - domain_types imports throughout (not hyperswitch_domain_models)
    - Generic connector struct: ConnectorName<T>
    - All trait implementations present for all flows
+   - Make sure all sensitive fields are masked eg.(pan, cvc, expiry).
 
 2. Validate Rust Best Practices (Holistic Review)
    - Idiomatic error handling across all flows
@@ -286,6 +297,10 @@ Files to analyze:
    - Adequate modularity
    - Maintainability and scalability
    - Reusable patterns identified
+   - Create enums for Request/Response types instead of using raw string
+   - Follow case sensitivity
+   - Reuse existing enums avoid creating new ones or using string/raw types eg.(Currency, Country etc. ref. backend/common_enums/src/enums.rs)
+
 
 5. Check Pattern File Compliance (All Flows)
    - Authorize follows guides/patterns/pattern_authorize.md
