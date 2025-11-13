@@ -8,7 +8,7 @@ from src.utils.ai_utils import estimate_token_usage
 from src.config import get_config
 from pathlib import Path
 from src.tools.filemanager.filemanager import FileManager
-
+from rich.progress import Progress, SpinnerColumn, TextColumn
 def llm_analysis(state: TechspecWorkflowState) -> TechspecWorkflowState:
     if not state.get("markdown_files") and state.get("folder") == None:
         if "errors" not in state:
@@ -51,38 +51,42 @@ def llm_analysis(state: TechspecWorkflowState) -> TechspecWorkflowState:
             state["metadata"]["estimated_tokens"] = token_estimate
             click.echo(f"Estimated tokens: ~{token_estimate['estimated_input_tokens']} input + {token_estimate['max_output_tokens']} output")
     except Exception as e:
-        if "warnings" not in state:
-            state["warnings"] = []
-        state["warnings"].append(f"Token estimation failed: {str(e)}")
+        pass
 
     # Generate tech spec
     try:
-        spec_success, tech_spec, spec_error = llm_client.generate_tech_spec(
-            filemanager,
-            state["markdown_files"], prompt=""
-        )
+        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}")) as progress:
+            task = progress.add_task("Generating technical specification...", start=False)
+            progress.start_task(task)
+            spec_success, tech_spec, spec_error = llm_client.generate_tech_spec(
+                filemanager,
+                state["markdown_files"]
+            )
+            progress.stop_task(task)
 
-        if spec_success and tech_spec:
-            # Save the tech spec
-            filemanager.update_base_path(output_dir)
-            spec_filepath = filemanager.save_tech_spec(tech_spec, llm_client.get_file_name(state.get("urls") if state["folder"] == None else state["folder"]))
+            if spec_success and tech_spec:
+                # Save the tech spec
+                filemanager.update_base_path(output_dir)
+                state["file_name"] = llm_client.get_file_name(tech_spec) + ".md"
+                spec_filepath = filemanager.save_tech_spec(tech_spec, 
+                                                           state["file_name"])
 
-            # Update state
-            state["tech_spec"] = tech_spec
-            state["spec_filepath"] = spec_filepath
-            if "metadata" not in state:
-                state["metadata"] = {}
-            state["metadata"]["spec_generated"] = True
-            click.echo(f"\nTechnical specification generated!")
-            click.echo(f"Saved to: {spec_filepath}")
-        else:
-            if "errors" not in state:
-                state["errors"] = []
-            state["errors"].append(f"Tech spec generation failed: {spec_error}")
-            if "metadata" not in state:
-                state["metadata"] = {}
-            state["metadata"]["spec_generated"] = False
-            click.echo(f"\nError generating tech spec: {spec_error}")
+                # Update state
+                state["tech_spec"] = tech_spec
+                state["spec_filepath"] = spec_filepath
+                if "metadata" not in state:
+                    state["metadata"] = {}
+                state["metadata"]["spec_generated"] = True
+                click.echo(f"\nTechnical specification generated!")
+                click.echo(f"Saved to: {spec_filepath}")
+            else:
+                if "errors" not in state:
+                    state["errors"] = []
+                state["errors"].append(f"Tech spec generation failed: {spec_error}")
+                if "metadata" not in state:
+                    state["metadata"] = {}
+                state["metadata"]["spec_generated"] = False
+                click.echo(f"\nError generating tech spec: {spec_error}")
 
     except Exception as e:
         error_msg = f"Error during tech spec generation: {str(e)}"

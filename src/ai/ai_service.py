@@ -67,8 +67,7 @@ class AIService:
         return result
 
 
-    def generate_tech_spec(self, filemanager, markdown_files: List[Path], prompt: str) -> Tuple[bool, Optional[str], Optional[str]]:
-        
+    def generate_tech_spec(self, filemanager, markdown_files: List[Path]) -> Tuple[bool, Optional[str], Optional[str]]:
         try:
             combined_content : List[str] = combine_markdown_files(filemanager,markdown_files)
             if not combined_content or len(combined_content) == 0:
@@ -86,12 +85,12 @@ class AIService:
         except Exception as e:
             return False, None, str(e)
 
-    def get_file_name(self, urls: List[str], connector: bool = True, base_name: str = "tech_spec.md") -> str:
+    def get_file_name(self, tech_spec: str, connector: bool = True, base_name: str = "tech_spec") -> str:
         try:
-            prompt = prompt_config().get_with_values("techspecFileNamePrompt", {"urls": ", ".join(urls),
+            prompt = prompt_config().get_with_values("techspecFileNamePrompt", {"tech_spec": tech_spec or "",
                 "isConnectorAvailable" :  "give the name like this connectorName/connectorName" if connector else ""}) or "" 
             name = self.generate([{"role": "user", "content": prompt}], max_tokens=10)
-            return name[0].strip().replace(" ", "_") + ".md"
+            return name[0].strip().replace(" ", "_")
         except Exception as e:
             return base_name
        

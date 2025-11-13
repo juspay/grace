@@ -37,20 +37,23 @@ class TechspecWorkflowState(TypedDict, total=False):
     folder : Optional[str]
 
     # Workflow control
-    connector_name: str
+    connector_name: Optional[str]
     mock_server: bool
     test_only: bool
     verbose: bool
 
+    urls_file: Optional[str]
     # Input data
     urls: List[str]
     visited_urls: List[str]
 
     # Processing results
     crawl_results: Dict[str, CrawlResult]
+    file_name : str
     markdown_files: List[Path]
     tech_spec: str
     spec_filepath: Path
+
 
     # Mock server results
     mock_server_dir: Path

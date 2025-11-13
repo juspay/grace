@@ -112,6 +112,7 @@ class TechspecWorkflow:
     async def execute(self,
                      connector_name: str,
                      folder: Optional[str],
+                     urls_file: Optional[str] = None,
                      output_dir: Optional[str] = None,
                      mock_server: bool = False,
                      test_only: bool = False,
@@ -125,6 +126,7 @@ class TechspecWorkflow:
         # Initialize state
         initial_state: TechspecWorkflowState = {
             "connector_name": connector_name,
+            "urls_file": urls_file,
             "urls": [],
             "visited_urls": [],
             "folder" : folder or None,
@@ -134,7 +136,9 @@ class TechspecWorkflow:
             "test_only": test_only,
             "verbose": verbose,
             "final_output": {},
+            "warnings": [],
             "error": None,
+            "errors": [],
             "metadata": {"workflow_started": True, "timestamp": datetime.now().isoformat()},
         }
 
@@ -174,6 +178,7 @@ def create_techspec_workflow() -> TechspecWorkflow:
 # CLI integration function
 async def run_techspec_workflow(connector_name: str,
                                folder: Optional[str],
+                                urls_file: Optional[str] = None,
                                output_dir: Optional[str] = None,
                                mock_server: bool = False,
                                test_only: bool = False,
@@ -183,6 +188,7 @@ async def run_techspec_workflow(connector_name: str,
     return await workflow.execute(
         connector_name=connector_name,
         folder=folder,
+        urls_file=urls_file,
         output_dir=output_dir,
         mock_server=mock_server,
         test_only=test_only,

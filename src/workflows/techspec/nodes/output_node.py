@@ -1,15 +1,20 @@
 from ..states.techspec_state import TechspecWorkflowState as WorkflowState
 import click
-
+from src.tools.filemanager.filemanager import FileManager
 
 def output_node(state: WorkflowState) -> WorkflowState:
     click.echo(f"\nProcessing Complete!")
-    
+    try:
+        filemanager = FileManager("links")
+        filename = (state["connector_name"] or state["file_name"])+ "_links.txt"
+        filemanager.write_file( filename+ "/" + filename + "_links.txt", "\n".join(state["urls"]))
+    except Exception as e:
+        click.echo(f"Error writing links file: {e}")
     # Display tech spec preview if available
     if "tech_spec" in state and state["tech_spec"]:
         tech_spec = state["tech_spec"]
         click.echo(f"\nPreview of generated specification:")
-        preview = tech_spec[:500] + "..." if len(tech_spec) > 500 else tech_spec
+        preview = tech_spec[:200] + "..." if len(tech_spec) > 100 else tech_spec
         click.echo("============== Tech Spec Preview ==============")
         click.echo(preview)
         click.echo("===============================================")
@@ -38,12 +43,7 @@ def output_node(state: WorkflowState) -> WorkflowState:
     
     click.echo(f"• Results saved to: {state['output_dir']}")
     
-    # Display any warnings
-    if state["warnings"]:
-        click.echo(f"\nWarnings ({len(state['warnings'])}):")
-        for warning in state["warnings"]:
-            click.echo(f"    {warning}")
-    
+
     # Display any errors
     if state["errors"]:
         click.echo(f"\nErrors ({len(state['errors'])}):")

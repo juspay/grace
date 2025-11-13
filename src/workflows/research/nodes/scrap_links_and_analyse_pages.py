@@ -2,7 +2,7 @@ import asyncio
 
 from src.ai.ai_service import AIService
 from ..states.research_state import WorkflowState
-from src.tools.browser import ScrappingService
+from src.tools.browser import ScrapingService
 from rich.console import Console
 from src.utils.filemanager_tools import save_file
 from src.utils.research.research_utils import validate_page_content
@@ -15,7 +15,7 @@ def validate_page(llm_client, connector_name: str, query: str, result: dict):
 
 def scrap_links_and_analyse_pages(state: WorkflowState) -> WorkflowState:
       try:
-         scrapping_service = ScrappingService()
+         scraping_service = ScrapingService()
          llm_client = AIService(state["config"].getAiConfig())
          urls = state["search_results"]
          query = state["query"]
@@ -33,7 +33,7 @@ def scrap_links_and_analyse_pages(state: WorkflowState) -> WorkflowState:
                     state["scrapping_failed_pages"].append(result["url"])
             except Exception as e:
                 console.print(f"Error occurred while processing {result['url']}: {e}")
-         asyncio.run(scrapping_service.scrape_multiple_pages(urls=urls, callback=callback))
+         asyncio.run(scraping_service.scrape_multiple_pages(urls=urls, callback=callback))
 
       except Exception as e:
           console.print(f"Error occurred while scraping: {e}")

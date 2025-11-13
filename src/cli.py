@@ -55,13 +55,16 @@ def setupsearch(local):
 @cli.command()
 @click.argument('connector', required=False)
 @click.option('folder', '-f', help="the docs folder")
+@click.option('urls', '-u', help="the docs urls file")
 @click.option('--output', '-o', help='Output directory for generated specs')
 @click.option('--test-only', is_flag=True, help='Run in test mode without generating files')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
 @click.option('--mock-server', '-m', is_flag=True, help='Enable mock server for API interactions (for testing)')
-def techspec(connector, folder, output, test_only, verbose, mock_server):
+def techspec(connector, folder, urls, output, test_only, verbose, mock_server):
     # we will use the other flags in future for more customization don't remove them
     """ -m flag to mock server and use --help for more details
+    -u pass the urls file for docs
+    -f pass the docs folder
     """
     async def run_techspec():
         """Async wrapper for techspec workflow."""
@@ -77,17 +80,19 @@ def techspec(connector, folder, output, test_only, verbose, mock_server):
                     click.echo("Mode: TEST ONLY")
                 click.echo()
 
+            if urls:
+                click.echo(f"Docs URLs file: {urls}")
             # Use config for output directory if not specified
             output_dir = output or None
             # Execute the techspec workflow
             result = await run_techspec_workflow(
                 connector_name=connector,
                 folder=folder,
+                urls_file=urls,
                 output_dir=output_dir,
                 test_only=test_only,
                 verbose=verbose,
                 mock_server=mock_server,
-
             )
 
             if result["success"]:

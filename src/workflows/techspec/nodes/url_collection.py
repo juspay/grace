@@ -2,14 +2,14 @@
 from typing import List
 
 
+from src.tools.filemanager.filemanager import FileManager
 from src.utils.validations import  validate_url
 from src.utils.transformations import deduplicate_urls
 
 from ..states.techspec_state import TechspecWorkflowState
-import click
-import json
-import re
-
+from rich.console import Console
+from pathlib import Path
+console = Console()
 
 def _parse_urls_from_input(input_text: str) -> List[str]:
     """Parse URLs from input text, splitting by newlines only."""
@@ -22,14 +22,35 @@ def _parse_urls_from_input(input_text: str) -> List[str]:
 
 
 def collect_urls(state: TechspecWorkflowState) -> TechspecWorkflowState:
-
-    # Placeholder implementation for URL collection
     urls = []
-    click.echo("Enter URLs (one per line). Press Enter on an empty line to finish:")
+    if state.get("urls_file"):
+        urls_file = state["urls_file"]
+        filemanager = FileManager()
+        try:
+            files = filemanager.get_all_files(urls_file)
+            for file in files:
+                file_content = filemanager.read_file(file)
+                parsed_urls = _parse_urls_from_input(file_content)
+                if not parsed_urls:
+                    console.print("[yellow]No URLs found in the file.[/yellow]")
+                else:
+                    for url in parsed_urls:
+                        is_valid, error = validate_url(url)
+                        if not is_valid:
+                            console.print(f"[red]Invalid URL in file: {url} - {error}[/red]")
+                            continue
+                        urls.append(url)
+            if urls:
+                console.print(f"[green]Collected {len(urls)} URLs from file: {urls_file}[/green]")
+        except Exception as e:
+            console.print(f"[red]Error reading URLs from file: {e}[/red]")
+            if "errors" not in state:
+                state["errors"] = []
+            state["errors"].append(f"Error reading URLs from file: {e}")
 
     # Collect multi-line input until an empty line is entered (after content)
     lines = []
-    
+    console.print("\n\n[bold]Enter URLs (one per line). Press Enter on an empty line to generate techspec:[/bold]")
     while True:
         try:
             line = input()
@@ -38,7 +59,7 @@ def collect_urls(state: TechspecWorkflowState) -> TechspecWorkflowState:
             if is_empty:
                 # If we have content and get an empty line, finish
                 # If no content yet, allow one empty line (for two consecutive newlines case)
-                if lines:
+                if urls or lines: 
                     break
             else:
                 lines.append(line)
@@ -51,17 +72,17 @@ def collect_urls(state: TechspecWorkflowState) -> TechspecWorkflowState:
     if user_input.strip():
         parsed_urls = _parse_urls_from_input(user_input)
         if not parsed_urls:
-            click.echo("No URLs found in input")
+            console.print("No URLs found in input")
         else:
             for url in parsed_urls:
                 is_valid, error = validate_url(url)
                 if not is_valid:
-                    click.echo(f"Invalid URL: {url} - {error}")
+                    console.print(f"[red]Invalid URL: {url} - {error}[/red]")
                     # state["warning"].append(f"Invalid URL: {url} - {error}")
                     continue
 
                 urls.append(url)
-                click.echo(f"Added: {url}")
+                console.print(f"[green]Added from input: {url}[/green]")
 
     urls = deduplicate_urls(urls)
 
@@ -70,12 +91,10 @@ def collect_urls(state: TechspecWorkflowState) -> TechspecWorkflowState:
         state["metadata"] = {}
     state["metadata"]["total_urls"] = len(urls)
     if urls:
-        click.echo(f"\nProcessing {len(urls)} URL(s):")
+        console.print(f"\nProcessing {len(urls)} URL(s):")
         for i, url in enumerate(urls, 1):
-            click.echo(f"  {i}. {url}")
+            console.print(f"  {i}. {url}")
     else:
-        click.echo("No valid URLs provided.")
-        if "errors" not in state:
-            state["errors"] = []
+        console.print("No valid URLs provided.")
         state["errors"].append("No valid URLs collected")
     return state

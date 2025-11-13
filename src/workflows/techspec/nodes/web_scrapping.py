@@ -6,7 +6,7 @@ from src.tools.filemanager.filemanager import FileManager
 from ..states.techspec_state import CrawlResult, TechspecWorkflowState
 from pathlib import Path
 from src.tools.firecrawl.firecrawl import FirecrawlClient
-from src.tools.browser.ScrapingService import ScrappingService
+from src.tools.browser.ScrapingService import ScrapingService
 from rich.console import Console
 from src.utils.filemanager_tools import save_file
 console = Console()
@@ -21,9 +21,9 @@ def scrap_urls(state: TechspecWorkflowState) -> TechspecWorkflowState:
 
     try:
         config = state["config"]
-        scrapping_service: ScrappingService | FirecrawlClient = None
+        scrapping_service: ScrapingService | FirecrawlClient = None
         if (config.use_playwright):
-            scrapping_service = ScrappingService()
+            scrapping_service = ScrapingService()
         else:
             if not config or not config.firecrawl_api_key:
                raise ValueError("Firecrawl API key not configured")
@@ -127,8 +127,6 @@ def scrap_urls(state: TechspecWorkflowState) -> TechspecWorkflowState:
         click.echo("\nError: No URLs were successfully crawled")
 
     if failed_crawls:
-        if "warnings" not in state:
-            state["warnings"] = []
         state["warnings"].append(f"{len(failed_crawls)} URL(s) failed to crawl")
         click.echo(f"\nWarning: {len(failed_crawls)} URL(s) failed to crawl")
 

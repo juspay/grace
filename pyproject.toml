@@ -57,6 +57,10 @@ dependencies = [
     "selenium>=4.15.0",
     "requests-html>=0.10.0",
     "markdownify>=1.2.0",
+    "pypdf2>=3.0.1",
+    "python-docx>=1.2.0",
+    "pandas>=2.3.3",
+    "openpyxl>=3.1.5",
 ]
 
 [project.optional-dependencies]

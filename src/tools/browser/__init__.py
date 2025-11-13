@@ -1,4 +1,4 @@
-from .ScrapingService import ScrappingService
+from .ScrapingService import ScrapingService
 from .BrowserService import BrowserService
 
-all = ["ScrappingService", "BrowserService"]
+all = ["ScrapingService", "BrowserService"]

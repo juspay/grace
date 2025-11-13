@@ -66,10 +66,11 @@ techspecPrompt: |
 
 techspecFileNamePrompt: |
   Generate a concise filename for the technical specification document without any spaces or special characters, 
-  just the name with single world with the same name as the connector name in the urls: {urls}
-  If unable to generate, return "tech_spec"
+  just the name with single world with the same name as the connector name in the techspec: {tech_spec}
+  If unable to generate, return "tech_spec_{connector}"
   Only return the filename without any additional text or formatting.
   {isConnectorAvailable}
+  Don't give generic names like payments and all, try to find the unique connector name from the techspec
   strictly follow the instructions.
 
 techspecMockServerPrompt: |
