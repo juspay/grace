@@ -21,7 +21,13 @@ class ScrapingService:
         self._pages_data = []
         self._browser_pool = []
         self._pool_size = 5
-        self._session = None
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit - ensures proper cleanup."""
+        await self.close()
 
     @asynccontextmanager
     async def _get_browser_service(self):
@@ -44,10 +50,26 @@ class ScrapingService:
             elif service:
                 await service.close()
 
+    @asynccontextmanager
     async def _get_session(self):
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession()
-        return self._session
+        timeout = aiohttp.ClientTimeout(total=120, connect=30, sock_read=60)
+        connector = aiohttp.TCPConnector(
+            limit=100, 
+            limit_per_host=10,
+            enable_cleanup_closed=True,
+            keepalive_timeout=30
+        )
+        session = aiohttp.ClientSession(
+            timeout=timeout,
+            connector=connector,
+            headers={'User-Agent': 'ScrapingService/1.0'}
+        )
+        try:
+            yield session
+        finally:
+            await session.close()
+            await asyncio.sleep(0.1)  # Allow connections to close
+
 
     def _is_pdf_url(self, url: str) -> bool:
         url_lower = url.lower()
@@ -72,10 +94,10 @@ class ScrapingService:
 
     async def _check_content_type(self, url: str) -> str:
         try:
-            session = await self._get_session()
-            async with session.head(url, timeout=10) as response:
-                content_type = response.headers.get('content-type', '').lower()
-                return content_type
+            async with self._get_session() as session:
+                async with session.head(url, timeout=10) as response:
+                    content_type = response.headers.get('content-type', '').lower()
+                    return content_type
         except Exception as e:
             self.console.log(f"Could not determine content type for {url}: {e}")
             return ""
@@ -92,32 +114,32 @@ class ScrapingService:
 
     async def _download_pdf(self, url: str) -> Optional[str]:
         try:
-            session = await self._get_session()
-            self.console.print(f"Downloading PDF: {url}")
-            
-            async with session.get(url, timeout=60) as response:
-                if response.status != 200:
-                    return None
+            async with self._get_session() as session:
+                self.console.print(f"Downloading PDF: {url}")
                 
-                content_type = response.headers.get('content-type', '').lower()
-                if 'pdf' not in content_type:
-                    self.console.log(f"Warning: Content type {content_type} may not be PDF")
-                
-                # Create temporary file
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-                    temp_path = tmp_file.name
+                async with session.get(url, timeout=60) as response:
+                    if response.status != 200:
+                        return None
                     
-                    # Write PDF content to temporary file
-                    async for chunk in response.content.iter_chunked(8192):
-                        tmp_file.write(chunk)
-                
-                # Extract text from PDF
-                text_content = await self._extract_pdf_text(temp_path)
-                
-                # Clean up temporary file
-                os.unlink(temp_path)
-                
-                return text_content
+                    content_type = response.headers.get('content-type', '').lower()
+                    if 'pdf' not in content_type:
+                        self.console.log(f"Warning: Content type {content_type} may not be PDF")
+                    
+                    # Create temporary file
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                        temp_path = tmp_file.name
+                        
+                        # Write PDF content to temporary file
+                        async for chunk in response.content.iter_chunked(8192):
+                            tmp_file.write(chunk)
+                    
+                    # Extract text from PDF
+                    text_content = await self._extract_pdf_text(temp_path)
+                    
+                    # Clean up temporary file
+                    os.unlink(temp_path)
+                    
+                    return text_content
                 
         except Exception as e:
             self.console.log(f"Error downloading/processing PDF {url}: {e}")
@@ -157,21 +179,21 @@ class ScrapingService:
 
     async def _download_document(self, url: str, doc_type: str) -> Optional[str]:
         try:
-            session = await self._get_session()
-            self.console.print(f"Downloading {doc_type.upper()}: {url}")
-            
-            async with session.get(url, timeout=60) as response:
-                if response.status != 200:
-                    return None
+            async with self._get_session() as session:
+                self.console.print(f"Downloading {doc_type.upper()}: {url}")
                 
-                content = await response.text()
-                
-                if doc_type == 'yaml':
-                    return self._format_yaml_content(content)
-                elif doc_type == 'json':
-                    return self._format_json_content(content)
-                
-                return content
+                async with session.get(url, timeout=60) as response:
+                    if response.status != 200:
+                        return None
+                    
+                    content = await response.text()
+                    
+                    if doc_type == 'yaml':
+                        return self._format_yaml_content(content)
+                    elif doc_type == 'json':
+                        return self._format_json_content(content)
+                    
+                    return content
                 
         except Exception as e:
             self.console.log(f"Error downloading {doc_type} {url}: {e}")
@@ -404,6 +426,7 @@ class ScrapingService:
             else:
                 return await self._scrape_parallel(valid_urls, callback, optimal_parallel)
         finally:
+            # Clean up browser pool but keep session for reuse
             await self._cleanup_browser_pool()
 
     async def _scrape_sequential(self, urls: List[str], callback: Optional[Callable] = None) -> List[dict]:
@@ -480,3 +503,16 @@ class ScrapingService:
                 await browser_service.close()
             except Exception as e:
                 self.console.log(f"Error closing browser service: {e}")
+
+    async def close(self):
+        try:
+            # Close browser pool
+            await self._cleanup_browser_pool()
+            
+            # Close main browser service if exists
+            if self.browser_service:
+                await self.browser_service.close()
+                self.browser_service = None
+            
+        except Exception as e:
+            self.console.log(f"Error during cleanup: {e}")

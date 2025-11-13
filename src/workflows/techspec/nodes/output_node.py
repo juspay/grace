@@ -5,9 +5,10 @@ from src.tools.filemanager.filemanager import FileManager
 def output_node(state: WorkflowState) -> WorkflowState:
     click.echo(f"\nProcessing Complete!")
     try:
-        filemanager = FileManager("links")
-        filename = (state["connector_name"] or state["file_name"])+ "_links.txt"
-        filemanager.write_file( filename+ "/" + filename + "_links.txt", "\n".join(state["urls"]))
+        if "urls_file" not in state:
+            filemanager = FileManager("links")
+            filename = (state["connector_name"] or state["file_name"])+ "_links.txt"
+            filemanager.write_file( filename+ "/" + filename + "_links.txt", "\n".join(state["urls"]))
     except Exception as e:
         click.echo(f"Error writing links file: {e}")
     # Display tech spec preview if available

@@ -98,11 +98,6 @@ def techspec(connector, folder, urls, output, test_only, verbose, mock_server):
             if result["success"]:
                 click.echo("Techspec generation completed successfully!")
 
-                if verbose:
-                    click.echo(f"Validation status: {result.get('validation_status', 'unknown')}")
-                    click.echo(f"Files generated: {result.get('files_generated', 0)}")
-                    click.echo()
-
                 # Display output summary
                 output_data = result.get("output", {})
                 if output_data:
@@ -148,7 +143,6 @@ def techspec(connector, folder, urls, output, test_only, verbose, mock_server):
 
             else:
                 # click.echo(f"result: {result}")
-                click.echo(f"Techspec generation failed: {result['error']}", err=True)
                 if verbose and result.get("metadata"):
                     click.echo(f"Debug info: {result['metadata']}", err=True)
                 sys.exit(1)
@@ -233,6 +227,7 @@ def research(query, output, tech_spec, format, depth, ai_browser, sources, verbo
 @click.option('--output', '-o', help='Output directory for PR data')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
 def pr(pr_url, output, verbose):
+    """Fetches PR and summarizes changes using AI."""
     while not pr_url or pr_url.strip() == "":
         pr_url = click.prompt(
             "Enter GitHub PR URL (e.g., https://github.com/owner/repo/pull/123)",

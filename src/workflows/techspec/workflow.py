@@ -147,12 +147,12 @@ class TechspecWorkflow:
             result = await self.graph.ainvoke(initial_state)
 
             return {
-                "success": result["error"] is None,
+                "success": result["error"] == None,
                 "connector_name": result["connector_name"],
                 "output": result["final_output"],
                 "metadata": result["metadata"],
                 "error": result["error"],
-                "validation_status": result["validation_results"]["overall_status"] if result["validation_results"] else "unknown",
+                "validation_status": result["validation_results"] if result["validation_results"] else "unknown",
                 "files_generated": result["final_output"].get("summary", {}).get("total_files", 0) if result["final_output"] else 0
             }
 
