@@ -1,42 +1,55 @@
 from pathlib import Path
-
-from typing import List, Optional, Tuple, Any, Union
+from typing import Any, List, Optional, Tuple, Union
 
 try:
     import litellm  # type: ignore[import-untyped]
 except ImportError:
     litellm = None  # type: ignore[assignment]
 
+from src.config import get_config
 from src.types.config import AIConfig
 from src.utils.ai_utils import combine_markdown_files
+
 from .system.prompt_config import prompt_config
-from src.config import get_config
+
+
 class AIService:
     config: AIConfig
+
     def __init__(self, config: Union[AIConfig, None] = None):
         if litellm is None:
-            raise ImportError("litellm package is required. Install with: pip install litellm")
+            raise ImportError(
+                "litellm package is required. Install with: pip install litellm"
+            )
 
         self.config = config or get_config().getAiConfig()
         if self.config.base_url:
             litellm.api_base = self.config.base_url
         litellm.api_key = self.config.api_key
 
-    def generate(self, messages: Any,  max_tokens: Optional[int] = None) -> Tuple[str, bool, str]:
+        # Enable context window fallback as suggested by LiteLLM
+        litellm.context_window_fallback_dict = {
+            "claude-sonnet-4-5": ["claude-sonnet-4", "claude-sonnet-4-20250514"],
+            "glm-latest": ["claude-sonnet-4-5", "claude-sonnet-4-20250514"],
+        }
+
+    def generate(
+        self, messages: Any, max_tokens: Optional[int] = None
+    ) -> Tuple[str, bool, str]:
         try:
             # Use config max_tokens if not provided
             if max_tokens is None:
                 max_tokens = self.config.max_tokens
 
             completion_args = {
-                    "model": self.config.model_id,
-                    "messages": messages,
-                    "max_tokens": max_tokens,
-                    "api_key": self.config.api_key,
-                    "temperature": self.config.temperature,
-                }
+                "model": self.config.model_id,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "api_key": self.config.api_key,
+                "temperature": self.config.temperature,
+            }
             if self.config.base_url:
-                    completion_args["api_base"] = self.config.base_url
+                completion_args["api_base"] = self.config.base_url
             response = litellm.completion(**completion_args)
             result = response.choices[0].message["content"]
             if not result or not result.strip():
@@ -45,20 +58,22 @@ class AIService:
 
         except Exception as e:
             return "", False, str(e)
-    
-    async def vision_generate(self, messages:Any, max_tokens: Optional[int] = None) -> Any:
+
+    async def vision_generate(
+        self, messages: Any, max_tokens: Optional[int] = None
+    ) -> Any:
         completion_args = {
-                    "model": self.config.vision_model_id,
-                    "messages": messages,
-                    "api_key": self.config.api_key,
-                    "temperature": 0.1,
-                }
+            "model": self.config.vision_model_id,
+            "messages": messages,
+            "api_key": self.config.api_key,
+            "temperature": 0.1,
+        }
         if max_tokens is not None:
             completion_args["max_tokens"] = max_tokens
 
         if self.config.base_url:
             completion_args["api_base"] = self.config.base_url
-        
+
         # Use async completion
         response = await litellm.acompletion(**completion_args)
         result = response.choices[0].message.content
@@ -66,44 +81,147 @@ class AIService:
             return ""
         return result
 
-
-    def generate_tech_spec(self, filemanager, markdown_files: List[Path]) -> Tuple[bool, Optional[str], Optional[str]]:
+    def generate_tech_spec(
+        self, filemanager, markdown_files: List[Path]
+    ) -> Tuple[bool, Optional[str], Optional[str]]:
         try:
-            combined_content : List[str] = combine_markdown_files(filemanager,markdown_files)
+            from src.utils.ai_utils import chunk_content_by_tokens, estimate_tokens
+
+            combined_content: List[str] = combine_markdown_files(
+                filemanager, markdown_files
+            )
             if not combined_content or len(combined_content) == 0:
                 return False, "", "No content found in markdown files"
-            prompt = prompt_config().get_with_values("techspecPrompt", {"content": "check in user message"}) or ""
-            messages = [{"role": "user", "content": content} for content in combined_content]
-            messages.insert(0, {"role": "system", "content": prompt})
 
-            tech_spec, success, error = self.generate(messages)
-            if not success:
-                return False, None, error
-            
-            return True, tech_spec, None
+            # Convert to the format expected by chunking
+            pages = [
+                {"url": f"file_{i}", "content": content}
+                for i, content in enumerate(combined_content)
+            ]
+
+            # Estimate total tokens
+            total_tokens = sum(estimate_tokens(page["content"]) for page in pages)
+            print(f"Total content: ~{total_tokens:,} tokens from {len(pages)} pages")
+
+            # Chunk into smaller pieces (80k tokens per chunk to leave room for prompt + output)
+            # Context window for glm-latest is 202k, so: 80k input + prompt + 16k output = ~100k total per request
+            chunks = chunk_content_by_tokens(pages, max_tokens_per_chunk=80000)
+            print(f"Split into {len(chunks)} chunks")
+
+            prompt = (
+                prompt_config().get_with_values(
+                    "techspecPrompt", {"content": "check in user message"}
+                )
+                or ""
+            )
+
+            # Generate for each chunk with reduced max_tokens
+            chunk_results = []
+            for i, chunk in enumerate(chunks):
+                chunk_tokens = sum(estimate_tokens(page["content"]) for page in chunk)
+                # Calculate safe max_tokens: leave room for input + prompt + safety margin
+                # glm-latest context: 202k, so max_output = 202k - chunk_tokens - prompt_tokens - safety_margin
+                prompt_tokens = estimate_tokens(prompt)
+                safe_max_tokens = min(
+                    16384, max(4096, 200000 - chunk_tokens - prompt_tokens - 10000)
+                )
+
+                print(
+                    f"Processing chunk {i + 1}/{len(chunks)} (~{chunk_tokens:,} tokens, max_output: {safe_max_tokens})..."
+                )
+
+                messages = [{"role": "system", "content": prompt}]
+                messages.extend(
+                    [{"role": "user", "content": page["content"]} for page in chunk]
+                )
+
+                tech_spec, success, error = self.generate(
+                    messages, max_tokens=safe_max_tokens
+                )
+                if not success:
+                    if chunk_results:
+                        print(
+                            f"Warning: Chunk {i + 1} failed, returning partial results"
+                        )
+                        return True, "\n\n".join(chunk_results), None
+                    return False, None, error
+
+                chunk_results.append(tech_spec)
+
+            # Combine if multiple chunks
+            if len(chunk_results) > 1:
+                combine_prompt = "Combine the following technical specification parts into a single cohesive document, removing duplicates and ensuring consistency."
+                combined_input = "\n\n---PART SEPARATOR---\n\n".join(chunk_results)
+
+                # Also need to be careful with combining step
+                combine_tokens = estimate_tokens(combined_input) + estimate_tokens(
+                    combine_prompt
+                )
+                safe_combine_max = min(
+                    16384, max(8192, 200000 - combine_tokens - 10000)
+                )
+
+                print(
+                    f"Combining {len(chunk_results)} chunks (~{combine_tokens:,} tokens, max_output: {safe_combine_max})..."
+                )
+
+                messages = [
+                    {"role": "system", "content": combine_prompt},
+                    {"role": "user", "content": combined_input},
+                ]
+                final_spec, success, error = self.generate(
+                    messages, max_tokens=safe_combine_max
+                )
+                if not success:
+                    print(
+                        "Warning: Could not combine chunks, returning concatenated results"
+                    )
+                    return True, "\n\n".join(chunk_results), None
+                return True, final_spec, None
+
+            return True, chunk_results[0], None
 
         except Exception as e:
             return False, None, str(e)
 
-    def get_file_name(self, tech_spec: str, connector: bool = True, base_name: str = "tech_spec") -> str:
+    def get_file_name(
+        self, tech_spec: str, connector: bool = True, base_name: str = "tech_spec"
+    ) -> str:
         try:
-            prompt = prompt_config().get_with_values("techspecFileNamePrompt", {"tech_spec": tech_spec or "",
-                "isConnectorAvailable" :  "give the name like this connectorName/connectorName" if connector else ""}) or "" 
+            prompt = (
+                prompt_config().get_with_values(
+                    "techspecFileNamePrompt",
+                    {
+                        "tech_spec": tech_spec or "",
+                        "isConnectorAvailable": "give the name like this connectorName/connectorName"
+                        if connector
+                        else "",
+                    },
+                )
+                or ""
+            )
             name = self.generate([{"role": "user", "content": prompt}], max_tokens=10)
             return name[0].strip().replace(" ", "_")
         except Exception as e:
             return base_name
-       
-    def generate_mock_server(self, tech_spec: str) -> Tuple[bool, Optional[dict], Optional[str]]:
+
+    def generate_mock_server(
+        self, tech_spec: str
+    ) -> Tuple[bool, Optional[dict], Optional[str]]:
         try:
-            prompt = prompt_config().get_with_values("techspecMockServerPrompt", {"tech_spec": tech_spec or ""}) or ""
+            prompt = (
+                prompt_config().get_with_values(
+                    "techspecMockServerPrompt", {"tech_spec": tech_spec or ""}
+                )
+                or ""
+            )
             messages = [
                 {"role": "user", "content": prompt},
             ]
             response, success, error = self.generate(messages)
             if not success:
                 return False, None, error
-            
+
             return True, response, None
 
         except Exception as e:
