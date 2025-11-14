@@ -58,7 +58,8 @@ First, review the technical specification:
 **Phase 5: Advanced Features**
 - Webhook implementation
 - 3DS authentication handling
-- Recurring payment setup (mandates)
+- Recurring payment setup (SetupMandate flow)
+- Recurring payment processing (RepeatPayment flow)
 - Multi-step payment flows
 
 **Phase 6: Production Readiness**
@@ -419,15 +420,17 @@ impl IncomingWebhook for {{ConnectorName}} {
 - [ ] Test 3DS scenarios
 
 #### Step 5.3: Recurring Payments
-**Objective**: Implement mandate setup for recurring payments
+**Objective**: Implement mandate setup and recurring payment processing
 
 **Condition**: If connector supports recurring payments
 
 **Tasks:**
-- [ ] Implement SetupMandate flow
-- [ ] Handle mandate creation
-- [ ] Process subsequent payments
-- [ ] Test recurring scenarios
+- [ ] Implement SetupMandate flow for mandate creation
+- [ ] Implement RepeatPayment flow for processing recurring payments
+- [ ] Handle mandate reference storage and retrieval
+- [ ] Process subsequent payments using stored mandates
+- [ ] Test mandate setup scenarios
+- [ ] Test repeat payment scenarios
 
 #### Step 5.4: Multi-Step Payment Flows
 **Objective**: Implement complex payment flows

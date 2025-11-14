@@ -55,6 +55,7 @@ Before starting, determine your current implementation state:
 - **CreateOrder**: Multi-step payment initiation
 - **CreateSessionToken**: Secure session management
 - **SetupMandate**: Recurring payment setup
+- **RepeatPayment**: Process recurring payments using stored mandates
 - **DefendDispute**: Handle chargeback disputes
 - **SubmitEvidence**: Submit dispute evidence
 
@@ -168,6 +169,8 @@ impl TryFrom<&ConnectorAuthType> for ConnectorNameAuthType {
 > - **Void Flow**: `guides/patterns/pattern_void.md`
 > - **Psync Flow**: `guides/patterns/pattern_psync.md`
 > - **Rsync Flow**: `guides/patterns/pattern_rsync.md`
+> - **SetupMandate Flow**: `guides/patterns/pattern_setup_mandate.md`
+> - **RepeatPayment Flow**: `guides/patterns/repeat_payment_flow_patterns.md`
 
 ## 🔄 Resuming Partial Implementation
 
