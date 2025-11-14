@@ -130,10 +130,18 @@ class AIService:
                     f"Processing chunk {i + 1}/{len(chunks)} (~{chunk_tokens:,} tokens, max_output: {safe_max_tokens})..."
                 )
 
-                messages = [{"role": "system", "content": prompt}]
-                messages.extend(
-                    [{"role": "user", "content": page["content"]} for page in chunk]
-                )
+                # Combine pages into a single user message with clear separators
+                # to ensure the system prompt is not diluted by multiple user messages
+                chunk_content_parts = [
+                    f"--- Document {j + 1} ---\n{page['content']}"
+                    for j, page in enumerate(chunk)
+                ]
+                combined_chunk_content = "\n\n".join(chunk_content_parts)
+
+                messages = [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": combined_chunk_content},
+                ]
 
                 tech_spec, success, error = self.generate(
                     messages, max_tokens=safe_max_tokens
@@ -150,8 +158,22 @@ class AIService:
 
             # Combine if multiple chunks
             if len(chunk_results) > 1:
-                combine_prompt = "Combine the following technical specification parts into a single cohesive document, removing duplicates and ensuring consistency."
-                combined_input = "\n\n---PART SEPARATOR---\n\n".join(chunk_results)
+                # Clear system prompt for combining chunks
+                combine_prompt = """You are a technical writer. Your task is to combine multiple parts of a technical specification into a single cohesive document.
+
+Instructions:
+1. Merge all parts into a unified document
+2. Remove any duplicate information
+3. Ensure consistency in terminology and formatting
+4. Maintain all crucial technical details from each part
+5. Organize the content logically"""
+
+                # Combine chunk results with clear part markers
+                combined_parts = [
+                    f"--- Part {i + 1} of {len(chunk_results)} ---\n{result}"
+                    for i, result in enumerate(chunk_results)
+                ]
+                combined_input = "\n\n".join(combined_parts)
 
                 # Also need to be careful with combining step
                 combine_tokens = estimate_tokens(combined_input) + estimate_tokens(
