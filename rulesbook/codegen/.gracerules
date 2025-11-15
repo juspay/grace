@@ -28,6 +28,19 @@ This workflow is designed for NEW CONNECTOR INTEGRATIONS ONLY where:
 2. **WAIT FOR**: Foundation Setup completion confirmation
 3. **VALIDATE**: Cargo build success before proceeding
 
+### PHASE 2.5: MACRO PATTERN REFERENCE STUDY
+1. **MANDATORY**: Read macro pattern guides before implementation
+   - Read: guides/patterns/macro_patterns_reference.md
+   - Read: guides/patterns/flow_macro_guide.md
+   - Read: template-generation/macro_templates.md
+2. **UNDERSTAND**: Key concepts for implementation
+   - How to use create_all_prerequisites! macro
+   - How to use macro_connector_implementation! macro
+   - Flow-specific macro configurations
+   - Request/Response type naming conventions
+   - When to use generic <T> types
+   - Resource common data selection (PaymentFlowData, RefundFlowData, DisputeFlowData)
+
 ### PHASE 3: FLOW IMPLEMENTATION (Sequential Subagent Delegation)
 Execute flows in EXACT sequence - each must complete before next begins:
 1. **DELEGATE TO**: Authorize Flow Subagent → **WAIT FOR COMPLETION**
@@ -52,7 +65,8 @@ Execute this workflow:
 ```
 STEP 1: Read tech spec from grace/rulebook/codegen/references/{connector_name}/technical_specification.md
 STEP 2: Launch Foundation Setup Subagent
-STEP 3: Upon Foundation completion, launch Flow Subagents sequentially
+STEP 2.5: Read macro pattern reference guides (macro_patterns_reference.md, flow_macro_guide.md, macro_templates.md)
+STEP 3: Upon Foundation completion and macro study, launch Flow Subagents sequentially
 STEP 4: Upon all flows completion, perform final validation
 ```
 
@@ -943,6 +957,12 @@ When user executes: "integrate {ConnectorName} using grace/rulebook/codegen/.gra
 [🤖 DELEGATING] To Foundation Setup Subagent...
 [✅ COMPLETED] Foundation Setup Subagent reported completion
 [✅ VALIDATED] Cargo build successful
+
+📚 PHASE 2.5: MACRO PATTERN REFERENCE STUDY
+[✅ COMPLETED] Read guides/patterns/macro_patterns_reference.md
+[✅ COMPLETED] Read guides/patterns/flow_macro_guide.md
+[✅ COMPLETED] Read template-generation/macro_templates.md
+[✅ VALIDATED] Understood macro usage patterns and conventions
 
 🔄 PHASE 3: FLOW IMPLEMENTATION  
 [🤖 DELEGATING] To Authorize Flow Subagent...
