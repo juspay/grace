@@ -173,12 +173,11 @@ Instructions:
                     f"--- Part {i + 1} of {len(chunk_results)} ---\n{result}"
                     for i, result in enumerate(chunk_results)
                 ]
-                combined_input = "\n\n".join(combined_parts)
 
                 # Also need to be careful with combining step
-                combine_tokens = estimate_tokens(combined_input) + estimate_tokens(
-                    combine_prompt
-                )
+                combine_tokens = sum(
+                    estimate_tokens(part) for part in combined_parts
+                ) + estimate_tokens(combine_prompt)
                 safe_combine_max = min(
                     16384, max(8192, 200000 - combine_tokens - 10000)
                 )
@@ -189,7 +188,7 @@ Instructions:
 
                 messages = [
                     {"role": "system", "content": combine_prompt},
-                    {"role": "user", "content": combined_input},
+                    *[{"role": "user", "content": page} for page in combined_parts],
                 ]
                 final_spec, success, error = self.generate(
                     messages, max_tokens=safe_combine_max
