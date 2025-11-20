@@ -158,7 +158,22 @@ class AIService:
 
             # Combine if multiple chunks
             if len(chunk_results) > 1:
-                # Clear system prompt for combining chunks
+                # For large documents split into many chunks, just concatenate instead of combining
+                # to avoid hitting output token limits
+                total_result_tokens = sum(
+                    estimate_tokens(result) for result in chunk_results
+                )
+
+                # If the combined results would be too large for a single LLM call,
+                # just concatenate them directly
+                if total_result_tokens > 60000:  # Conservative threshold
+                    print(
+                        f"Combined results too large (~{total_result_tokens:,} tokens), "
+                        f"concatenating {len(chunk_results)} chunks directly..."
+                    )
+                    return True, "\n\n".join(chunk_results), None
+
+                # Otherwise, use LLM to merge and deduplicate
                 combine_prompt = """You are a technical writer. Your task is to combine multiple parts of a technical specification into a single cohesive document.
 
 Instructions:
@@ -174,21 +189,26 @@ Instructions:
                     for i, result in enumerate(chunk_results)
                 ]
 
-                # Also need to be careful with combining step
+                # Calculate safe max_tokens for output
                 combine_tokens = sum(
                     estimate_tokens(part) for part in combined_parts
                 ) + estimate_tokens(combine_prompt)
+
+                # The output should be roughly the size of the input (deduplication may reduce it)
+                # Leave room for context: 200k total - input - prompt - 10k safety = output budget
                 safe_combine_max = min(
-                    16384, max(8192, 200000 - combine_tokens - 10000)
+                    32768, max(16384, 200000 - combine_tokens - 10000)
                 )
 
                 print(
                     f"Combining {len(chunk_results)} chunks (~{combine_tokens:,} tokens, max_output: {safe_combine_max})..."
                 )
 
+                # Combine all parts into a single user message (same pattern as chunking)
+                combined_content = "\n\n".join(combined_parts)
                 messages = [
                     {"role": "system", "content": combine_prompt},
-                    *[{"role": "user", "content": page} for page in combined_parts],
+                    {"role": "user", "content": combined_content},
                 ]
                 final_spec, success, error = self.generate(
                     messages, max_tokens=safe_combine_max
