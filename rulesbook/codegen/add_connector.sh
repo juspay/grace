@@ -634,12 +634,10 @@ EOF
 update_integration_types() {
     log_step "Updating integration types"
 
-    # Add import to use statement
-    sed -i.bak "/use crate::connectors::{/,/};/ s/Xendit,/Xendit, $NAME_PASCAL,/" "$INTEGRATION_TYPES_FILE"
-
-    # Add enum mapping
-    sed -i.bak "/ConnectorEnum::Helcim => Box::new(Helcim::new()),/a\\
-            ConnectorEnum::$NAME_PASCAL => Box::new($NAME_PASCAL::new())," "$INTEGRATION_TYPES_FILE"
+    # Add enum mapping to the convert_connector match statement
+    # Insert before the closing brace of the match statement
+    sed -i.bak "/ConnectorEnum::Paypal => Box::new(connectors::Paypal::new()),/a\\
+            ConnectorEnum::$NAME_PASCAL => Box::new(connectors::$NAME_PASCAL::new())," "$INTEGRATION_TYPES_FILE"
 
     rm -f "$INTEGRATION_TYPES_FILE.bak"
 
