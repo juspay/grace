@@ -29,6 +29,17 @@ use interfaces::connector_integration_v2::ConnectorIntegrationV2;
 - **gRPC-first**: All communication via Protocol Buffers
 - **Stateless**: No database dependencies
 
+### 🛠️ Utility Functions
+UCS provides comprehensive utility functions to avoid code duplication and maintain consistency:
+- **Error Handling**: `missing_field_err`, `handle_json_response_deserialization_failure`
+- **Amount Conversion**: `convert_amount`, `to_currency_base_unit`, amount convertors
+- **Data Transformation**: `to_connector_meta_from_secret`, `convert_uppercase`
+- **XML/JSON Processing**: `preprocess_xml_response_bytes`, `serialize_to_xml_string_with_root`
+- **Card Processing**: `get_card_details`, `get_card_issuer`
+- **Date/Time**: `now`, `get_timestamp_in_milliseconds`, `format_date`
+
+> **📖 Complete Reference:** See [`guides/utility_functions_reference.md`](utility_functions_reference.md) for comprehensive mapping of all utility functions with examples and use cases.
+
 ## 🎯 Connector Implementation States
 
 ### State Assessment
