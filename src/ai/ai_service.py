@@ -29,6 +29,7 @@ class AIService:
 
         # Enable context window fallback as suggested by LiteLLM
         litellm.context_window_fallback_dict = {
+            "openai/qwen3-coder-480b": ["openai/glm-46-fp8", "openai/glm-45-fp8"],
             "claude-sonnet-4-5": ["claude-sonnet-4", "claude-sonnet-4-20250514"],
             "glm-latest": ["claude-sonnet-4-5", "claude-sonnet-4-20250514"],
         }

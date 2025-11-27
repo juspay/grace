@@ -189,7 +189,16 @@ Read: template-generation/macro_templates.md
 - Resource common data selection (PaymentFlowData, RefundFlowData, DisputeFlowData)
 ```
 
-#### STEP 5: Execute Implementation Plan - MACRO-BASED APPROACH
+#### STEP 5: Execute Implementation Plan -  MACRO-BASED APPROACH ONLY 
+
+ CRITICAL REQUIREMENT - READ CAREFULLY:
+- You MUST use `macros::create_all_prerequisites!` and `macros::macro_connector_implementation!`
+- You MUST NOT manually implement ConnectorIntegrationV2 traits
+- Manual trait implementations are FORBIDDEN in UCS
+- This is NON-NEGOTIABLE - any manual implementation will be rejected by Quality Guardian
+
+If you attempt manual implementation, your work will be BLOCKED with quality score < 40.
+
 ```bash
 # CRITICAL: ALWAYS use macro-based pattern, NOT manual trait implementation
 
@@ -348,36 +357,60 @@ fn map_{connector_name}_status_to_attempt_status(
 - **Pattern File**: guides/patterns/pattern_authorize.md
 - **Primary Responsibility**: Payment authorization implementation
 - **Key Implementation**: ConnectorIntegrationV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>
+- **Implementation Method**: MACRO-BASED ONLY
+  CRITICAL: Use macro_connector_implementation! for Authorize flow
+  FORBIDDEN: Manual impl ConnectorIntegrationV2<Authorize, ...>
+  REQUIRED: Add Authorize to create_all_prerequisites! api: [] array
 
-#### PSYNC FLOW SUBAGENT  
+#### PSYNC FLOW SUBAGENT
 - **Flow Name**: PSync
 - **Pattern File**: guides/patterns/pattern_psync.md
 - **Primary Responsibility**: Payment status synchronization
 - **Key Implementation**: ConnectorIntegrationV2<PSync, PaymentFlowData, PaymentsSyncData, PaymentsResponseData>
+- **Implementation Method**: MACRO-BASED ONLY
+  CRITICAL: Use macro_connector_implementation! for PSync flow
+  FORBIDDEN: Manual impl ConnectorIntegrationV2<PSync, ...>
+  REQUIRED: Add PSync to create_all_prerequisites! api: [] array
 
 #### CAPTURE FLOW SUBAGENT
-- **Flow Name**: Capture  
+- **Flow Name**: Capture
 - **Pattern File**: guides/patterns/pattern_capture.md
 - **Primary Responsibility**: Payment capture implementation
 - **Key Implementation**: ConnectorIntegrationV2<Capture, PaymentFlowData, PaymentsCaptureData, PaymentsResponseData>
+- **Implementation Method**: MACRO-BASED ONLY
+  CRITICAL: Use macro_connector_implementation! for Capture flow
+  FORBIDDEN: Manual impl ConnectorIntegrationV2<Capture, ...>
+  REQUIRED: Add Capture to create_all_prerequisites! api: [] array
 
 #### REFUND FLOW SUBAGENT
 - **Flow Name**: Refund
-- **Pattern File**: guides/patterns/pattern_refund.md  
+- **Pattern File**: guides/patterns/pattern_refund.md
 - **Primary Responsibility**: Refund processing implementation
 - **Key Implementation**: ConnectorIntegrationV2<Refund, RefundFlowData, RefundsData, RefundsResponseData>
+- **Implementation Method**: MACRO-BASED ONLY
+  CRITICAL: Use macro_connector_implementation! for Refund flow
+  FORBIDDEN: Manual impl ConnectorIntegrationV2<Refund, ...>
+  REQUIRED: Add Refund to create_all_prerequisites! api: [] array
 
 #### RSYNC FLOW SUBAGENT
 - **Flow Name**: RSync
 - **Pattern File**: guides/patterns/pattern_rsync.md
-- **Primary Responsibility**: Refund status synchronization  
+- **Primary Responsibility**: Refund status synchronization
 - **Key Implementation**: ConnectorIntegrationV2<RSync, RefundFlowData, RefundSyncData, RefundsResponseData>
+- **Implementation Method**: MACRO-BASED ONLY
+  CRITICAL: Use macro_connector_implementation! for RSync flow
+  FORBIDDEN: Manual impl ConnectorIntegrationV2<RSync, ...>
+  REQUIRED: Add RSync to create_all_prerequisites! api: [] array
 
 #### VOID FLOW SUBAGENT
 - **Flow Name**: Void
 - **Pattern File**: guides/patterns/pattern_void.md
 - **Primary Responsibility**: Payment cancellation implementation
 - **Key Implementation**: ConnectorIntegrationV2<Void, PaymentFlowData, PaymentVoidData, PaymentsResponseData>
+- **Implementation Method**: MACRO-BASED ONLY
+  CRITICAL: Use macro_connector_implementation! for Void flow
+  FORBIDDEN: Manual impl ConnectorIntegrationV2<Void, ...>
+  REQUIRED: Add Void to create_all_prerequisites! api: [] array
 
 # ============================================================================
 # QUALITY GUARDIAN SUBAGENT SPECIFICATION
@@ -433,9 +466,18 @@ Files to analyze:
    - All trait implementations present for all flows
    - Make sure all sensitive fields are masked eg.(pan, cvc, expiry).
 
-   **MACRO PATTERN COMPLIANCE (CRITICAL):**
-   - ✅ create_all_prerequisites! macro used for foundation setup
-   - ✅ macro_connector_implementation! used for ALL flows (not manual impl)
+   **MACRO PATTERN COMPLIANCE (CRITICAL - AUTO-BLOCK IF VIOLATED):**
+
+   🚨 IF ANY FLOW uses manual `impl ConnectorIntegrationV2<...>` instead of macros:
+      - IMMEDIATELY mark as CRITICAL issue
+      - SET quality_score = 0 (automatic BLOCK)
+      - REJECT implementation completely
+      - REQUIRE full rewrite using macros
+
+   Required checks:
+   - ✅ create_all_prerequisites! macro present and used
+   - ✅ macro_connector_implementation! used for ALL flows (Authorize, PSync, Capture, Refund, RSync, Void)
+   - ❌ ZERO manual `impl ConnectorIntegrationV2` blocks allowed
    - ✅ All flows defined in create_all_prerequisites! api: [] array
    - ✅ Flow names match exactly between create_all_prerequisites! and macro_connector_implementation!
    - ✅ Request/Response types match between macro and transformers
