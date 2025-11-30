@@ -29,18 +29,61 @@ To implement a new connector capture flow using these patterns:
 
 **✅ Result**: Complete, production-ready connector capture flow implementation in ~20 minutes
 
+## Critical Implementation Rules (From PR Feedback)
+
+### Status Mapping (CRITICAL)
+- **NEVER hardcode `status: AttemptStatus::Charged`**
+- Always map status from connector response fields
+- If connector returns minimal response (only ID and timestamp):
+  - Use HTTP status code (2xx = Charged, 4xx/5xx = Failure)
+  - Document WHY each status is chosen
+  - Example: `// Success HTTP code with valid ID -> Charged because connector accepted capture synchronously`
+
+### Validation
+- **Only add validations required by connector API spec**
+- Always include comment explaining PURPOSE of validation
+- Example: `// Purpose: API requires transaction reference for capture`
+- Avoid unnecessary validations that add complexity without value
+- If connector API will reject without validation, include it; otherwise remove it
+
+### Field Usage
+- **Remove fields that would be hardcoded to None**
+- Keep request/response structures clean and minimal
+- Only include fields your connector actually uses
+- Example: Don't include `merchant_id: None` if connector doesn't use it
+
+### Quick Reference
+```rust
+// WRONG - Never do this
+status: AttemptStatus::Charged, // Hardcoded!
+
+// CORRECT - Map from response
+let status = common_enums::AttemptStatus::from(response.status.clone());
+
+// WRONG - Unnecessary validation
+if item.amount.get_amount_as_i64() <= 0 { ... } // Already validated upstream
+
+// CORRECT - API-required validation with purpose
+// Purpose: API requires original transaction reference for capture
+let transaction_id = router_data.request.connector_transaction_id
+    .as_ref()
+    .ok_or_else(|| ConnectorError::MissingConnectorTransactionID)?;
+```
+
 ## Table of Contents
 
 1. [Overview](#overview)
 2. [Capture Flow Implementation Analysis](#capture-flow-implementation-analysis)
 3. [Modern Macro-Based Pattern (Recommended)](#modern-macro-based-pattern-recommended)
-4. [Legacy Manual Pattern (Reference)](#legacy-manual-pattern-reference)
-5. [Capture Request/Response Patterns](#capture-requestresponse-patterns)
-6. [URL Endpoint Patterns](#url-endpoint-patterns)
-7. [Amount Handling Patterns](#amount-handling-patterns)
-8. [Error Handling Patterns](#error-handling-patterns)
-9. [Testing Patterns](#testing-patterns)
-10. [Integration Checklist](#integration-checklist)
+4. [Status Mapping Best Practices](#status-mapping-best-practices) **NEW**
+5. [Validation Guidelines](#validation-guidelines) **NEW**
+6. [Legacy Manual Pattern (Reference)](#legacy-manual-pattern-reference)
+7. [Capture Request/Response Patterns](#capture-requestresponse-patterns)
+8. [URL Endpoint Patterns](#url-endpoint-patterns)
+9. [Amount Handling Patterns](#amount-handling-patterns)
+10. [Error Handling Patterns](#error-handling-patterns)
+11. [Testing Patterns](#testing-patterns)
+12. [Integration Checklist](#integration-checklist)
 
 ## Overview
 
@@ -394,32 +437,30 @@ use domain_types::{
 };
 
 // Capture Request Structure
+// IMPORTANT: Only include fields that your connector actually uses
+// Remove any fields that would be hardcoded to None - keep structures clean
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")] // Adjust based on connector API
 pub struct {ConnectorName}CaptureRequest {
     // Common capture request fields across connectors:
-    
+
     // Amount fields (choose based on connector requirements)
     pub amount: {AmountType}, // MinorUnit, StringMinorUnit, StringMajorUnit
     pub currency: String,
-    
-    // Transaction reference (varies by connector)
+
+    // Transaction reference (varies by connector - include if used in request body)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_id: Option<String>,        // Some connectors need this in body
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reference: Option<String>,             // Original payment reference
-    
-    // Merchant information (if required)
+
+    // Merchant information (only include if required by connector)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub merchant_account: Option<Secret<String>>, // For Adyen-style connectors
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub merchant_id: Option<String>,           // For other connectors
-    
-    // Additional fields based on connector requirements
+
+    // Additional fields (only include if connector supports them)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<HashMap<String, String>>,
 }
 
 // Alternative: Wrapped Request Structure (like Authorizedotnet)
@@ -505,6 +546,7 @@ pub enum {ConnectorName}CaptureStatus {
 }
 
 // Status mapping for capture responses
+// CRITICAL: Map status from connector response fields - NEVER hardcode status
 impl From<{ConnectorName}CaptureStatus> for common_enums::AttemptStatus {
     fn from(status: {ConnectorName}CaptureStatus) -> Self {
         match status {
@@ -512,13 +554,13 @@ impl From<{ConnectorName}CaptureStatus> for common_enums::AttemptStatus {
             | {ConnectorName}CaptureStatus::Success
             | {ConnectorName}CaptureStatus::Captured
             | {ConnectorName}CaptureStatus::Completed => Self::Charged,
-            
+
             {ConnectorName}CaptureStatus::Failed
             | {ConnectorName}CaptureStatus::Error => Self::Failure,
-            
+
             {ConnectorName}CaptureStatus::Pending
             | {ConnectorName}CaptureStatus::Processing => Self::Pending,
-            
+
             {ConnectorName}CaptureStatus::Cancelled => Self::Voided,
             {ConnectorName}CaptureStatus::PartiallyRefunded => Self::PartialCharged,
         }
@@ -548,10 +590,10 @@ impl TryFrom<{ConnectorName}RouterData<RouterDataV2<Capture, PaymentFlowData, Pa
             currency: router_data.request.currency.to_string(),
             transaction_id: Some(transaction_id.clone()),
             reference: Some(router_data.resource_common_data.connector_request_reference_id.clone()),
-            merchant_account: None, // Set if required by connector
-            merchant_id: None,      // Set if required by connector
+            // Only include fields that connector actually requires
+            // AVOID setting fields to None - remove them from struct instead
+            merchant_account: Some(get_merchant_account(&router_data.connector_auth_type)?),
             description: Some(format!("Capture for payment {}", transaction_id)),
-            metadata: None,
         })
     }
 }
@@ -600,7 +642,9 @@ impl TryFrom<ResponseRouterData<{ConnectorName}CaptureResponse, RouterDataV2<Cap
         let response = &item.response;
         let router_data = &item.router_data;
 
-        // Map capture status to standard status
+        // Map capture status from connector response to standard status
+        // CRITICAL: Status MUST be mapped from response.status field, not hardcoded
+        // If connector returns minimal response (only ID and timestamp), map from available fields
         let status = common_enums::AttemptStatus::from(response.status.clone());
 
         // Handle error responses
@@ -656,7 +700,7 @@ pub struct {ConnectorName}RouterData<T> {
 
 impl<T> TryFrom<({AmountType}, T)> for {ConnectorName}RouterData<T> {
     type Error = error_stack::Report<ConnectorError>;
-    
+
     fn try_from((amount, router_data): ({AmountType}, T)) -> Result<Self, Self::Error> {
         Ok(Self {
             amount,
@@ -665,6 +709,229 @@ impl<T> TryFrom<({AmountType}, T)> for {ConnectorName}RouterData<T> {
     }
 }
 ```
+
+## Status Mapping Best Practices
+
+### CRITICAL: Never Hardcode Status
+
+**WARNING**: One of the most common mistakes in capture implementations is hardcoding `status: AttemptStatus::Charged`. This is NEVER correct.
+
+**Incorrect Example (DO NOT DO THIS):**
+```rust
+// WRONG - hardcoded status
+Ok(Self {
+    resource_common_data: PaymentFlowData {
+        status: AttemptStatus::Charged, // NEVER hardcode this!
+        ..router_data.resource_common_data.clone()
+    },
+    // ...
+})
+```
+
+**Correct Example:**
+```rust
+// CORRECT - map status from connector response
+let status = common_enums::AttemptStatus::from(response.status.clone());
+
+Ok(Self {
+    resource_common_data: PaymentFlowData {
+        status, // Mapped from actual connector response
+        ..router_data.resource_common_data.clone()
+    },
+    // ...
+})
+```
+
+### Handling Minimal Responses
+
+Some connectors return minimal capture responses with only ID and timestamp. In these cases, you need to determine the appropriate status based on available information.
+
+**Pattern for Minimal Responses:**
+```rust
+impl TryFrom<ResponseRouterData<{ConnectorName}CaptureResponse, RouterDataV2<Capture, ...>>>
+    for RouterDataV2<Capture, ...>
+{
+    type Error = error_stack::Report<ConnectorError>;
+
+    fn try_from(item: ResponseRouterData<...>) -> Result<Self, Self::Error> {
+        let response = &item.response;
+        let router_data = &item.router_data;
+
+        // If connector only returns ID and timestamp (minimal response):
+        // Status determination logic:
+        // 1. If response includes error fields -> Failure
+        // 2. If HTTP status code is 2xx and response has ID -> Charged
+        // 3. If HTTP status code is 4xx/5xx -> Failure
+        // 4. Otherwise -> Pending (for async processing)
+
+        let status = if let Some(status_field) = &response.status {
+            // If connector provides status field, use it
+            common_enums::AttemptStatus::from(status_field.clone())
+        } else if let Some(_error) = &response.error {
+            // Error present -> Failure
+            common_enums::AttemptStatus::Failure
+        } else if item.http_code >= 200 && item.http_code < 300 {
+            // Success HTTP code with valid ID -> Charged
+            // Reason: Connector accepted capture request synchronously
+            common_enums::AttemptStatus::Charged
+        } else if item.http_code >= 400 {
+            // Error HTTP code -> Failure
+            common_enums::AttemptStatus::Failure
+        } else {
+            // Accepted but processing asynchronously -> Pending
+            // Reason: Connector will process capture asynchronously
+            common_enums::AttemptStatus::Pending
+        };
+
+        // Rest of transformation...
+    }
+}
+```
+
+### Status Mapping Documentation
+
+Always document WHY a particular status is chosen, especially for edge cases:
+
+```rust
+// Map capture status from connector response
+let status = match response.status.as_str() {
+    // Success states map to Charged
+    // Reason: Capture has been completed and funds will be settled
+    "captured" | "settled" | "completed" => AttemptStatus::Charged,
+
+    // Pending states remain Pending
+    // Reason: Capture is accepted but not yet completed
+    "pending" | "processing" | "submitted" => AttemptStatus::Pending,
+
+    // Failure states map to Failure
+    // Reason: Capture was rejected or failed
+    "failed" | "declined" | "rejected" => AttemptStatus::Failure,
+
+    // Voided captures
+    // Reason: Capture was cancelled before settlement
+    "cancelled" | "voided" => AttemptStatus::Voided,
+
+    // Partial captures (when supported)
+    // Reason: Only part of the authorized amount was captured
+    "partially_captured" => AttemptStatus::PartialCharged,
+
+    // Unknown status defaults to Pending for safety
+    // Reason: Allows retry logic rather than marking as failure
+    _ => AttemptStatus::Pending,
+};
+```
+
+### Status Mapping Table
+
+| Connector Status | AttemptStatus | Reasoning |
+|-----------------|---------------|-----------|
+| `captured`, `settled`, `completed`, `success` | `Charged` | Capture completed successfully |
+| `pending`, `processing`, `submitted`, `queued` | `Pending` | Capture in progress |
+| `failed`, `declined`, `rejected`, `error` | `Failure` | Capture failed |
+| `cancelled`, `voided`, `reversed` | `Voided` | Capture cancelled |
+| `partially_captured` | `PartialCharged` | Partial capture completed |
+| Unknown/unmapped | `Pending` | Safe default for retry |
+
+## Validation Guidelines
+
+### When to Add Validations
+
+**Rule**: Only add validations that are explicitly required by the connector's API specification.
+
+**DO add validations for:**
+- Required fields per API spec (e.g., `connector_transaction_id`)
+- API-enforced constraints (e.g., amount must be <= authorized amount)
+- Critical business rules (e.g., currency consistency)
+
+**DO NOT add validations for:**
+- Fields that are already validated upstream
+- Unnecessary complexity without clear API requirements
+- Defensive checks that add no value
+
+### Validation with Purpose Comments
+
+Always explain WHY each validation exists:
+
+```rust
+impl TryFrom<{ConnectorName}RouterData<RouterDataV2<Capture, ...>>>
+    for {ConnectorName}CaptureRequest
+{
+    type Error = error_stack::Report<ConnectorError>;
+
+    fn try_from(item: {ConnectorName}RouterData<...>) -> Result<Self, Self::Error> {
+        let router_data = &item.router_data;
+
+        // Validation 1: Connector transaction ID is required
+        // Purpose: API requires original transaction reference for capture
+        // Consequence: Without this, capture request will fail with 400 error
+        let transaction_id = router_data
+            .request
+            .connector_transaction_id
+            .as_ref()
+            .ok_or_else(|| ConnectorError::MissingConnectorTransactionID)?;
+
+        // Validation 2: Capture amount must not exceed authorized amount
+        // Purpose: API enforces this constraint and rejects over-captures
+        // Consequence: Without this check, we get error code "AMOUNT_EXCEEDS_AUTH"
+        let capture_amount = router_data.request.amount_to_capture
+            .unwrap_or(router_data.request.payment_amount);
+
+        if capture_amount > router_data.request.payment_amount {
+            return Err(ConnectorError::InvalidRequestData {
+                message: "Capture amount cannot exceed authorized amount".to_string(),
+            }.into());
+        }
+
+        Ok(Self {
+            amount: item.amount,
+            currency: router_data.request.currency.to_string(),
+            transaction_id: transaction_id.clone(),
+        })
+    }
+}
+```
+
+### Example: Avoid Unnecessary Validations
+
+**Unnecessary (DO NOT DO THIS):**
+```rust
+// AVOID: Unnecessary validation - currency is already validated upstream
+if router_data.request.currency.to_string().len() != 3 {
+    return Err(ConnectorError::InvalidRequestData {
+        message: "Currency must be 3 characters".to_string(),
+    }.into());
+}
+
+// AVOID: Unnecessary validation - amount is already validated upstream
+if item.amount.get_amount_as_i64() <= 0 {
+    return Err(ConnectorError::InvalidRequestData {
+        message: "Amount must be positive".to_string(),
+    }.into());
+}
+```
+
+**Necessary (GOOD):**
+```rust
+// GOOD: API-specific validation required by connector
+if router_data.request.currency != Currency::USD
+    && router_data.request.currency != Currency::EUR {
+    return Err(ConnectorError::InvalidRequestData {
+        message: "Connector only supports USD and EUR for captures".to_string(),
+    }.into());
+}
+```
+
+### Validation Checklist
+
+Before adding a validation, ask:
+
+- [ ] Is this validation required by the connector's API documentation?
+- [ ] Will the API reject the request if this validation is missing?
+- [ ] Does this validation prevent a specific API error code?
+- [ ] Is this validation adding complexity without clear benefit?
+- [ ] Is this already validated upstream in the payment flow?
+
+If you can't answer "yes" to the first three questions, the validation is likely unnecessary.
 
 ## 🔄 Multi-Endpoint Capture Patterns
 
@@ -2571,15 +2838,17 @@ URL Pattern: {base_url}/capture
 ### Traditional Best Practices
 
 1. **Reuse Authorization Patterns**: Capture flows should follow the same authentication, headers, and base patterns as authorization flows
-2. **Transaction ID Validation**: Always validate the presence of `connector_transaction_id` before building capture requests
+2. **Transaction ID Validation**: Always validate the presence of `connector_transaction_id` before building capture requests (required by API spec)
 3. **Amount Consistency**: Use the same amount format and validation as the authorization flow
 4. **Error Mapping**: Map capture-specific error codes to appropriate attempt statuses
 5. **URL Construction**: Choose URL patterns that match the connector's REST API style
 6. **Partial Capture Support**: Handle partial captures if the connector supports them
 7. **Idempotency**: Implement idempotent captures when supported by the connector
-8. **Status Mapping**: Carefully map capture statuses (succeeded/captured/completed → Charged)
+8. **Status Mapping**: NEVER hardcode status - always map from connector response fields
 9. **Testing**: Write comprehensive tests for both success and failure scenarios
 10. **Documentation**: Document any capture-specific requirements or limitations
+11. **Clean Request Structures**: Remove fields that would be hardcoded to None - keep structures minimal
+12. **Purposeful Validations**: Only add validations required by connector API spec, with comments explaining WHY
 
 ### Enhanced Best Practices for Multi-Endpoint APIs
 

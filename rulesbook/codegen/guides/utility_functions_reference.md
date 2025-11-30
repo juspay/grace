@@ -2,6 +2,160 @@
 
 This document provides a comprehensive mapping of all utility functions available in the UCS connector-service codebase. Use these functions during connector integration to avoid code duplication and maintain consistency.
 
+---
+
+## **CHECK THIS REFERENCE BEFORE IMPLEMENTING CUSTOM LOGIC**
+
+**IMPORTANT**: Many common operations already have utility functions in the codebase. Before writing custom logic for:
+- Country code conversion
+- Date/time formatting
+- Card number handling
+- Amount conversion
+- State code conversion
+- XML/JSON processing
+- Error handling
+
+**→ Search this document first!** Using existing utilities ensures consistency, reduces code duplication, and prevents bugs.
+
+### Common Operations - Use These Utilities!
+
+#### **Country Code Conversion**
+❌ **WRONG** - Custom implementation:
+```rust
+fn alpha2_to_alpha3(code: &str) -> String {
+    match code {
+        "US" => "USA".to_string(),
+        "GB" => "GBR".to_string(),
+        "CA" => "CAN".to_string(),
+        // ... hundreds of lines ...
+    }
+}
+```
+
+✅ **RIGHT** - Use existing utility:
+```rust
+use domain_types::utils::convert_country_alpha2_to_alpha3;
+
+let alpha3_code = convert_country_alpha2_to_alpha3(&billing_address.country)?;
+// Handles all 249 ISO country codes automatically
+```
+
+#### **Card Expiry Date Formatting**
+❌ **WRONG** - Manual string manipulation:
+```rust
+let month = card.expiry_month.clone();
+let year = card.expiry_year.clone();
+let expiry = format!("{}/{}", month, &year[2..]);
+```
+
+✅ **RIGHT** - Use existing utility:
+```rust
+use domain_types::utils::get_card_expiry_month_year_2_digit_with_delimiter;
+
+let expiry = get_card_expiry_month_year_2_digit_with_delimiter(
+    &card.expiry_month,
+    &card.expiry_year,
+    "/"
+)?;
+// Handles validation, padding, and formatting automatically
+```
+
+#### **US State Code Conversion**
+❌ **WRONG** - Manual state mapping:
+```rust
+let state_code = match state_name {
+    "California" => "CA",
+    "New York" => "NY",
+    // ... 50 states ...
+    _ => state_name,
+};
+```
+
+✅ **RIGHT** - Use existing utility:
+```rust
+use domain_types::utils::convert_us_state_to_code;
+
+let state_code = convert_us_state_to_code(&billing_address.state);
+// Handles all 50 US states + territories
+```
+
+#### **Amount Conversion**
+❌ **WRONG** - Manual division/formatting:
+```rust
+let amount_str = format!("{:.2}", item.amount as f64 / 100.0);
+```
+
+✅ **RIGHT** - Use amount convertors:
+```rust
+use common_utils::types::StringMajorUnitForConnector;
+use domain_types::utils::convert_amount;
+
+let amount_str = convert_amount(
+    &StringMajorUnitForConnector,
+    item.amount,
+    item.currency
+)?;
+// Handles currency-specific decimal places (JPY, KWD, etc.)
+```
+
+#### **Card Network Detection**
+❌ **WRONG** - Partial BIN regex:
+```rust
+let network = if card_number.starts_with("4") {
+    "visa"
+} else if card_number.starts_with("5") {
+    "mastercard"
+} // Missing many networks...
+```
+
+✅ **RIGHT** - Use card issuer utility:
+```rust
+use domain_types::utils::get_card_issuer;
+
+let issuer = get_card_issuer(&card.card_number.peek())?;
+match issuer {
+    CardIssuer::Visa => "visa",
+    CardIssuer::Mastercard => "mastercard",
+    CardIssuer::AmericanExpress => "amex",
+    // Complete BIN database coverage
+}
+```
+
+#### **Date Formatting**
+❌ **WRONG** - Manual string formatting:
+```rust
+let formatted = format!("{}{:02}{:02}{:02}{:02}{:02}",
+    now.year(), now.month(), now.day(),
+    now.hour(), now.minute(), now.second());
+```
+
+✅ **RIGHT** - Use date formatting utility:
+```rust
+use common_utils::date_time::{format_date, DateFormat, now};
+
+let formatted = format_date(now(), DateFormat::YYYYMMDDHHmmss)?;
+// Supports: YYYYMMDDHHmmss, YYYYMMDD, YYYYMMDDHHmm, DDMMYYYYHHmmss
+```
+
+### When You Find Yourself Writing...
+
+| **If you're writing...** | **Use this instead** |
+|-------------------------|---------------------|
+| Custom country code mappings | `convert_country_alpha2_to_alpha3` |
+| Card expiry date string manipulation | `get_card_expiry_month_year_2_digit_with_delimiter` |
+| State name to code conversion | `convert_us_state_to_code` |
+| Amount to string conversion | `convert_amount` with appropriate convertor |
+| BIN/card network detection | `get_card_issuer` |
+| Date formatting with format strings | `format_date` with `DateFormat` enum |
+| XML response parsing | `preprocess_xml_response_bytes` |
+| Missing field errors | `missing_field_err("field_name")` |
+| Payment method not implemented errors | `get_unimplemented_payment_method_error_message` |
+| Current timestamp generation | `now_unix_timestamp()` or `get_timestamp_in_milliseconds` |
+
+**Remember**: If the operation feels "common", it probably has a utility function. Search this document before implementing!
+
+---
+
 ## Table of Contents
 - [Error Handling Utilities](#error-handling-utilities)
 - [Amount Conversion Utilities](#amount-conversion-utilities)

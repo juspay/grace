@@ -258,7 +258,9 @@ pub struct {ConnectorName}{FlowName}Request<T: PaymentMethodDataTypes + ...> {
     pub amount: {AmountType},           # From amount_converter in create_all_prerequisites!
     pub currency: String,
     pub payment_method: {ConnectorName}PaymentMethod<T>,  # If flow needs payment method
-    // Add fields from API docs
+    // Add ONLY fields from API docs - DO NOT add fields "just in case"
+    // CRITICAL: Remove any field that will always be None
+    // CRITICAL: Don't use Option unless the field is truly optional per API spec
 }
 
 3. Define response struct:
@@ -267,7 +269,8 @@ pub struct {ConnectorName}{FlowName}Request<T: PaymentMethodDataTypes + ...> {
 pub struct {ConnectorName}{FlowName}Response {
     pub id: String,
     pub status: {ConnectorName}Status,
-    // Add fields from API docs
+    // Add ONLY fields from API docs that you will actually use
+    // Create enums for status fields instead of using String
 }
 
 4. Implement request transformer:
@@ -280,7 +283,13 @@ impl<T: PaymentMethodDataTypes + ...> TryFrom<{ConnectorName}RouterData<RouterDa
     fn try_from(item: {ConnectorName}RouterData<...>) -> Result<Self, Self::Error> {
         let router_data = item.router_data;
         // Extract and transform data
-        Ok(Self { /* fields */ })
+        // CRITICAL: Use specific NotSupported errors with exact feature names
+        // WRONG: Err(ConnectorError::NotSupported { message: "Not supported" })
+        // CORRECT: Err(ConnectorError::NotSupported { message: "Apple Pay is not supported" })
+        Ok(Self {
+            // Only populate fields that exist in the struct
+            // DO NOT set any field to None - remove the field instead
+        })
     }
 }
 
@@ -293,7 +302,9 @@ impl<T: PaymentMethodDataTypes + ...> TryFrom<ResponseRouterData<{ConnectorName}
 
     fn try_from(item: ResponseRouterData<...>) -> Result<Self, Self::Error> {
         // Map response to RouterDataV2
-        // Map status using status mapping function
+        // CRITICAL: NEVER hardcode status - ALWAYS derive from response
+        // WRONG: status: AttemptStatus::Charged
+        // CORRECT: status: map_{connector}_status_to_attempt_status(&item.response.status)
         Ok(Self { /* updated router_data */ })
     }
 }
@@ -308,9 +319,16 @@ fn map_{connector_name}_status_to_attempt_status(
         {ConnectorName}Status::Success => common_enums::AttemptStatus::Charged,
         {ConnectorName}Status::Pending => common_enums::AttemptStatus::Pending,
         {ConnectorName}Status::Failed => common_enums::AttemptStatus::Failure,
-        // Map all connector statuses
+        // CRITICAL: Map ALL possible connector status values from API docs
+        // NEVER leave status variants unmapped
     }
 }
+
+2. CRITICAL STATUS MAPPING RULES:
+   - ALWAYS create a dedicated status enum (e.g., {ConnectorName}Status)
+   - ALWAYS use the status mapping function in response transformers
+   - NEVER hardcode status values like AttemptStatus::Charged directly
+   - Map status based on the actual response field, not assumptions
 
 ## CRITICAL RULES:
 - NEVER manually implement ConnectorIntegrationV2 - ALWAYS use macros
@@ -322,6 +340,14 @@ fn map_{connector_name}_status_to_attempt_status(
 - Generic <T> needed for Authorize and flows using payment method data
 - GET endpoints: omit curl_request parameter in macro
 - POST/PUT endpoints: always include curl_request parameter
+
+## CRITICAL CODE QUALITY RULES:
+- **Field Usage**: Remove all fields hardcoded to None - if always None, delete the field
+- **Optional Fields**: Don't use Option unless the field is truly optional per API spec
+- **Status Mapping**: NEVER hardcode status - always derive from connector response
+- **Error Messages**: Use specific NotSupported errors with exact feature names (e.g., "Apple Pay is not supported")
+- **Validation**: Only validate what's required by connector API, add comments explaining why
+- **Struct Cleanliness**: Only include fields actually used by the connector API
 ```
 
 #### STEP 6: Cargo Build and Debug
@@ -471,6 +497,30 @@ Files to analyze:
    - Create enums for Request/Response types instead of using raw string
    - Follow case sensitivity
    - Reuse existing enums avoid creating new ones or using string/raw types eg.(Currency, Country etc. ref. backend/common_enums/src/enums.rs)
+
+   **FIELD USAGE QUALITY CHECKS:**
+   - ✅ NO fields hardcoded to None - all unused fields removed
+   - ✅ NO unnecessary Optional fields in request structures
+   - ✅ All struct fields are actually used by the connector API
+   - ✅ Minimal, clean structs without defensive fields
+
+   **STATUS MAPPING QUALITY CHECKS:**
+   - ✅ NEVER hardcoded status values (e.g., AttemptStatus::Charged)
+   - ✅ Status ALWAYS derived from connector response field
+   - ✅ Comprehensive status mapping function exists
+   - ✅ All connector status variants mapped correctly
+
+   **ERROR HANDLING QUALITY CHECKS:**
+   - ✅ Specific NotSupported errors with exact feature/method names
+   - ✅ NO generic error messages - all errors are descriptive
+   - ✅ Proper ConnectorError types used throughout
+   - ✅ Error types match the situation (NotSupported, InvalidData, etc.)
+
+   **VALIDATION QUALITY CHECKS:**
+   - ✅ Validation purposes explained in code comments
+   - ✅ NO unnecessary validations that add complexity
+   - ✅ Only validate when required by connector API spec
+   - ✅ Clear, actionable error messages for all validations
 
 
 5. Check Pattern File Compliance (All Flows)
@@ -822,9 +872,32 @@ Score: 100 - 40 - 15 - 5 = 40 (Poor ❌ - BLOCK)
 - **Import Error Fixes**: Use correct domain_types imports
 - **Syntax Error Fixes**: Follow Rust syntax rules exactly
 
+### ERROR TYPE USAGE (CRITICAL)
+- **ALWAYS use specific NotSupported errors** for unsupported payment methods:
+  ```rust
+  // CORRECT - Specific error message
+  Err(errors::ConnectorError::NotSupported {
+      message: "Google Pay is not supported".to_string(),
+      connector: "stripe",
+  })
+
+  // WRONG - Generic error
+  Err(errors::ConnectorError::NotSupported {
+      message: "Payment method not supported".to_string(),
+      connector: "stripe",
+  })
+  ```
+- **Specify exactly what is not supported**: Don't use vague error messages
+- **Use proper ConnectorError types** from the errors module for all error cases
+- **Match error types to the situation**:
+  - `NotSupported` for unsupported features/methods
+  - `InvalidData` for data validation failures
+  - `MissingRequiredField` for missing required fields
+  - `ResponseDeserializationFailed` for parsing errors
+
 ### UCS COMPLIANCE VALIDATION
 - **RouterDataV2**: NEVER use RouterData, always RouterDataV2
-- **ConnectorIntegrationV2**: NEVER use ConnectorIntegration, always ConnectorIntegrationV2  
+- **ConnectorIntegrationV2**: NEVER use ConnectorIntegration, always ConnectorIntegrationV2
 - **Domain Types**: NEVER import from hyperswitch_domain_models, always domain_types
 - **Generic Patterns**: Always use ConnectorName<T> where T: PaymentMethodDataTypes
 - **Flow Independence**: Each flow must compile independently
@@ -836,7 +909,161 @@ Score: 100 - 40 - 15 - 5 = 40 (Poor ❌ - BLOCK)
 - **Critical Failures**: If unable to resolve after retries, escalate with detailed error report
 
 # ============================================================================
-# 🎯 VALIDATION GATES AND PROGRESS TRACKING  
+# 🧹 CODE CLEANLINESS AND FIELD USAGE RULES
+# ============================================================================
+
+## FIELD USAGE BEST PRACTICES (CRITICAL)
+
+### REMOVE UNUSED FIELDS
+- **NEVER keep fields that are always None**: If a field is hardcoded to None, remove it completely
+  ```rust
+  // WRONG - Unnecessary field
+  pub struct StripeAuthorizeRequest<T> {
+      pub amount: i64,
+      pub currency: String,
+      pub unused_field: Option<String>,  // Always set to None - REMOVE THIS
+  }
+
+  impl TryFrom<...> for StripeAuthorizeRequest<T> {
+      fn try_from(item: ...) -> Result<Self, Self::Error> {
+          Ok(Self {
+              amount: item.amount,
+              currency: item.currency,
+              unused_field: None,  // ❌ WRONG - Remove this field entirely
+          })
+      }
+  }
+
+  // CORRECT - Clean struct without unused fields
+  pub struct StripeAuthorizeRequest<T> {
+      pub amount: i64,
+      pub currency: String,
+  }
+
+  impl TryFrom<...> for StripeAuthorizeRequest<T> {
+      fn try_from(item: ...) -> Result<Self, Self::Error> {
+          Ok(Self {
+              amount: item.amount,
+              currency: item.currency,
+          })
+      }
+  }
+  ```
+
+### QUESTION EVERY FIELD
+- **Before adding a field, ask**: Is this field actually used by the connector API?
+- **Check the API documentation**: Only include fields that the connector expects
+- **Remove optional fields** that are never populated in transformers
+- **Keep structs minimal**: Only include what's necessary for the API contract
+
+### AVOID UNNECESSARY OPTIONALS
+- **Don't make fields Optional unless required**:
+  ```rust
+  // WRONG - Unnecessary Optional
+  pub struct Request {
+      pub amount: Option<i64>,  // If amount is always present, don't use Option
+  }
+
+  // CORRECT - Non-optional when always present
+  pub struct Request {
+      pub amount: i64,
+  }
+  ```
+- **Use Option only when**:
+  - The field is truly optional per the connector API spec
+  - The field may not be available in certain payment flows
+  - The connector explicitly allows the field to be omitted
+
+## STATUS MAPPING RULES (CRITICAL)
+
+### NEVER HARDCODE STATUS VALUES
+- **ALWAYS derive status from connector response**, never assume or hardcode:
+  ```rust
+  // WRONG - Hardcoded status
+  impl TryFrom<ResponseRouterData<StripePaymentResponse, ...>> for RouterDataV2<...> {
+      fn try_from(item: ResponseRouterData<...>) -> Result<Self, Self::Error> {
+          Ok(Self {
+              status: AttemptStatus::Charged,  // ❌ WRONG - Hardcoded!
+              ..item.data
+          })
+      }
+  }
+
+  // CORRECT - Status derived from response
+  impl TryFrom<ResponseRouterData<StripePaymentResponse, ...>> for RouterDataV2<...> {
+      fn try_from(item: ResponseRouterData<...>) -> Result<Self, Self::Error> {
+          Ok(Self {
+              status: map_stripe_status_to_attempt_status(&item.response.status),  // ✅ CORRECT
+              ..item.data
+          })
+      }
+  }
+  ```
+
+### CREATE COMPREHENSIVE STATUS MAPPING FUNCTIONS
+- **Map ALL possible status values** from the connector API:
+  ```rust
+  fn map_connector_status_to_attempt_status(
+      status: &ConnectorStatus,
+  ) -> common_enums::AttemptStatus {
+      match status {
+          ConnectorStatus::Succeeded => common_enums::AttemptStatus::Charged,
+          ConnectorStatus::Pending => common_enums::AttemptStatus::Pending,
+          ConnectorStatus::Failed => common_enums::AttemptStatus::Failure,
+          ConnectorStatus::Cancelled => common_enums::AttemptStatus::Voided,
+          ConnectorStatus::RequiresAction => common_enums::AttemptStatus::AuthenticationPending,
+          // Map ALL statuses from connector API documentation
+      }
+  }
+  ```
+- **Reference the connector API docs** to identify all possible status values
+- **Handle all enum variants**: Ensure exhaustive matching for status enums
+
+## VALIDATION BEST PRACTICES
+
+### EXPLAIN VALIDATION PURPOSE
+- **Add comments** explaining why a validation exists:
+  ```rust
+  // CORRECT - Validation with explanation
+  // Stripe requires amount to be at least $0.50 USD or equivalent
+  if amount < 50 {
+      return Err(errors::ConnectorError::InvalidData {
+          message: "Amount must be at least 50 cents".to_string(),
+      });
+  }
+  ```
+
+### AVOID UNNECESSARY VALIDATIONS
+- **Only validate when required** by the connector API specification
+- **Don't add defensive validations** that aren't enforced by the connector
+- **Remove validations that add complexity** without clear benefit:
+  ```rust
+  // WRONG - Unnecessary validation
+  if currency.len() != 3 {
+      return Err(...);  // If connector doesn't require this, don't validate
+  }
+
+  // CORRECT - Only validate what connector requires
+  // Just pass the currency to the connector; let it handle validation
+  ```
+
+### VALIDATION CHECKLIST
+- **Is this validation required by the connector API?** Check documentation
+- **Does this validation prevent actual errors?** Don't validate speculatively
+- **Is the error message clear and actionable?** Explain what's wrong and how to fix it
+
+## STRUCT CLEANLINESS CHECKLIST
+
+Before finalizing any request/response struct, verify:
+- [ ] Every field is used (not hardcoded to None)
+- [ ] Fields match the connector API documentation exactly
+- [ ] Optional fields are only Optional when truly optional
+- [ ] No defensive fields "just in case" - only what's needed
+- [ ] Field names match connector API or follow clear naming conventions
+- [ ] Serde attributes properly configured for API requirements
+
+# ============================================================================
+# 🎯 VALIDATION GATES AND PROGRESS TRACKING
 # ============================================================================
 
 ## VALIDATION GATES (MANDATORY CHECKPOINTS)
