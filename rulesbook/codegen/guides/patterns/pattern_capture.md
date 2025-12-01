@@ -793,31 +793,52 @@ impl TryFrom<ResponseRouterData<{ConnectorName}CaptureResponse, RouterDataV2<Cap
 Always document WHY a particular status is chosen, especially for edge cases:
 
 ```rust
+// Define connector status enum
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum {ConnectorName}CaptureStatus {
+    Captured,
+    Settled,
+    Completed,
+    Pending,
+    Processing,
+    Submitted,
+    Failed,
+    Declined,
+    Rejected,
+    Cancelled,
+    Voided,
+    PartiallyCaptured,
+}
+
 // Map capture status from connector response
-let status = match response.status.as_str() {
+let status = match response.status {
     // Success states map to Charged
     // Reason: Capture has been completed and funds will be settled
-    "captured" | "settled" | "completed" => AttemptStatus::Charged,
+    {ConnectorName}CaptureStatus::Captured
+    | {ConnectorName}CaptureStatus::Settled
+    | {ConnectorName}CaptureStatus::Completed => AttemptStatus::Charged,
 
     // Pending states remain Pending
     // Reason: Capture is accepted but not yet completed
-    "pending" | "processing" | "submitted" => AttemptStatus::Pending,
+    {ConnectorName}CaptureStatus::Pending
+    | {ConnectorName}CaptureStatus::Processing
+    | {ConnectorName}CaptureStatus::Submitted => AttemptStatus::Pending,
 
     // Failure states map to Failure
     // Reason: Capture was rejected or failed
-    "failed" | "declined" | "rejected" => AttemptStatus::Failure,
+    {ConnectorName}CaptureStatus::Failed
+    | {ConnectorName}CaptureStatus::Declined
+    | {ConnectorName}CaptureStatus::Rejected => AttemptStatus::Failure,
 
     // Voided captures
     // Reason: Capture was cancelled before settlement
-    "cancelled" | "voided" => AttemptStatus::Voided,
+    {ConnectorName}CaptureStatus::Cancelled
+    | {ConnectorName}CaptureStatus::Voided => AttemptStatus::Voided,
 
     // Partial captures (when supported)
     // Reason: Only part of the authorized amount was captured
-    "partially_captured" => AttemptStatus::PartialCharged,
-
-    // Unknown status defaults to Pending for safety
-    // Reason: Allows retry logic rather than marking as failure
-    _ => AttemptStatus::Pending,
+    {ConnectorName}CaptureStatus::PartiallyCaptured => AttemptStatus::PartialCharged,
 };
 ```
 
