@@ -500,6 +500,153 @@ pub enum RefundStatus {
 }
 ```
 
+### CRITICAL: Understanding Pending vs Success Status
+
+**⚠️ IMPORTANT - ASYNCHRONOUS REFUND PROCESSING**
+
+Many payment connectors accept refund requests but process them **asynchronously**. This is a critical distinction that affects status mapping:
+
+**Key Principle**: A `200 OK` response often means **"refund accepted"** NOT **"refund completed"**
+
+#### When to Use RefundStatus::Pending
+
+Use `Pending` when the connector:
+- Returns a minimal response (typically just an ID or status like "accepted")
+- Processes refunds asynchronously in the background
+- Requires a subsequent RSync call to verify actual completion
+- Returns status values like: "sentForRefund", "pending", "processing", "accepted", "initiated"
+
+**Example Pattern**:
+```rust
+// Connector returns minimal response - use Pending
+#[derive(Debug, Deserialize)]
+pub struct RefundResponse {
+    pub id: String,
+    pub status: String, // "accepted" or "pending"
+}
+
+impl TryFrom<ResponseRouterData<RefundResponse, ...>> for RouterDataV2<...> {
+    fn try_from(item: ResponseRouterData<RefundResponse, ...>) -> Result<Self, Self::Error> {
+        // Response is minimal - connector will process asynchronously
+        let refund_status = match item.response.status.as_str() {
+            "accepted" | "pending" | "sentForRefund" => RefundStatus::Pending,
+            // ... other mappings
+        };
+
+        // Return Pending - actual status verified via RSync later
+        let mut router_data = item.router_data;
+        router_data.response = Ok(RefundsResponseData {
+            connector_refund_id: item.response.id,
+            refund_status, // Pending - not yet completed
+            status_code: item.http_code,
+        });
+        Ok(router_data)
+    }
+}
+```
+
+#### When to Use RefundStatus::Success
+
+Use `Success` when the connector:
+- Returns detailed refund confirmation in the initial response
+- Provides clear "completed" or "succeeded" status
+- Includes full refund details (amount, timestamp, receipt number, etc.)
+- Processes refunds synchronously and confirms completion immediately
+
+**Example Pattern**:
+```rust
+// Connector returns detailed response - can use Success
+#[derive(Debug, Deserialize)]
+pub struct RefundResponse {
+    pub id: String,
+    pub status: String, // "succeeded" or "completed"
+    pub amount: MinorUnit,
+    pub currency: String,
+    pub receipt_number: Option<String>,
+    pub completed_at: Option<i64>,
+}
+
+impl TryFrom<ResponseRouterData<RefundResponse, ...>> for RouterDataV2<...> {
+    fn try_from(item: ResponseRouterData<RefundResponse, ...>) -> Result<Self, Self::Error> {
+        // Response is detailed - refund completed synchronously
+        let refund_status = match item.response.status.as_str() {
+            "succeeded" | "completed" | "refunded" => RefundStatus::Success,
+            "pending" | "processing" => RefundStatus::Pending,
+            // ... other mappings
+        };
+
+        let mut router_data = item.router_data;
+        router_data.response = Ok(RefundsResponseData {
+            connector_refund_id: item.response.id,
+            refund_status,
+            status_code: item.http_code,
+        });
+        Ok(router_data)
+    }
+}
+```
+
+#### Decision Flow Chart
+
+```
+Refund Response Received (200 OK)
+    |
+    ├─> Response has minimal data (only ID/status)?
+    |   └─> YES: Use RefundStatus::Pending
+    |       └─> Implement RSync to verify actual status later
+    |
+    └─> Response has detailed confirmation?
+        └─> YES: Check status field
+            ├─> "succeeded"/"completed"/"refunded" → RefundStatus::Success
+            ├─> "pending"/"processing"/"initiated" → RefundStatus::Pending
+            └─> "failed"/"declined"/"refused" → RefundStatus::Failure
+```
+
+#### Real-World Examples
+
+**Worldpay (Async Processing)**:
+```rust
+// Worldpay accepts refund but processes asynchronously
+RefundResponse {
+    outcome: "sentForRefund", // ← Not yet completed!
+    _links: {...}
+}
+// Map to: RefundStatus::Pending
+// Verify later via RSync which returns actual "refunded" status
+```
+
+**Stripe (Can be Sync or Async)**:
+```rust
+// Stripe may process immediately or asynchronously
+RefundResponse {
+    id: "re_123",
+    status: "succeeded", // ← Completed immediately
+    amount: 1000,
+    // ... full details
+}
+// Map to: RefundStatus::Success
+
+// OR async processing:
+RefundResponse {
+    id: "re_456",
+    status: "pending", // ← Will process later
+    // ... minimal details
+}
+// Map to: RefundStatus::Pending
+```
+
+**Adyen (Async with Confirmation)**:
+```rust
+// Adyen returns confirmation but processes asynchronously
+RefundResponse {
+    psp_reference: "123456",
+    status: "[refund-received]", // ← Accepted, not completed
+    // ... minimal response
+}
+// Map to: RefundStatus::Pending
+// Actual completion confirmed via webhook or RSync
+```
+
 ### Common Connector Status Mappings
 
 #### Worldpay
@@ -584,7 +731,7 @@ fn extract_refund_id(response: &{ConnectorName}RefundResponse) -> Option<String>
 
 ### Refund-Specific Error Patterns
 
-#### Already Refunded
+#### Pattern 1: Already Refunded Errors
 ```rust
 fn handle_refund_errors(error_code: &str) -> Option<RefundStatus> {
     match error_code {
@@ -596,7 +743,7 @@ fn handle_refund_errors(error_code: &str) -> Option<RefundStatus> {
 }
 ```
 
-#### Amount Validation Errors
+#### Pattern 2: Amount Validation Errors
 ```rust
 fn validate_refund_amount(
     refund_amount: MinorUnit,
@@ -615,6 +762,195 @@ fn validate_refund_amount(
     Ok(())
 }
 ```
+
+#### Pattern 3: NotSupported Errors (CRITICAL)
+
+**⚠️ IMPORTANT**: Use specific `NotSupported` errors when a connector doesn't support certain refund scenarios. Always specify **what aspect** of the refund is not supported.
+
+**Common NotSupported Scenarios**:
+
+```rust
+// Example: Connector doesn't support partial refunds
+fn try_from(
+    item: {ConnectorName}RouterData<RouterDataV2<Refund, RefundFlowData, RefundsData, RefundsResponseData>, T>,
+) -> Result<Self, Self::Error> {
+    let router_data = &item.router_data;
+
+    // Check if this is a partial refund
+    if is_partial_refund(&router_data.request) {
+        return Err(ConnectorError::NotSupported {
+            message: "Partial refunds are not supported by this connector".to_string(),
+            connector: "{ConnectorName}".to_string(),
+        }
+        .into());
+    }
+
+    // Continue with full refund processing
+    Ok(Self {})
+}
+
+fn is_partial_refund(request: &RefundsData) -> bool {
+    // Compare refund amount with original payment amount
+    request.minor_refund_amount < request.payment_amount
+}
+```
+
+**Example: Refund reasons not supported**:
+```rust
+fn try_from(
+    item: {ConnectorName}RouterData<RouterDataV2<Refund, RefundFlowData, RefundsData, RefundsResponseData>, T>,
+) -> Result<Self, Self::Error> {
+    let router_data = &item.router_data;
+
+    // Check if refund reason is provided but not supported
+    if router_data.request.reason.is_some() {
+        return Err(ConnectorError::NotSupported {
+            message: "Refund reasons are not supported by this connector".to_string(),
+            connector: "{ConnectorName}".to_string(),
+        }
+        .into());
+    }
+
+    Ok(Self {
+        // ... build request without reason
+    })
+}
+```
+
+**Example: Refunds not supported for certain payment methods**:
+```rust
+fn try_from(
+    item: {ConnectorName}RouterData<RouterDataV2<Refund, RefundFlowData, RefundsData, RefundsResponseData>, T>,
+) -> Result<Self, Self::Error> {
+    let router_data = &item.router_data;
+
+    // Check if payment method supports refunds
+    match &router_data.request.payment_method {
+        PaymentMethod::Wallet(WalletData::ApplePay) => {
+            return Err(ConnectorError::NotSupported {
+                message: "Refunds for Apple Pay are not supported by this connector".to_string(),
+                connector: "{ConnectorName}".to_string(),
+            }
+            .into());
+        }
+        PaymentMethod::BankTransfer(_) => {
+            return Err(ConnectorError::NotSupported {
+                message: "Refunds for bank transfers are not supported by this connector".to_string(),
+                connector: "{ConnectorName}".to_string(),
+            }
+            .into());
+        }
+        _ => {
+            // Supported payment method, continue
+        }
+    }
+
+    Ok(Self {
+        // ... build request
+    })
+}
+```
+
+**Example: Time-based refund restrictions**:
+```rust
+fn try_from(
+    item: {ConnectorName}RouterData<RouterDataV2<Refund, RefundFlowData, RefundsData, RefundsResponseData>, T>,
+) -> Result<Self, Self::Error> {
+    let router_data = &item.router_data;
+
+    // Check if payment is too old for refund (e.g., 180 days)
+    if let Some(payment_date) = router_data.request.payment_created_at {
+        let days_since_payment = calculate_days_since(payment_date);
+
+        if days_since_payment > 180 {
+            return Err(ConnectorError::NotSupported {
+                message: format!(
+                    "Refunds are not supported for payments older than 180 days (payment is {} days old)",
+                    days_since_payment
+                ),
+                connector: "{ConnectorName}".to_string(),
+            }
+            .into());
+        }
+    }
+
+    Ok(Self {
+        // ... build request
+    })
+}
+```
+
+**Example: Currency-based restrictions**:
+```rust
+fn try_from(
+    item: {ConnectorName}RouterData<RouterDataV2<Refund, RefundFlowData, RefundsData, RefundsResponseData>, T>,
+) -> Result<Self, Self::Error> {
+    let router_data = &item.router_data;
+
+    // Some connectors don't support refunds for certain currencies
+    const UNSUPPORTED_CURRENCIES: &[&str] = &["BTC", "ETH", "USDT"];
+
+    if UNSUPPORTED_CURRENCIES.contains(&router_data.request.currency.to_string().as_str()) {
+        return Err(ConnectorError::NotSupported {
+            message: format!(
+                "Refunds for {} currency are not supported by this connector",
+                router_data.request.currency
+            ),
+            connector: "{ConnectorName}".to_string(),
+        }
+        .into());
+    }
+
+    Ok(Self {
+        // ... build request
+    })
+}
+```
+
+#### Best Practices for NotSupported Errors
+
+1. **Be Specific**: Always explain what aspect is not supported
+   - ❌ Bad: "Operation not supported"
+   - ✅ Good: "Partial refunds are not supported by this connector"
+
+2. **Check Early**: Validate support before making API calls
+   ```rust
+   // Check support in try_from, not after API call
+   fn try_from(...) -> Result<Self, Self::Error> {
+       // Validate support first
+       validate_refund_support(&item)?;
+
+       // Then build request
+       Ok(Self { ... })
+   }
+   ```
+
+3. **Provide Context**: Include relevant details in error message
+   ```rust
+   ConnectorError::NotSupported {
+       message: format!(
+           "Refund amount ${} exceeds maximum refundable amount ${} for this connector",
+           refund_amount, max_amount
+       ),
+       connector: "{ConnectorName}".to_string(),
+   }
+   ```
+
+4. **Document Limitations**: Add comments explaining why something isn't supported
+   ```rust
+   // {ConnectorName} only supports full refunds within 90 days of payment
+   if is_partial_refund(request) || is_payment_too_old(request) {
+       return Err(ConnectorError::NotSupported { ... });
+   }
+   ```
+
+5. **Use Consistent Messaging**: Follow a standard format for error messages
+   ```rust
+   // Format: "{Feature} {qualifier} not supported by this connector"
+   "Partial refunds are not supported by this connector"
+   "Refund reasons are not supported by this connector"
+   "Refunds for bank transfers are not supported by this connector"
+   ```
 
 ## Testing Strategies
 

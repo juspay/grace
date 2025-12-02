@@ -501,7 +501,8 @@ impl TryFrom<ResponseRouterData<{ConnectorName}SyncResponse, RouterDataV2<PSync,
         let response = &item.response;
         let router_data = &item.router_data;
 
-        // Map connector status to standard status
+        // BEST PRACTICE: Map status from connector's operation_result/status field using From trait
+        // NEVER assume status based on HTTP code alone
         let status = common_enums::AttemptStatus::from(response.status.clone());
 
         // Handle error responses
@@ -526,7 +527,8 @@ impl TryFrom<ResponseRouterData<{ConnectorName}SyncResponse, RouterDataV2<PSync,
             });
         }
 
-        // Success response
+        // BEST PRACTICE: Build clean response transformers with proper field mapping
+        // Map all fields from connector response - never hardcode to None
         let payments_response_data = PaymentsResponseData::TransactionResponse {
             resource_id: ResponseId::ConnectorTransactionId(response.id.clone()),
             redirection_data: None,
@@ -1154,9 +1156,15 @@ fn get_auth_header(&self, _auth_type: &ConnectorAuthType) -> CustomResult<Vec<(S
 
 ## Status Mapping Patterns
 
+**CRITICAL STATUS MAPPING BEST PRACTICES:**
+
+1. **Always map status from connector's operation_result or equivalent field** - Never assume status based on HTTP code alone
+2. **Use From trait implementation or explicit match statement** - Use the From trait pattern shown below for clean status mapping to AttemptStatus
+3. **Never hardcode status values** - Always derive status from the connector's actual response field
+
 ### Pattern 1: Simple Enum Mapping (Most Common)
 
-Direct mapping from connector status enum to standard AttemptStatus.
+Direct mapping from connector status enum to standard AttemptStatus using From trait.
 
 ```rust
 #[derive(Debug, Deserialize, Clone)]
@@ -1168,6 +1176,7 @@ pub enum {ConnectorName}PaymentStatus {
     Cancelled,
 }
 
+// BEST PRACTICE: Use From trait to map connector status to AttemptStatus
 impl From<{ConnectorName}PaymentStatus> for common_enums::AttemptStatus {
     fn from(status: {ConnectorName}PaymentStatus) -> Self {
         match status {
@@ -2534,19 +2543,29 @@ URL Pattern: {base_url}/api/v1/order/{transaction_id}/status
 1. **HTTP Method Selection**: Use GET for simple status queries, POST for complex queries or when authentication requires request body
 2. **Transaction ID Validation**: Always validate the presence of `connector_transaction_id` before building sync requests
 3. **URL Construction**: Follow RESTful principles when possible, use path parameters for resource identification
-4. **Status Mapping**: Create comprehensive status mapping that covers all possible connector statuses
-5. **Error Handling**: Implement robust error handling for network issues, timeouts, and business logic errors
-6. **Authentication Consistency**: Use the same authentication method as authorization flow
-7. **Response Processing**: Handle both success and error responses gracefully
-8. **Idempotency**: Ensure sync operations are idempotent and can be safely retried
-9. **Performance**: Keep sync operations lightweight and fast for real-time status checking
-10. **Documentation**: Document all status codes, error codes, and special sync requirements
+4. **Status Mapping (CRITICAL)**:
+   - **Always map status from connector's operation_result or equivalent field** - Never assume status based on HTTP code alone
+   - **Use From trait implementation** - Implement the From trait to map connector status enum to AttemptStatus
+   - **Use explicit match statements** - When From trait isn't suitable, use explicit match statements for clarity
+   - Create comprehensive status mapping that covers all possible connector statuses
+5. **Field Mapping (CRITICAL)**:
+   - **Never hardcode fields to None** - Always map actual fields from connector response
+   - **Show clean response transformers** - Build response transformers that properly extract and map all available fields
+   - Map connector_response_reference_id, network_txn_id, and other fields when available
+6. **Error Handling**: Implement robust error handling for network issues, timeouts, and business logic errors
+7. **Authentication Consistency**: Use the same authentication method as authorization flow
+8. **Response Processing**: Handle both success and error responses gracefully
+9. **Idempotency**: Ensure sync operations are idempotent and can be safely retried
+10. **Performance**: Keep sync operations lightweight and fast for real-time status checking
+11. **Documentation**: Document all status codes, error codes, and special sync requirements
 
 ### Common Pitfalls to Avoid
 
 - **Missing Transaction ID**: Always check for `connector_transaction_id` before proceeding
 - **Wrong HTTP Method**: Don't use POST for simple status queries unless required by API
 - **Incomplete Status Mapping**: Map all possible connector statuses to appropriate `AttemptStatus` values
+- **Status from HTTP Code**: NEVER assume status based on HTTP code alone - always map from connector's operation_result or status field
+- **Hardcoded None Fields**: NEVER hardcode response fields to None - always map actual values from connector response
 - **Authentication Mismatch**: Ensure sync uses same auth method as other flows
 - **URL Encoding**: Properly encode special characters in transaction IDs for URL construction
 - **Error Response Parsing**: Handle both structured and unstructured error responses

@@ -920,8 +920,98 @@ pub struct {ConnectorName}Error {
 
 ### Status Mapping Pattern
 
+**⚠️ CRITICAL: NEVER HARDCODE STATUS VALUES**
+
+One of the most common and critical mistakes in connector implementations is hardcoding payment status values. **ALWAYS** derive the status from the connector's actual response.
+
+#### ❌ WRONG: Hardcoded Status
 ```rust
-// Status mapping function
+// DO NOT DO THIS - Never assume status!
+let status = common_enums::AttemptStatus::Charged; // WRONG!
+
+// Or this:
+let payments_response_data = PaymentsResponseData::TransactionResponse {
+    resource_id: ResponseId::ConnectorTransactionId(response.id.clone()),
+    redirection_data: None,
+    // ... other fields
+};
+
+Ok(Self {
+    resource_common_data: PaymentFlowData {
+        status: common_enums::AttemptStatus::Charged, // WRONG! Hardcoded status
+        ..router_data.resource_common_data.clone()
+    },
+    response: Ok(payments_response_data),
+    ..router_data.clone()
+})
+```
+
+**Why this is wrong:**
+- Payment may have failed but you're reporting it as "Charged"
+- Connector might return "Pending" for 3DS flows
+- Status assumptions break payment processing logic
+- Leads to incorrect payment states in the system
+
+#### ✅ RIGHT: Map Status from Connector Response
+```rust
+// CORRECT: Always map from connector response
+use domain_types::connector_types::PaymentsResponseData;
+
+// Map connector status to attempt status using From trait
+impl From<{ConnectorName}PaymentStatus> for common_enums::AttemptStatus {
+    fn from(status: {ConnectorName}PaymentStatus) -> Self {
+        match status {
+            {ConnectorName}PaymentStatus::Succeeded => Self::Charged,
+            {ConnectorName}PaymentStatus::Pending => Self::Pending,
+            {ConnectorName}PaymentStatus::Failed => Self::Failure,
+            {ConnectorName}PaymentStatus::RequiresAction => Self::AuthenticationPending,
+            {ConnectorName}PaymentStatus::Canceled => Self::Voided,
+        }
+    }
+}
+
+// Then use it in response transformation
+impl<T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::marker::Send + 'static + Serialize>
+    TryFrom<ResponseRouterData<{ConnectorName}AuthorizeResponse, RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>>>
+    for RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>
+{
+    type Error = error_stack::Report<ConnectorError>;
+
+    fn try_from(
+        item: ResponseRouterData<{ConnectorName}AuthorizeResponse, RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>>,
+    ) -> Result<Self, Self::Error> {
+        let response = &item.response;
+        let router_data = &item.router_data;
+
+        // CORRECT: Derive status from connector response
+        let status = common_enums::AttemptStatus::from(response.status.clone());
+
+        let payments_response_data = PaymentsResponseData::TransactionResponse {
+            resource_id: ResponseId::ConnectorTransactionId(response.id.clone()),
+            redirection_data: None,
+            mandate_reference: None,
+            connector_metadata: None,
+            network_txn_id: None,
+            connector_response_reference_id: response.reference.clone(),
+            incremental_authorization_allowed: None,
+            status_code: item.http_code,
+        };
+
+        Ok(Self {
+            resource_common_data: PaymentFlowData {
+                status, // Correctly mapped from connector response
+                ..router_data.resource_common_data.clone()
+            },
+            response: Ok(payments_response_data),
+            ..router_data.clone()
+        })
+    }
+}
+```
+
+#### Status Mapping with Manual Capture Support
+```rust
+// Status mapping function with manual capture consideration
 fn map_connector_status_to_attempt_status(
     connector_status: &{ConnectorName}PaymentStatus,
     is_manual_capture: bool,
@@ -941,6 +1031,14 @@ fn map_connector_status_to_attempt_status(
     }
 }
 ```
+
+**Key Principles:**
+- ✅ Always use `From` trait or `match` statement to map connector status
+- ✅ Map each connector status enum variant explicitly
+- ✅ Consider manual capture vs auto capture scenarios
+- ✅ Status must reflect the actual connector response
+- ❌ Never assume or hardcode status values
+- ❌ Never set status to "Charged" without checking connector response
 
 ## Testing Patterns
 
@@ -1041,6 +1139,82 @@ mod integration_tests {
 ```
 
 ## Common Helper Functions
+
+**⚠️ BEFORE IMPLEMENTING CUSTOM LOGIC: Check Utility Functions**
+
+Before writing custom utility functions, **ALWAYS** check the `utility_functions_reference.md` guide. Many common operations already have optimized implementations that you should reuse.
+
+### Required Reading
+📚 **Reference Guide:** `/rulesbook/codegen/guides/utility_functions_reference.md`
+
+This guide contains pre-built utilities for:
+- Country code conversions
+- Card number formatting
+- Date/time formatting
+- Address formatting
+- Phone number formatting
+- Currency conversions
+- And many more...
+
+### Common Utility Functions You Should Use
+
+#### Country Code Conversion
+```rust
+// ❌ WRONG: Custom implementation
+fn convert_country_code(alpha2: &str) -> String {
+    match alpha2 {
+        "US" => "USA".to_string(),
+        "GB" => "GBR".to_string(),
+        // ... hundreds more lines
+        _ => alpha2.to_string(),
+    }
+}
+
+// ✅ RIGHT: Use existing utility
+use common_utils::ext_traits::ValueExt;
+
+let country_alpha3 = billing_address
+    .country
+    .as_ref()
+    .and_then(|c| c.convert_country_alpha2_to_alpha3())
+    .unwrap_or_default();
+```
+
+**Available in:** `utility_functions_reference.md` - Section: "Country Code Utilities"
+
+#### Card Expiry Formatting
+```rust
+// ❌ WRONG: Manual formatting
+fn format_card_expiry(month: &str, year: &str) -> String {
+    format!("{}/{}", month, &year[2..])
+}
+
+// ✅ RIGHT: Use existing utility
+use common_utils::ext_traits::CardExt;
+
+let expiry = get_card_expiry_month_year_2_digit_with_delimiter(
+    card_data.card_exp_month.clone(),
+    card_data.card_exp_year.clone(),
+    "/".to_string(),
+)?;
+```
+
+**Available in:** `utility_functions_reference.md` - Section: "Card Utilities"
+
+#### Phone Number Formatting
+```rust
+// ❌ WRONG: Custom parsing
+fn parse_phone_number(phone: &str) -> (String, String) {
+    // Complex parsing logic...
+}
+
+// ✅ RIGHT: Use existing utility
+use common_utils::ext_traits::PhoneExt;
+
+let (country_code, number) = phone_data.parse_phone_number()?;
+```
+
+**Available in:** `utility_functions_reference.md` - Section: "Phone Number Utilities"
 
 ### Amount Conversion Helpers
 
@@ -1328,15 +1502,81 @@ Auth: SignatureKey
 
 ## Best Practices
 
+### Code Quality and Structure
+
 1. **Use Modern Macro Pattern**: Prefer the macro-based implementation for consistency and reduced boilerplate
+
 2. **Handle All Error Cases**: Implement comprehensive error handling for different response scenarios
+   - Use specific error messages for unsupported payment methods
+   - Include payment method details in error messages
+   - Map connector error codes to appropriate attempt statuses
+
 3. **Generic Type Safety**: Always use proper generic type constraints for payment method data
-4. **Status Mapping**: Carefully map connector statuses to standard statuses
+
+4. **Status Mapping**: ⚠️ **CRITICAL** - Never hardcode status values
+   - **ALWAYS** map status from connector response using `From` trait or `match` statement
+   - Never assume status is "Charged" or any other value
+   - Status must reflect actual connector response
+   - See [Status Mapping Pattern](#status-mapping-pattern) for examples
+
 5. **Amount Conversion**: Use appropriate amount converters based on connector requirements
-6. **Testing**: Write comprehensive unit and integration tests
-7. **Documentation**: Document any special requirements or limitations
-8. **Security**: Never log sensitive data like card numbers or auth tokens
-9. **Error Context**: Provide meaningful error messages with proper context
-10. **Performance**: Minimize unnecessary data transformations and allocations
+
+### Development Practices
+
+6. **Utility Functions**: ⚠️ **Check Before Implementing**
+   - **ALWAYS** check `utility_functions_reference.md` before writing custom utilities
+   - Reuse existing functions for:
+     - Country code conversion (`convert_country_alpha2_to_alpha3`)
+     - Card expiry formatting (`get_card_expiry_month_year_2_digit_with_delimiter`)
+     - Phone number parsing
+     - Address formatting
+   - Don't reinvent the wheel - use battle-tested implementations
+
+7. **Clean Field Usage**: Remove unnecessary optional fields
+   - ❌ **WRONG:** `pub redirect_url: Option<String>, // Always None`
+   - ✅ **RIGHT:** Remove the field entirely if it's always `None`
+   - Keep structs minimal and focused
+   - Only include fields that are actually used
+
+8. **Testing**: Write comprehensive unit and integration tests
+   - Test request transformation
+   - Test response transformation with various statuses
+   - Test error handling scenarios
+   - Test unsupported payment methods
+
+9. **Documentation**: Document any special requirements or limitations
+   - Add doc comments explaining connector-specific behavior
+   - Document supported payment methods
+   - Note any known limitations
+
+### Security and Performance
+
+10. **Security**: Never log sensitive data like card numbers or auth tokens
+    - Use `Maskable` types for sensitive fields
+    - Review logs to ensure no PII leakage
+
+11. **Error Context**: Provide meaningful error messages with proper context
+    - Specific payment method in error messages
+    - Include connector name and payment method type
+    - Add context for debugging
+
+12. **Performance**: Minimize unnecessary data transformations and allocations
+    - Avoid cloning large structures unnecessarily
+    - Use references where possible
+    - Optimize hot paths
+
+### Critical Reminders
+
+⚠️ **NEVER:**
+- Hardcode status values (always map from connector response)
+- Use generic error messages for unsupported payment methods
+- Implement utilities that already exist in the codebase
+- Include optional fields that are always `None`
+
+✅ **ALWAYS:**
+- Map status using `From` trait or explicit `match` statements
+- Provide specific error messages with payment method details
+- Check `utility_functions_reference.md` before implementing utilities
+- Remove unused optional fields from structs
 
 This pattern document provides a comprehensive template for implementing authorize flows in payment connectors, ensuring consistency and completeness across all implementations.
