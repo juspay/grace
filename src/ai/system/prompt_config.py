@@ -52,7 +52,6 @@ class PromptConfig:
         return list(self._prompts.keys())
 
 
-# Singleton instance for easy access
 _prompt_config_instance: Optional[PromptConfig] = None
 
 

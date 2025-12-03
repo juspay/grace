@@ -12,6 +12,7 @@ load_dotenv()
 
 # Import workflow modules
 from .workflows import run_techspec_workflow, run_research_workflow, run_pr_workflow
+from .workflows.code.main import chat_loop
 from .config import get_config
 from .scripts.searxng_setup import setup_docker, setup_local, check_docker
 
@@ -37,6 +38,7 @@ def cli():
         options:\n
             --output TEXT            Output directory for PR data\n
             --verbose                Enable verbose output\n
+        grace code
     """
     pass
 
@@ -300,6 +302,12 @@ def pr(pr_url, output, verbose):
             sys.exit(1)
 
     asyncio.run(run_pr())
+
+
+@cli.command()
+def code():
+    """Starts an interactive chat session with the AI agent."""
+    asyncio.run(chat_loop())
 
 
 def main():

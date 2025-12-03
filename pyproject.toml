@@ -61,6 +61,8 @@ dependencies = [
     "python-docx>=1.2.0",
     "pandas>=2.3.3",
     "openpyxl>=3.1.5",
+    "langchain-litellm>=0.3.0",
+    "langchain-openai>=0.3.35",
 ]
 
 [project.optional-dependencies]
