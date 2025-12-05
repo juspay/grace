@@ -225,9 +225,37 @@ grace/rulbook/codegen/
 
 ## 🚀 Getting Started
 
-1. **For new connector**: Place API docs in `references/` and run integration command
-2. **For existing connector**: Describe current state and desired additions
-3. **For debugging**: Explain the issue and AI will help diagnose and fix
+### Prerequisites
+
+**Configure Cypress Credentials (One-Time Setup)**:
+1. Create `grace/.env` from the template:
+   ```bash
+   cp grace/.env.example grace/.env
+   ```
+2. Edit `grace/.env` and fill in your credentials:
+   - `CYPRESS_ADMINAPIKEY`: Admin API key for https://integ.hyperswitch.io
+   - `CYPRESS_CONNECTOR_AUTH_FILE_PATH`: Path to your connector credentials JSON file
+   - `CYPRESS_BASEURL`: API base URL (default: https://integ.hyperswitch.io/api)
+
+### For New Implementation:
+1. **Pre-Flight Check (Phase 0)**: The workflow automatically validates the connector's no_three_ds support
+   - Runs `grace/rulesbook/codegen/validate_connector_cypress.sh {connector_name}`
+   - Uses credentials from `grace/.env` (prompts if missing)
+   - Tests validate that the source connector works correctly in Hyperswitch
+   - **Critical Decision Gate**: Workflow only continues if tests pass
+   - **Time Saver**: Catches issues early before code generation begins
+2. Place connector API documentation in `grace/rulebook/codegen/references/{{connector_name}}/`
+3. Run: `integrate [ConnectorName] using .gracerules`
+4. AI will validate connector, create implementation plan, and generate code
+
+### For Resuming Work:
+1. Describe current state: "I have [existing_functionality] implemented"
+2. Specify what you need: "Need to add [missing_functionality]"
+3. AI will analyze existing code and continue from there
+
+### For Debugging:
+1. Describe the issue: "Getting [error_description] when [specific_scenario]"
+2. AI will analyze code, identify issue, and provide fix
 
 GRACE-UCS makes UCS connector development efficient, comprehensive, and resumable at any stage.
 
@@ -240,6 +268,8 @@ GRACE-UCS includes an automated **Quality Guardian Subagent** (8th subagent) tha
 ### Quality Review Process
 
 ```
+Phase 0: Pre-Flight Validation (Cypress Tests) → Continue/Abort Decision
+   ↓ (If Continue)
 Foundation → Flow Implementation → All Flows Complete → Cargo Build ✅
                                                               ↓
                                                     Quality Guardian Review
