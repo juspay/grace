@@ -1,0 +1,76 @@
+{
+  "connector_name": "bambora",
+  "display_name": "Bambora",
+  "version": "1.0.0",
+
+  "credentials": {
+    "auth_type": "body-key",
+    "api_key": "18Fb10c3ad614D2694BC88bC74C43FFD",
+    "key1": "300213193",
+    "merchant_id": "test_merchant_bambora"
+  },
+
+  "server": {
+    "address": "localhost:8000",
+    "use_tls": false
+  },
+
+  "test_data": {
+    "default_amount": 5000,
+    "default_currency": "USD",
+    "test_cards": {
+      "visa_success": {
+        "number": "4111111111111111",
+        "cvc": "123",
+        "exp_month": "12",
+        "exp_year": "2030",
+        "network": "VISA"
+      },
+      "mastercard_success": {
+        "number": "5100000010001004",
+        "cvc": "123",
+        "exp_month": "12",
+        "exp_year": "2030",
+        "network": "MASTERCARD"
+      }
+    },
+    "billing_address": {
+      "first_name": "John",
+      "last_name": "Doe",
+      "line1": "123 Main Street",
+      "city": "New York",
+      "state": "NY",
+      "zip_code": "10001",
+      "country": "US",
+      "email": "john.doe@example.com",
+      "phone": "1234567890",
+      "phone_country_code": "1"
+    },
+    "urls": {
+      "return_url": "https://example.com/return",
+      "webhook_url": "https://example.com/webhook"
+    }
+  },
+
+  "operations": {
+    "authorize": {
+      "enabled": true,
+      "auto_capture_supported": true,
+      "manual_capture_supported": true
+    },
+    "capture": {
+      "enabled": true,
+      "partial_capture_supported": true
+    },
+    "refund": {
+      "enabled": true,
+      "partial_refund_supported": true
+    },
+    "payment_sync": {
+      "enabled": true
+    },
+    "refund_sync": {
+      "enabled": true
+    }
+  }
+}

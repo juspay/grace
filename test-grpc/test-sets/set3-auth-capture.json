@@ -1,0 +1,25 @@
+{
+  "name": "Set 3: Manual Capture Flow",
+  "description": "Authorize with manual capture + Capture operation",
+  "operations": [
+    {
+      "step": 1,
+      "operation": "authorize",
+      "template": "authorize-manual",
+      "validate": true,
+      "extract_values": {
+        "TRANSACTION_ID": ".transactionId.id"
+      },
+      "on_failure": "abort"
+    },
+    {
+      "step": 2,
+      "operation": "capture",
+      "template": "capture",
+      "depends_on": ["TRANSACTION_ID"],
+      "delay_seconds": 2,
+      "validate": true,
+      "on_failure": "abort"
+    }
+  ]
+}

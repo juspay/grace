@@ -1,0 +1,21 @@
+{
+  "operation": "capture",
+  "description": "Validation rules for capture operations",
+
+  "required_fields": [
+    "status"
+  ],
+
+  "field_validations": [
+    {
+      "field": "status",
+      "rules": ["not_empty"],
+      "error_message": "Capture status must be present"
+    }
+  ],
+
+  "grpc_status_codes": {
+    "success": ["OK"],
+    "allowed": ["OK", "INVALID_ARGUMENT", "NOT_FOUND"]
+  }
+}

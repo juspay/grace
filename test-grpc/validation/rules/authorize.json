@@ -1,0 +1,28 @@
+{
+  "operation": "authorize",
+  "description": "Validation rules for payment authorization",
+
+  "required_fields": [
+    "transactionId.id",
+    "status"
+  ],
+
+  "field_validations": [
+    {
+      "field": "transactionId.id",
+      "rules": ["not_empty"],
+      "error_message": "Transaction ID must be present and not empty"
+    },
+    {
+      "field": "status",
+      "rules": ["not_empty"],
+      "allowed_values": ["AUTHORIZED", "SUCCESS", "PENDING", "FAILED", "REQUIRES_ACTION"],
+      "error_message": "Status must be valid"
+    }
+  ],
+
+  "grpc_status_codes": {
+    "success": ["OK"],
+    "allowed": ["OK", "INVALID_ARGUMENT", "UNAUTHENTICATED"]
+  }
+}

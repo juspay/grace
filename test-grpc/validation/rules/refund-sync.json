@@ -1,0 +1,43 @@
+{
+  "operation": "refund-sync",
+  "description": "Validation rules for refund sync operations - includes PR #240 action array checks",
+
+  "required_fields": [
+    "status"
+  ],
+
+  "field_validations": [
+    {
+      "field": "status",
+      "rules": ["not_empty"],
+      "error_message": "Refund sync status must be present"
+    }
+  ],
+
+  "critical_validations": {
+    "action_array_handling": {
+      "description": "PR #240 Issue #3: RSync returns charge with actions array - validate correct refund action",
+      "checks": [
+        {
+          "name": "actions_array_present",
+          "error_message": "RSync response should contain actions array for proper status tracking"
+        }
+      ]
+    }
+  },
+
+  "connector_specific": {
+    "silverflow": {
+      "required_fields": [],
+      "critical_checks": [
+        "Action array validation",
+        "Correct refund action selection by refund_id"
+      ]
+    }
+  },
+
+  "grpc_status_codes": {
+    "success": ["OK"],
+    "allowed": ["OK", "NOT_FOUND"]
+  }
+}

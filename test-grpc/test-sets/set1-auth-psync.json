@@ -1,0 +1,25 @@
+{
+  "name": "Set 1: Authorize + Payment Sync",
+  "description": "Basic authorization flow with automatic capture and payment sync",
+  "operations": [
+    {
+      "step": 1,
+      "operation": "authorize",
+      "template": "authorize-auto",
+      "validate": true,
+      "extract_values": {
+        "TRANSACTION_ID": ".transactionId.id"
+      },
+      "on_failure": "abort"
+    },
+    {
+      "step": 2,
+      "operation": "payment_sync",
+      "template": "payment-sync",
+      "depends_on": ["TRANSACTION_ID"],
+      "delay_seconds": 2,
+      "validate": true,
+      "on_failure": "continue"
+    }
+  ]
+}

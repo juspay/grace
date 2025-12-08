@@ -1,0 +1,19 @@
+{
+  "default_address": "localhost:8000",
+  "default_tls": false,
+
+  "environments": {
+    "local": {
+      "address": "localhost:8000",
+      "tls": false
+    },
+    "staging": {
+      "address": "staging.example.com:443",
+      "tls": true
+    },
+    "production": {
+      "address": "api.example.com:443",
+      "tls": true
+    }
+  }
+}

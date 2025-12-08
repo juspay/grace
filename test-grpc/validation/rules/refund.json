@@ -1,0 +1,61 @@
+{
+  "operation": "refund",
+  "description": "Validation rules for refund operations - addresses PR #240 issues",
+
+  "required_fields": [
+    "status"
+  ],
+
+  "field_validations": [
+    {
+      "field": "status",
+      "rules": ["not_empty"],
+      "error_message": "Refund status must be present"
+    }
+  ],
+
+  "critical_validations": {
+    "refund_status_logic": {
+      "description": "PR #240 Issue #1: Don't assume all actions with status='success' are successful",
+      "checks": [
+        {
+          "name": "action_type_check",
+          "jq_expression": ".actions[] | select(.action_type == \"REFUND\") | .status",
+          "error_message": "Must verify action type is REFUND before checking status"
+        }
+      ]
+    },
+    "action_array_handling": {
+      "description": "PR #240 Issue #3: Validate which refund action is being checked",
+      "checks": [
+        {
+          "name": "correct_action_selection",
+          "error_message": "Must select correct refund action by refund_id"
+        }
+      ]
+    }
+  },
+
+  "connector_specific": {
+    "silverflow": {
+      "required_fields": [
+        "connectorMetadata.refund_status",
+        "connectorMetadata.authorization.status"
+      ],
+      "critical_checks": [
+        "Refund action type verification",
+        "Detailed refund status check (not just action.status)",
+        "Network-specific fields presence"
+      ]
+    },
+    "bambora": {
+      "required_fields": [],
+      "critical_checks": []
+    }
+  },
+
+  "grpc_status_codes": {
+    "success": ["OK"],
+    "allowed": ["OK", "INVALID_ARGUMENT", "NOT_FOUND"]
+  }
+}

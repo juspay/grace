@@ -1,0 +1,46 @@
+{
+  "name": "Set 2: Full Refund Flow",
+  "description": "Authorize + Payment Sync + Refund + Refund Sync",
+  "operations": [
+    {
+      "step": 1,
+      "operation": "authorize",
+      "template": "authorize-auto",
+      "validate": true,
+      "extract_values": {
+        "TRANSACTION_ID": ".transactionId.id"
+      },
+      "on_failure": "abort"
+    },
+    {
+      "step": 2,
+      "operation": "payment_sync",
+      "template": "payment-sync",
+      "depends_on": ["TRANSACTION_ID"],
+      "delay_seconds": 2,
+      "validate": true,
+      "on_failure": "warn"
+    },
+    {
+      "step": 3,
+      "operation": "refund",
+      "template": "refund",
+      "depends_on": ["TRANSACTION_ID"],
+      "delay_seconds": 2,
+      "validate": true,
+      "extract_values": {
+        "REFUND_ID": ".refundId"
+      },
+      "on_failure": "abort"
+    },
+    {
+      "step": 4,
+      "operation": "refund_sync",
+      "template": "refund-sync",
+      "depends_on": ["TRANSACTION_ID", "REFUND_ID"],
+      "delay_seconds": 2,
+      "validate": true,
+      "on_failure": "warn"
+    }
+  ]
+}
