@@ -124,7 +124,7 @@ GRACE-UCS tracks and can resume from any implementation state:
 ## 📖 How to Use GRACE
 
 ### For New Implementation:
-1. Place connector API documentation in `grace/rulebook/codegen/references/{{connector_name}}/`
+1. Place connector API documentation in `grace/rulesbook/codegen/references/{{connector_name}}/`
 2. Run: `integrate [ConnectorName] using .gracerules`
 3. AI will create complete implementation plan and code
 

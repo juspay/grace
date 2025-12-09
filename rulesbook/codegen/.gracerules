@@ -13,96 +13,158 @@ You are the GRACE-UCS Main Workflow Controller for deterministic UCS connector i
 ## WORKFLOW OVERVIEW
 
 This workflow is designed for NEW CONNECTOR INTEGRATIONS ONLY where:
-- User has placed tech spec in grace/rulebook/codegen/references/{connector_name}/technical_specification.md
+- User has placed tech spec in grace/rulesbook/codegen/references/{connector_name}/technical_specification.md
 - Goal is complete UCS connector implementation following deterministic steps
+
+## ⏱️ MANDATORY TIMELINE TRACKING
+
+**CRITICAL**: Timeline tracking is MANDATORY for ALL connector integrations.
+
+### Timeline Initialization (FIRST STEP - Before Phase 1)
+```python
+# Import works from both connector-service and grace directory
+try:
+    from grace.src.utils.simple_timeline import SimpleTimeline
+except ImportError:
+    from src.utils.simple_timeline import SimpleTimeline
+
+# Initialize timeline tracker with connector name
+timeline = SimpleTimeline(connector_name="{connector_name}")
+```
+
+### Timeline Tracking Pattern (Apply to EVERY Phase)
+```python
+# At phase START:
+timeline.log_phase_start("phase_name")
+
+# ... execute phase work ...
+
+# At phase END:
+timeline.log_phase_end("phase_name", status="success")  # or status="failed"
+```
+
+### Timeline Finalization (LAST STEP - After All Phases)
+```python
+# ALWAYS call finalize at the end, even if workflow fails
+timeline.finalize()
+```
+
+### Phase Names to Track
+- `"phase_0_cypress_validation"`
+- `"phase_1_tech_spec_validation"`
+- `"phase_2_foundation_setup"`
+- `"phase_2_5_macro_pattern_study"`
+- `"phase_3_authorize_flow"`
+- `"phase_3_psync_flow"`
+- `"phase_3_capture_flow"`
+- `"phase_3_refund_flow"`
+- `"phase_3_rsync_flow"`
+- `"phase_3_void_flow"`
+- `"phase_4_quality_review"`
+
+**IMPORTANT**:
+- Timeline JSON is saved to: `grace/rulesbook/codegen/timeline/{connector_name}_timeline.json`
+- File is updated in real-time after each phase
+- Durations calculated automatically when `finalize()` is called
 
 ## MANDATORY EXECUTION SEQUENCE
 
 ### PHASE 0: CYPRESS TEST VALIDATION (Pre-Flight Check)
-**TRIGGER**: Immediately when user runs: `integrate {ConnectorName} using grace/rulebook/codegen/.gracerules`
+**TRIGGER**: Immediately when user runs: `integrate {ConnectorName} using grace/rulesbook/codegen/.gracerules`
 **PURPOSE**: Validate connector's no_three_ds support in Hyperswitch before starting UCS integration
 
 1. **DELEGATE TO**: Cypress Test Validation Subagent
 2. **WAIT FOR**: Cypress test results and validation decision
-3. **DECISION POINT**: 
+3. **DECISION POINT**:
    - ✅ **CONTINUE** if tests pass or only billing address errors in 00004
    - ❌ **ABORT** if no3ds is broken (other errors in 00004) or credentials missing (errors in 00000)
 
 ### PHASE 1: TECH SPEC VALIDATION
-1. **MANDATORY**: Read tech spec from grace/rulebook/codegen/references/{connector_name}/technical_specification.md
-2. **MANDATORY**: Validate tech spec completeness and UCS compatibility
-3. **MANDATORY**: Extract all connector requirements and supported features
+1. **TIMELINE**: `timeline.log_phase_start("phase_1_tech_spec_validation")`
+2. **MANDATORY**: Read tech spec from grace/rulesbook/codegen/references/{connector_name}/technical_specification.md
+3. **MANDATORY**: Validate tech spec completeness and UCS compatibility
+4. **MANDATORY**: Extract all connector requirements and supported features
+5. **TIMELINE**: `timeline.log_phase_end("phase_1_tech_spec_validation", status="success")`
 
 ### PHASE 2: FOUNDATION SETUP (Subagent Delegation)
-1. **DELEGATE TO**: Foundation Setup Subagent
-2. **WAIT FOR**: Foundation Setup completion confirmation
-3. **VALIDATE**: Cargo build success before proceeding
+1. **TIMELINE**: `timeline.log_phase_start("phase_2_foundation_setup")`
+2. **DELEGATE TO**: Foundation Setup Subagent
+3. **WAIT FOR**: Foundation Setup completion confirmation
+4. **VALIDATE**: Cargo build success before proceeding
+5. **TIMELINE**: `timeline.log_phase_end("phase_2_foundation_setup", status="success")`
 
 ### PHASE 2.5: MACRO PATTERN REFERENCE STUDY
-1. **MANDATORY**: Read macro pattern guides before implementation
+1. **TIMELINE**: `timeline.log_phase_start("phase_2_5_macro_pattern_study")`
+2. **MANDATORY**: Read macro pattern guides before implementation
    - Read: guides/patterns/macro_patterns_reference.md
    - Read: guides/patterns/flow_macro_guide.md
    - Read: template-generation/macro_templates.md
-2. **UNDERSTAND**: Key concepts for implementation
+3. **UNDERSTAND**: Key concepts for implementation
    - How to use create_all_prerequisites! macro
    - How to use macro_connector_implementation! macro
    - Flow-specific macro configurations
    - Request/Response type naming conventions
    - When to use generic <T> types
    - Resource common data selection (PaymentFlowData, RefundFlowData, DisputeFlowData)
+4. **TIMELINE**: `timeline.log_phase_end("phase_2_5_macro_pattern_study", status="success")`
 
 ### PHASE 3: FLOW IMPLEMENTATION (Sequential Subagent Delegation)
 Execute flows in EXACT sequence - each must complete before next begins:
-1. **DELEGATE TO**: Authorize Flow Subagent → **WAIT FOR COMPLETION**
-2. **DELEGATE TO**: PSync Flow Subagent → **WAIT FOR COMPLETION**  
-3. **DELEGATE TO**: Capture Flow Subagent → **WAIT FOR COMPLETION**
-4. **DELEGATE TO**: Refund Flow Subagent → **WAIT FOR COMPLETION**
-5. **DELEGATE TO**: RSync Flow Subagent → **WAIT FOR COMPLETION**
-6. **DELEGATE TO**: Void Flow Subagent → **WAIT FOR COMPLETION**
+1. **TIMELINE**: `timeline.log_phase_start("phase_3_authorize_flow")` → **DELEGATE TO**: Authorize Flow Subagent → **WAIT FOR COMPLETION** → **TIMELINE**: `timeline.log_phase_end("phase_3_authorize_flow", status)`
+2. **TIMELINE**: `timeline.log_phase_start("phase_3_psync_flow")` → **DELEGATE TO**: PSync Flow Subagent → **WAIT FOR COMPLETION** → **TIMELINE**: `timeline.log_phase_end("phase_3_psync_flow", status)`
+3. **TIMELINE**: `timeline.log_phase_start("phase_3_capture_flow")` → **DELEGATE TO**: Capture Flow Subagent → **WAIT FOR COMPLETION** → **TIMELINE**: `timeline.log_phase_end("phase_3_capture_flow", status)`
+4. **TIMELINE**: `timeline.log_phase_start("phase_3_refund_flow")` → **DELEGATE TO**: Refund Flow Subagent → **WAIT FOR COMPLETION** → **TIMELINE**: `timeline.log_phase_end("phase_3_refund_flow", status)`
+5. **TIMELINE**: `timeline.log_phase_start("phase_3_rsync_flow")` → **DELEGATE TO**: RSync Flow Subagent → **WAIT FOR COMPLETION** → **TIMELINE**: `timeline.log_phase_end("phase_3_rsync_flow", status)`
+6. **TIMELINE**: `timeline.log_phase_start("phase_3_void_flow")` → **DELEGATE TO**: Void Flow Subagent → **WAIT FOR COMPLETION** → **TIMELINE**: `timeline.log_phase_end("phase_3_void_flow", status)`
 
 ### PHASE 4: FINAL VALIDATION AND QUALITY REVIEW
-1. **MANDATORY**: Execute final cargo build
-2. **MANDATORY**: Validate all flows compile successfully
-3. **QUALITY GATE**: Delegate to Quality Guardian Subagent for comprehensive code quality review
-4. **WAIT FOR**: Quality review completion and approval
-5. **MANDATORY**: Generate completion report
+1. **TIMELINE**: `timeline.log_phase_start("phase_4_quality_review")`
+2. **MANDATORY**: Execute final cargo build
+3. **MANDATORY**: Validate all flows compile successfully
+4. **QUALITY GATE**: Delegate to Quality Guardian Subagent for comprehensive code quality review
+5. **WAIT FOR**: Quality review completion and approval
+6. **MANDATORY**: Generate completion report
+7. **TIMELINE**: `timeline.log_phase_end("phase_4_quality_review", status="success")`
+8. **TIMELINE FINALIZATION**: `timeline.finalize()` ← **ALWAYS execute this as the final step**
 
 ## WORKFLOW INITIATION COMMAND
-When user requests: "integrate {ConnectorName} using grace/rulebook/codegen/.gracerules"
+When user requests: "integrate {ConnectorName} using grace/rulesbook/codegen/.gracerules"
 
 Execute this workflow:
 
 ```
-STEP 0: Execute Cypress Test Validation Script → **CRITICAL DECISION GATE**
-        
-        Command: cd grace/rulesbook/codegen && ./validate_connector_cypress.sh {connector_name}
-        
-        The script will:
-        1. Check feature_matrix for no_three_ds support
-        2. Load credentials from grace/.env (or prompt if missing)
-        3. Run Cypress tests (00000-00004) in Hyperswitch
-        4. Analyze results and make decision
-        5. Exit with code 0 (CONTINUE) or 1 (ABORT)
-        
-        **Based on script exit code:**
-        - Exit 0: ✅ CONTINUE to STEP 1 (Tech Spec Validation)
-        - Exit 1: ❌ ABORT workflow, display error message from script
-        
-        **What you should do:**
-        1. Execute: `cd grace/rulesbook/codegen && ./validate_connector_cypress.sh {connector_name}`
-        2. Check exit code ($?)
-        3. If exit code = 0, proceed to STEP 1
-        4. If exit code != 0, ABORT and show user the script output
+STEP 0: Initialize timeline tracker: timeline = SimpleTimeline(connector_name="{connector_name}")
 
-STEP 1: Read tech spec from grace/rulebook/codegen/references/{connector_name}/technical_specification.md
+STEP 0.5: Execute Cypress Test Validation (PHASE 0)
+          cd grace/rulesbook/codegen && ./validate_connector_cypress.sh {connector_name}
+          - Exit 0: CONTINUE to STEP 1
+          - Exit 1: ABORT workflow
 
-STEP 2: Launch Foundation Setup Subagent
+STEP 1: timeline.log_phase_start("phase_1_tech_spec_validation")
+        Read tech spec from grace/rulesbook/codegen/references/{connector_name}/technical_specification.md
+        timeline.log_phase_end("phase_1_tech_spec_validation", status="success")
 
-STEP 2.5: Read macro pattern reference guides (macro_patterns_reference.md, flow_macro_guide.md, macro_templates.md)
+STEP 2: timeline.log_phase_start("phase_2_foundation_setup")
+        Launch Foundation Setup Subagent
+        timeline.log_phase_end("phase_2_foundation_setup", status="success")
 
-STEP 3: Upon Foundation completion and macro study, launch Flow Subagents sequentially
+STEP 2.5: timeline.log_phase_start("phase_2_5_macro_pattern_study")
+          Read macro pattern reference guides (macro_patterns_reference.md, flow_macro_guide.md, macro_templates.md)
+          timeline.log_phase_end("phase_2_5_macro_pattern_study", status="success")
 
-STEP 4: Upon all flows completion, perform final validation
+STEP 3: Upon Foundation completion and macro study, launch Flow Subagents sequentially:
+        - timeline.log_phase_start("phase_3_authorize_flow") → work → timeline.log_phase_end("phase_3_authorize_flow", status)
+        - timeline.log_phase_start("phase_3_psync_flow") → work → timeline.log_phase_end("phase_3_psync_flow", status)
+        - timeline.log_phase_start("phase_3_capture_flow") → work → timeline.log_phase_end("phase_3_capture_flow", status)
+        - timeline.log_phase_start("phase_3_refund_flow") → work → timeline.log_phase_end("phase_3_refund_flow", status)
+        - timeline.log_phase_start("phase_3_rsync_flow") → work → timeline.log_phase_end("phase_3_rsync_flow", status)
+        - timeline.log_phase_start("phase_3_void_flow") → work → timeline.log_phase_end("phase_3_void_flow", status)
+
+STEP 4: timeline.log_phase_start("phase_4_quality_review")
+        Perform final validation and quality review
+        timeline.log_phase_end("phase_4_quality_review", status="success")
+
+STEP 5: timeline.finalize()  # ALWAYS finalize at the end
 ```
 
 # ============================================================================
@@ -163,78 +225,95 @@ CYPRESS_CONNECTOR_AUTH_FILE_PATH='/path/to/creds.json'
 - Script details: `grace/rulesbook/codegen/CYPRESS_VALIDATION_README.md`
 - Configuration template: `grace/.env.example`
 
-# ============================================================================
+## REPORTING FORMATS
 
-    Decision: CONTINUE with UCS integration workflow
-    
-    Next Phase: PHASE 1 - Tech Spec Validation
-    ═══════════════════════════════════════════════════════════════
-    "
-    
-    Return: CONTINUE signal to main workflow controller
+### IF decision == CONTINUE:
+```
+Report format:
+"
+═══════════════════════════════════════════════════════════════
+✅ CYPRESS TEST VALIDATION PASSED
+═══════════════════════════════════════════════════════════════
 
+Connector: {connector_name}
+Status: VALIDATED ✅
 
-IF decision == CONTINUE_WITH_WARNING:
-    Report format:
-    "
-    ═══════════════════════════════════════════════════════════════
-    ⚠️  CYPRESS TEST VALIDATION COMPLETED WITH WARNINGS
-    ═══════════════════════════════════════════════════════════════
-    
-    Connector: {connector_name}
-    Status: VALIDATED WITH WARNINGS ⚠️
-    
-    Test Results:
-      - 00000 (Setup): {status}
-      
-      - 00004 (NoThreeDS): ⚠️  FAILED (Billing Address Issue)
-    
-    Warning: {warning_details}
-    
-    Decision: CONTINUE with UCS integration workflow
-    Note: Warning issues can be addressed after integration
-    
-    Next Phase: PHASE 1 - Tech Spec Validation
-    ═══════════════════════════════════════════════════════════════
-    "
-    
-    Return: CONTINUE signal to main workflow controller
+Test Results:
+  - 00000 (Setup): ✅ PASSED
+  - 00004 (NoThreeDS): ✅ PASSED
 
+Decision: CONTINUE with UCS integration workflow
 
-IF decision == ABORT:
-    Report format:
-    "
-    ═══════════════════════════════════════════════════════════════
-    ❌ CYPRESS TEST VALIDATION FAILED - WORKFLOW ABORTED
-    ═══════════════════════════════════════════════════════════════
-    
-    Connector: {connector_name}
-    Status: VALIDATION FAILED ❌
-    
-    Critical Issue: {issue_type}
-    Failed Test: {failed_test}
-    Error Details:
-    {error_output}
-    
-    Decision: ABORT UCS integration workflow
-    
-    Reason: {abort_reason}
-    
-    Required Actions Before Retry:
-    {action_items}
-    
-    The UCS integration workflow cannot proceed until the above 
-    issues are resolved in Hyperswitch.
-    ═══════════════════════════════════════════════════════════════
-    "
-    
-    Return: ABORT signal to main workflow controller
-    Action: TERMINATE workflow - do not proceed to any further phases
+Next Phase: PHASE 1 - Tech Spec Validation
+═══════════════════════════════════════════════════════════════
+"
+
+Return: CONTINUE signal to main workflow controller
 ```
 
-### ERROR HANDLING
+### IF decision == CONTINUE_WITH_WARNING:
+```
+Report format:
+"
+═══════════════════════════════════════════════════════════════
+⚠️  CYPRESS TEST VALIDATION COMPLETED WITH WARNINGS
+═══════════════════════════════════════════════════════════════
 
-#### If Cypress Command Fails to Run
+Connector: {connector_name}
+Status: VALIDATED WITH WARNINGS ⚠️
+
+Test Results:
+  - 00000 (Setup): {status}
+
+  - 00004 (NoThreeDS): ⚠️  FAILED (Billing Address Issue)
+
+Warning: {warning_details}
+
+Decision: CONTINUE with UCS integration workflow
+Note: Warning issues can be addressed after integration
+
+Next Phase: PHASE 1 - Tech Spec Validation
+═══════════════════════════════════════════════════════════════
+"
+
+Return: CONTINUE signal to main workflow controller
+```
+
+### IF decision == ABORT:
+```
+Report format:
+"
+═══════════════════════════════════════════════════════════════
+❌ CYPRESS TEST VALIDATION FAILED - WORKFLOW ABORTED
+═══════════════════════════════════════════════════════════════
+
+Connector: {connector_name}
+Status: VALIDATION FAILED ❌
+
+Critical Issue: {issue_type}
+Failed Test: {failed_test}
+Error Details:
+{error_output}
+
+Decision: ABORT UCS integration workflow
+
+Reason: {abort_reason}
+
+Required Actions Before Retry:
+{action_items}
+
+The UCS integration workflow cannot proceed until the above
+issues are resolved in Hyperswitch.
+═══════════════════════════════════════════════════════════════
+"
+
+Return: ABORT signal to main workflow controller
+Action: TERMINATE workflow - do not proceed to any further phases
+```
+
+## ERROR HANDLING
+
+### If Cypress Command Fails to Run
 ```bash
 Error scenarios:
 1. npm not installed
@@ -247,17 +326,17 @@ Action:
   Error: "  1. Node.js and npm are installed"
   Error: "  2. Run 'npm install' in hyperswitch/cypress-tests directory"
   Error: "  3. Cypress dependencies are properly installed"
-  
+
   Decision: ABORT workflow
 ```
 
-#### If Unable to Parse Test Results
+### If Unable to Parse Test Results
 ```bash
 Action:
   Warning: "Unable to parse Cypress test results automatically"
   Request: "Please review the test output above and confirm:"
   Request: "  - Did all tests pass? (y/n)"
-  
+
   IF user confirms yes:
       Decision: CONTINUE
   ELSE:
@@ -265,18 +344,18 @@ Action:
       Apply decision logic based on user's description
 ```
 
-#### If Connector Not Found in Hyperswitch
+### If Connector Not Found in Hyperswitch
 ```bash
 Error:
   "Connector {connector_name} not found in Hyperswitch"
   "Expected location: ../hyperswitch/crates/hyperswitch_connectors/src/connectors/{connector_name}.rs"
-  
+
 Decision: ABORT workflow
 Reason: "Cannot validate a connector that doesn't exist in Hyperswitch"
 Action: "Please implement the connector in Hyperswitch first before UCS integration"
 ```
 
-### VALIDATION CHECKLIST
+## VALIDATION CHECKLIST
 
 Before marking this phase complete, ensure:
 - [ ] Feature matrix checked for no_three_ds support
@@ -290,7 +369,7 @@ Before marking this phase complete, ensure:
 - [ ] If ABORT: User informed with clear action items
 - [ ] If CONTINUE: Confirmation sent to main workflow controller
 
-### INTEGRATION WITH MAIN WORKFLOW
+## INTEGRATION WITH MAIN WORKFLOW
 
 ```bash
 # Main workflow controller receives decision from this subagent
@@ -299,7 +378,7 @@ IF Cypress Test Validation returns ABORT:
     STOP entire workflow
     Display error message to user
     Exit gracefully
-    
+
 IF Cypress Test Validation returns CONTINUE or CONTINUE_WITH_WARNING:
     Log: "✅ Phase 0 complete - Cypress validation passed"
     Proceed to: PHASE 1 (Tech Spec Validation)
@@ -325,7 +404,7 @@ You are the Foundation Setup Subagent. Your ONLY responsibility is to establish 
 
 #### STEP 2: Tech Spec Analysis
 ```bash
-# Read tech spec from grace/rulebook/codegen/references/{connector_name}/technical_specification.md
+# Read tech spec from grace/rulesbook/codegen/references/{connector_name}/technical_specification.md
 # Extract connector_name and base_url
 # Validate tech spec completeness
 ```
@@ -376,7 +455,7 @@ You are a Flow Implementation Subagent responsible for implementing ONE specific
 
 #### STEP 1: Read Tech Spec
 ```bash
-# Read complete tech spec from grace/rulebook/codegen/references/{connector_name}/technical_specification.md
+# Read complete tech spec from grace/rulesbook/codegen/references/{connector_name}/technical_specification.md
 # Extract flow-specific requirements
 # Identify supported payment methods for this flow
 # Note any flow-specific API endpoints or behaviors
@@ -1305,7 +1384,7 @@ Before finalizing any request/response struct, verify:
 ## VALIDATION GATES (MANDATORY CHECKPOINTS)
 
 ### GATE 1: TECH SPEC VALIDATION
-- ✅ Tech spec file exists in grace/rulebook/codegen/references/{connector_name}/technical_specification.md
+- ✅ Tech spec file exists in grace/rulesbook/codegen/references/{connector_name}/technical_specification.md
 - ✅ Tech spec contains connector name and base URL
 - ✅ Tech spec lists supported payment methods
 - ✅ Tech spec defines required flows
@@ -1405,7 +1484,7 @@ Before finalizing any request/response struct, verify:
 
 ## SAMPLE EXECUTION SEQUENCE
 
-When user executes: "integrate {ConnectorName} using grace/rulebook/codegen/.gracerules"
+When user executes: "integrate {ConnectorName} using grace/rulesbook/codegen/.gracerules"
 
 ### EXPECTED EXECUTION:
 ```
@@ -1508,11 +1587,11 @@ Developer fixes critical issues...
 # ============================================================================
 
 This workflow activates when the user provides a command matching this pattern:
-- "integrate {ConnectorName} using grace/rulebook/codegen/.gracerules"
-- "integrate {ConnectorName} connector using grace/rulebook/codegen/.gracerules"
+- "integrate {ConnectorName} using grace/rulesbook/codegen/.gracerules"
+- "integrate {ConnectorName} connector using grace/rulesbook/codegen/.gracerules"
 
 Upon activation, immediately begin with:
-1. Reading tech spec from grace/rulebook/codegen/references/{connector_name}/technical_specification.md
+1. Reading tech spec from grace/rulesbook/codegen/references/{connector_name}/technical_specification.md
 2. Launching Foundation Setup Subagent
 3. Following the deterministic sequence exactly as specified
 
