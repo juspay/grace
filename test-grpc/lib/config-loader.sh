@@ -2,18 +2,19 @@
 # Config Loader - Hybrid JSON + Environment Variable Configuration
 # Loads connector configuration from JSON with env var overrides for sensitive data
 
+# Source guard - prevent multiple sourcing
+[[ -n "${CONFIG_LOADER_SH_LOADED:-}" ]] && return 0
+readonly CONFIG_LOADER_SH_LOADED=1
+
 set -euo pipefail
 
 # Global variables to store loaded config
-declare -g CONNECTOR_NAME=""
-declare -g BASE_URL=""
-declare -g AUTH_TYPE=""
-declare -g MERCHANT_ID=""
-declare -g PROTO_SERVICE=""
-declare -g CONFIG_FILE=""
-
-# Declare associative array for storing full config
-declare -gA CONNECTOR_CONFIG
+CONNECTOR_NAME=""
+BASE_URL=""
+AUTH_TYPE=""
+MERCHANT_ID=""
+PROTO_SERVICE=""
+CONFIG_FILE=""
 
 # Load .env file if it exists
 load_env_file() {

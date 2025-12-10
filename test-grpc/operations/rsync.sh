@@ -57,10 +57,11 @@ execute_rsync() {
         return 1
     fi
 
-    # Build headers
+    # Build headers - read output into array
     local -a headers=()
-    build_grpc_headers "$AUTH_TYPE" "$connector" headers
-    add_reference_id_header "$ref_id" headers
+    while IFS= read -r line; do
+        headers+=("$line")
+    done < <(build_grpc_headers "$AUTH_TYPE" "$connector"; add_reference_id_header "$ref_id")
 
     # Execute gRPC call (using RefundService)
     log_step "Executing refund sync request"

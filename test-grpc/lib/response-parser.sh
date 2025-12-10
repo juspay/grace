@@ -2,6 +2,10 @@
 # Response Parser - Parse JSON responses and extract values
 # Uses jq to parse gRPC JSON responses
 
+# Source guard - prevent multiple sourcing
+[[ -n "${RESPONSE_PARSER_SH_LOADED:-}" ]] && return 0
+readonly RESPONSE_PARSER_SH_LOADED=1
+
 set -euo pipefail
 
 # Check if jq is installed

@@ -1,8 +1,8 @@
 {
-  "connector_name": "bambora",
+  "connector_name": "example",
   "base_url": "localhost:8000",
   "auth_type": "body-key",
-  "merchant_id": "test_merchant_bambora",
+  "merchant_id": "test_merchant_example",
   "proto_service": "ucs.v2.PaymentService",
   "default_amounts": {
     "auth": 5000,
@@ -10,11 +10,11 @@
     "refund": 2500
   },
   "test_card": {
-    "card_number": "5100000010001004",
+    "card_number": "4111111111111111",
     "card_cvc": "123",
     "card_exp_month": "12",
     "card_exp_year": "2030",
-    "card_network": "MASTERCARD"
+    "card_network": "VISA"
   },
   "billing_address": {
     "first_name": "John",

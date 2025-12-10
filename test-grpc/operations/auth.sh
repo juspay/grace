@@ -27,17 +27,27 @@ execute_auth() {
 
     log_operation "Authorization (capture: $capture_method)"
 
+    log_debug "Starting auth operation for connector: $connector"
+    log_debug "Output dir: $output_dir"
+    log_debug "Capture method: $capture_method"
+    log_debug "Amount: ${amount:-default}"
+
     # Load connector config
+    log_debug "Loading connector config..."
     if ! load_connector_config "$connector"; then
         log_error "Failed to load connector config"
         return 1
     fi
+    log_debug "Config loaded: AUTH_TYPE=$AUTH_TYPE, BASE_URL=$BASE_URL"
 
     # Initialize template variables
+    log_debug "Initializing template variables..."
     init_template_vars
 
     # Load variables from config
+    log_debug "Loading template vars from config..."
     load_template_vars_from_config "$connector"
+    log_debug "Template vars loaded"
 
     # Set operation-specific variables
     local ref_id=$(generate_reference_id "$connector" "auth")
@@ -61,10 +71,20 @@ execute_auth() {
         return 1
     fi
 
-    # Build headers
+    # Build headers - read output into array
     local -a headers=()
-    build_grpc_headers "$AUTH_TYPE" "$connector" headers
-    add_reference_id_header "$ref_id" headers
+    while IFS= read -r line; do
+        headers+=("$line")
+    done < <(build_grpc_headers "$AUTH_TYPE" "$connector"; add_reference_id_header "$ref_id")
+
+    log_debug "Built ${#headers[@]} header elements"
+    if [[ "${DEBUG:-false}" == "true" ]]; then
+        local i=0
+        for h in "${headers[@]}"; do
+            log_debug "  header[$i]: '$h'"
+            i=$((i + 1))
+        done
+    fi
 
     # Execute gRPC call
     log_step "Executing authorization request"

@@ -2,32 +2,31 @@
 # Template Engine - Substitute placeholders in template files
 # Provides template processing with {{VARIABLE}} substitution
 
-set -euo pipefail
+# Source guard - prevent multiple sourcing
+[[ -n "${TEMPLATE_ENGINE_SH_LOADED:-}" ]] && return 0
+readonly TEMPLATE_ENGINE_SH_LOADED=1
 
-# Global associative array for template variables
-declare -gA TEMPLATE_VARS
+set -euo pipefail
 
 # Initialize template variables with common defaults
 init_template_vars() {
     log_debug "Initializing template variables"
 
-    # Clear existing variables
-    TEMPLATE_VARS=()
-
-    # Add common defaults
-    TEMPLATE_VARS[CURRENCY]="${CURRENCY:-USD}"
-    TEMPLATE_VARS[TIMESTAMP]="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    # Set common defaults as environment variables
+    export TPL_CURRENCY="${CURRENCY:-USD}"
+    export TPL_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
     log_debug "Template variables initialized"
 }
 
-# Add a variable to the template substitution map
+# Add a variable to the template substitution
 # Args: key value
 add_template_var() {
     local key="$1"
     local value="$2"
 
-    TEMPLATE_VARS[$key]="$value"
+    # Export as environment variable with TPL_ prefix
+    export "TPL_${key}=${value}"
     log_debug "Added template variable: $key = $value"
 }
 
@@ -103,13 +102,17 @@ process_template() {
 
     local content=$(cat "$template_file")
 
-    # Substitute each variable
-    for key in "${!TEMPLATE_VARS[@]}"; do
-        local value="${TEMPLATE_VARS[$key]}"
-        # Escape special characters in value for sed
-        local escaped_value=$(printf '%s\n' "$value" | sed 's/[&/\]/\\&/g')
-        content=$(echo "$content" | sed "s|{{${key}}}|${escaped_value}|g")
-    done
+    # Get all TPL_ environment variables and substitute
+    # Use process substitution to get variable names
+    while IFS='=' read -r var_name var_value; do
+        if [[ "$var_name" =~ ^TPL_ ]]; then
+            # Remove TPL_ prefix to get placeholder name
+            local placeholder="${var_name#TPL_}"
+            # Escape special characters in value for sed
+            local escaped_value=$(printf '%s\n' "$var_value" | sed 's/[&/\]/\\&/g')
+            content=$(echo "$content" | sed "s|{{${placeholder}}}|${escaped_value}|g")
+        fi
+    done < <(env | grep '^TPL_')
 
     # Check for unsubstituted placeholders
     if echo "$content" | grep -q '{{'; then

@@ -2,6 +2,10 @@
 # gRPC Executor - Execute grpcurl commands with error handling
 # Provides wrapper functions for making gRPC calls
 
+# Source guard - prevent multiple sourcing
+[[ -n "${GRPC_EXECUTOR_SH_LOADED:-}" ]] && return 0
+readonly GRPC_EXECUTOR_SH_LOADED=1
+
 set -euo pipefail
 
 # Check if grpcurl is installed
@@ -49,7 +53,15 @@ execute_grpc_call() {
     grpcurl_cmd+=("$base_url" "$full_method")
 
     # Execute command
-    log_debug "Running: ${grpcurl_cmd[*]}"
+    log_debug "Running grpcurl with ${#grpcurl_cmd[@]} arguments"
+    log_debug "Headers array has ${#headers_array[@]} elements"
+    if [[ "${DEBUG:-false}" == "true" ]]; then
+        local i=0
+        for arg in "${grpcurl_cmd[@]}"; do
+            log_debug "  arg[$i]: $arg"
+            i=$((i + 1))
+        done
+    fi
 
     local response
     local exit_code

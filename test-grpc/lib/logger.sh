@@ -2,6 +2,10 @@
 # Logger Module - Color-coded logging utilities
 # Provides consistent logging across all test scripts
 
+# Source guard - prevent multiple sourcing
+[[ -n "${LOGGER_SH_LOADED:-}" ]] && return 0
+readonly LOGGER_SH_LOADED=1
+
 set -euo pipefail
 
 # Color constants

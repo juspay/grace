@@ -2,63 +2,79 @@
 # Header Builder - Build gRPC headers based on authentication type
 # Constructs appropriate headers for grpcurl commands
 
+# Source guard - prevent multiple sourcing
+[[ -n "${HEADER_BUILDER_SH_LOADED:-}" ]] && return 0
+readonly HEADER_BUILDER_SH_LOADED=1
+
 set -euo pipefail
 
 # Build gRPC headers based on auth type
-# Args: auth_type connector_name output_array_name
-# Populates the specified array with header arguments
+# Args: auth_type connector_name
+# Outputs: headers to stdout (one per line, format: "-H|header: value")
 build_grpc_headers() {
     local auth_type="$1"
     local connector="$2"
-    local -n headers_ref=$3  # Reference to output array
 
     log_debug "Building headers for auth type: $auth_type"
 
     # Always include connector header
-    headers_ref+=("-H" "x-connector: $connector")
+    echo "-H"
+    echo "x-connector: $connector"
 
     # Always include x-auth header (maps to auth_type)
-    headers_ref+=("-H" "x-auth: ${auth_type}")
+    echo "-H"
+    echo "x-auth: ${auth_type}"
 
     # Add merchant ID if available
     if [[ -n "${MERCHANT_ID:-}" ]]; then
-        headers_ref+=("-H" "x-merchant-id: $MERCHANT_ID")
+        echo "-H"
+        echo "x-merchant-id: $MERCHANT_ID"
     fi
 
     # Build headers based on auth type
     case "$auth_type" in
         header-key)
             # Only API key in headers
-            headers_ref+=("-H" "x-api-key: $API_KEY")
+            echo "-H"
+            echo "x-api-key: $API_KEY"
             log_debug "Added headers: x-api-key"
             ;;
 
         body-key)
             # API key + KEY1
-            headers_ref+=("-H" "x-api-key: $API_KEY")
-            headers_ref+=("-H" "x-key1: $KEY1")
+            echo "-H"
+            echo "x-api-key: $API_KEY"
+            echo "-H"
+            echo "x-key1: $KEY1"
             log_debug "Added headers: x-api-key, x-key1"
             ;;
 
         signature-key)
             # API key + signature + KEY1
-            headers_ref+=("-H" "x-api-key: $API_KEY")
-            headers_ref+=("-H" "x-api-signature: $API_SIGNATURE")
-            headers_ref+=("-H" "x-key1: $KEY1")
+            echo "-H"
+            echo "x-api-key: $API_KEY"
+            echo "-H"
+            echo "x-api-signature: $API_SIGNATURE"
+            echo "-H"
+            echo "x-key1: $KEY1"
             log_debug "Added headers: x-api-key, x-api-signature, x-key1"
             ;;
 
         multiauth-key)
             # API key + signature + KEY1 + optional KEY2, KEY3, etc.
-            headers_ref+=("-H" "x-api-key: $API_KEY")
-            headers_ref+=("-H" "x-api-signature: $API_SIGNATURE")
-            headers_ref+=("-H" "x-key1: $KEY1")
+            echo "-H"
+            echo "x-api-key: $API_KEY"
+            echo "-H"
+            echo "x-api-signature: $API_SIGNATURE"
+            echo "-H"
+            echo "x-key1: $KEY1"
 
             # Add optional additional keys
             for i in {2..9}; do
                 local key_var="KEY${i}"
                 if [[ -n "${!key_var:-}" ]]; then
-                    headers_ref+=("-H" "x-key${i}: ${!key_var}")
+                    echo "-H"
+                    echo "x-key${i}: ${!key_var}"
                     log_debug "Added header: x-key${i}"
                 fi
             done
@@ -71,17 +87,18 @@ build_grpc_headers() {
             ;;
     esac
 
-    log_debug "Headers built successfully (${#headers_ref[@]} total)"
+    log_debug "Headers built successfully"
     return 0
 }
 
 # Add reference ID header
-# Args: reference_id output_array_name
+# Args: reference_id
+# Outputs: header to stdout
 add_reference_id_header() {
     local ref_id="$1"
-    local -n headers_ref=$2
 
-    headers_ref+=("-H" "x-reference-id: $ref_id")
+    echo "-H"
+    echo "x-reference-id: $ref_id"
     log_debug "Added reference ID header: $ref_id"
 }
 

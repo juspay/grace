@@ -27,8 +27,11 @@ execute_flow_auth_capture() {
 
     # Step 1: Authorization (manual capture)
     log_step "Step 1/2: Authorization (manual capture)"
+    log_debug "About to call execute_auth with: connector=$connector, output_dir=$output_dir"
     local tx_id
+    log_debug "Calling execute_auth..."
     tx_id=$(execute_auth "$connector" "$output_dir" "MANUAL")
+    log_debug "execute_auth returned with exit code: $?"
 
     if [[ $? -ne 0 || -z "$tx_id" ]]; then
         log_error "Authorization failed, aborting flow"

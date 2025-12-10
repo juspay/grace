@@ -2,6 +2,10 @@
 # Utility Functions - Common utilities for test automation
 # Provides helper functions for directory management, summaries, and prerequisites
 
+# Source guard - prevent multiple sourcing
+[[ -n "${UTILS_SH_LOADED:-}" ]] && return 0
+readonly UTILS_SH_LOADED=1
+
 set -euo pipefail
 
 # Create output directory with timestamp
