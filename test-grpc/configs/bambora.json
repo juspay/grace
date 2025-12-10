@@ -1,0 +1,34 @@
+{
+  "connector_name": "bambora",
+  "base_url": "localhost:8000",
+  "auth_type": "body-key",
+  "merchant_id": "test_merchant_bambora",
+  "proto_service": "ucs.v2.PaymentService",
+  "default_amounts": {
+    "auth": 5000,
+    "capture": 5000,
+    "refund": 2500
+  },
+  "test_card": {
+    "card_number": "5100000010001004",
+    "card_cvc": "123",
+    "card_exp_month": "12",
+    "card_exp_year": "2030",
+    "card_network": "MASTERCARD"
+  },
+  "billing_address": {
+    "first_name": "John",
+    "last_name": "Doe",
+    "line1": "123 Main Street",
+    "city": "New York",
+    "state": "NY",
+    "zip_code": "10001",
+    "country_alpha2_code": "US",
+    "email": "john.doe@example.com",
+    "phone_number": "1234567890",
+    "phone_country_code": "1"
+  },
+  "default_currency": "USD",
+  "return_url": "https://example.com/return",
+  "webhook_url": "https://example.com/webhook"
+}
