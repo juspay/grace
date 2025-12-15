@@ -13,6 +13,7 @@ To implement BankRedirect flows for a new connector:
 3. **Configure Callbacks**: Set up callback URL structures for redirect flow
 4. **Map Payment Methods**: Create transformations from router's `BankRedirectData` to connector-specific format
 5. **Handle Responses**: Implement redirect response handling with proper status mapping
+6. **⚠️ Avoid Critical Pitfalls**: Read [Critical Pitfalls](#critical-pitfalls-to-avoid) to prevent common failures
 
 ### Example: Implementing BankRedirect for "NewBank" Connector
 
@@ -42,8 +43,9 @@ Bank selection: Required for iDEAL, optional for others
 8. [Response Handling Patterns](#response-handling-patterns)
 9. [Status Mapping Patterns](#status-mapping-patterns)
 10. [Common Helper Functions](#common-helper-functions)
-11. [Integration Checklist](#integration-checklist)
-12. [Real-World Examples](#real-world-examples)
+11. [Critical Pitfalls to Avoid](#critical-pitfalls-to-avoid)
+12. [Integration Checklist](#integration-checklist)
+13. [Real-World Examples](#real-world-examples)
 
 ## Overview
 
@@ -1192,7 +1194,8 @@ fn map_bank_redirect_status(
         // Initial states - requires user action
         PaymentStatus::Pending
         | PaymentStatus::RequiresAction
-        | PaymentStatus::AwaitingAuthentication => {
+        | PaymentStatus::AwaitingAuthentication
+        | PaymentStatus::AuthenticationRedirected => {  // <-- Add this status
             if has_redirect_url {
                 common_enums::AttemptStatus::AuthenticationPending
             } else {
@@ -1274,6 +1277,7 @@ fn get_attempt_status(
 |------------------|---------------------|-------|
 | Pending/RequiresAction | AuthenticationPending | When redirect URL present |
 | AwaitingAuthentication | AuthenticationPending | User needs to authenticate |
+| **AUTHENTICATION_REDIRECTED** | AuthenticationPending | **Important: Handle this status explicitly** |
 | Processing | Pending | Payment being processed |
 | Completed/Succeeded | Charged | Payment successful |
 | Failed/Declined | Failure | Payment failed |
@@ -1409,6 +1413,462 @@ pub fn extract_billing_details<F, Req, Res>(
 }
 ```
 
+## Critical Pitfalls to Avoid
+
+This section highlights the most common issues that cause payment method failures and connector errors. These are learned from real production issues across multiple connectors.
+
+### 🚨 BankRedirect Critical Issues
+
+#### 1. **Missing BankRedirect Handler in Payment Request**
+**Issue:** "Payment Method is not supported by {Connector}" error
+**Root Cause:** Forgetting to add BankRedirect match arm in payment method transformation
+**Example (Airwallex):**
+```rust
+// ❌ WRONG - Missing BankRedirect handler
+let payment_method = match item.router_data.request.payment_method_data {
+    PaymentMethodData::Card(card_data) => { /* handle card */ },
+    _ => { return Err(ConnectorError::NotSupported { /* ... */ }) }
+};
+
+// ✅ CORRECT - Add BankRedirect handler
+let payment_method = match item.router_data.request.payment_method_data {
+    PaymentMethodData::Card(card_data) => { /* handle card */ },
+    PaymentMethodData::BankRedirect(bank_redirect_data) => {
+        let connector_bank_redirect: ConnectorBankRedirectData = (&bank_redirect_data).try_into()?;
+        PaymentMethodType::BankRedirect(connector_bank_redirect)
+    },
+    _ => { return Err(ConnectorError::NotSupported { /* ... */ }) }
+};
+```
+
+#### 2. **Missing Status Variants in Enum**
+**Issue:** "Failed to deserialize connector response - unknown variant 'STATUS_NAME'" error
+**Root Cause:** Connector returns a status not defined in your status enum
+**Example (AUTHENTICATION_REDIRECTED):**
+```rust
+// ❌ WRONG - Missing AUTHENTICATION_REDIRECTED
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PaymentStatus {
+    RequiresPaymentMethod,
+    RequiresCustomerAction,
+    // Missing AUTHENTICATION_REDIRECTED!
+    Failed,
+}
+
+// ✅ CORRECT - Include all possible statuses
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PaymentStatus {
+    RequiresPaymentMethod,
+    RequiresCustomerAction,
+    AuthenticationRedirected,  // <-- ADD THIS!
+    RequiresCapture,
+    Failed,
+    // ... add ALL statuses the connector might return
+}
+```
+
+#### 3. **Special Field Requirements**
+**Issue:** Some connectors require specific fields to be set to None or special values
+**Root Cause:** Undocumented connector-specific requirements
+
+**Common Patterns:**
+```rust
+// Airwallex iDEAL - Must ignore bank selection
+BankRedirectData::Ideal { .. } => {
+    BankRedirect::Ideal(IdealData {
+        bank_name: None,  // ✅ ALWAYS None, never send bank_id
+        payment_method_type: PaymentType::Ideal,
+    })
+}
+
+// Stripe - Some methods need expand parameters
+PaymentMethodData::Wallet(WalletData::PayPal(_)) => {
+    PaymentMethod::PayPal {
+        expand: Some(vec!["payment_method".to_string()]),  // Required field
+    }
+}
+
+// Nordea - Requires complete metadata setup
+PaymentMethodData::BankRedirect(BankRedirectData::SepaDebit { iban, .. }) => {
+    PaymentMethod::Sepa {
+        creditor_account: Some(CreditorAccount {
+            iban: connector_config.creditor_iban.clone(),  // Required from config
+        }),
+        debtor_account: Some(DebtorAccount { iban }),
+    }
+}
+```
+
+### 🚨 General Payment Method Pitfalls
+
+#### 4. **Incomplete Payment Method Support**
+**Issue:** Most connectors only support a subset of available payment methods
+
+**The Scale of the Problem:**
+- **Wallet**: 70+ variants, most connectors support 3-5
+- **BankRedirect**: 19 variants, most support 2-3
+- **PayLater/BNPL**: 9 variants, most support 1-2
+- **BankDebit**: 6 variants, most support only SEPA
+
+**Solution Strategy:**
+1. **Prioritize by Region**: Support payment methods popular in your target markets
+2. **Implement Incrementally**: Start with top 5 for each category
+3. **Document Gaps**: Clearly list what's not supported in README
+4. **Use Descriptive Errors**: Instead of generic "NotImplemented", specify which variant
+
+```rust
+// ❌ BAD - Generic error
+_ => Err(ConnectorError::NotImplemented("Payment method".to_string()))
+
+// ✅ GOOD - Specific error
+PaymentMethodData::Wallet(WalletData::MomoWallet(_)) => {
+    Err(ConnectorError::NotSupported {
+        message: "MomoWallet is not supported by {Connector}".to_string(),
+        connector: "{connector}",
+    })
+}
+```
+
+#### 5. **Exhaustive Pattern Matching Traps**
+**Issue:** Rust forces exhaustive patterns, leading to catch-all `_` arms that hide missing variants
+
+**Problem Pattern:**
+```rust
+// ❌ This hides which specific variant is missing
+PaymentMethodData::Wallet(_)
+| PaymentMethodData::BankRedirect(_)
+| PaymentMethodData::Crypto(_)
+| PaymentMethodData::PayLater(_) => {
+    // Which variant failed? Find out at runtime!
+}
+```
+
+**Better Pattern:**
+```rust
+// ✅ Be explicit about what's implemented
+PaymentMethodData::Card(card_data) => { /* implemented */ },
+PaymentMethodData::Window => { ... },
+// Everything else explicitly unimplemented
+payment_method => {
+    Err(ConnectorError::NotSupported {
+        message: format!("Payment method '{:?}' is not supported", payment_method),
+        connector: "{connector}",
+    })
+}
+```
+
+### 🚨 Status Mapping Pitfalls
+
+#### 6. **Missing Status Transitions**
+**Issue:** Connector adds new status variants that break deserialization
+
+**Prevention:**
+```rust
+// ✅ Use #[serde(other)] to handle unknown statuses gracefully
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PaymentStatus {
+    RequiresPaymentMethod,
+    RequiresCustomerAction,
+    Succeeded,
+    Failed,
+    #[serde(other)]
+    Unknown,  // Catch-all for new statuses
+}
+
+// Then handle Unknown gracefully
+fn map_status(status: PaymentStatus) -> AttemptStatus {
+    match status {
+        PaymentStatus::RequiresPaymentMethod => AttemptStatus::PaymentMethodAwaited,
+        PaymentStatus::RequiresCustomerAction => AttemptStatus::AuthenticationPending,
+        PaymentStatus::Succeeded => AttemptStatus::Charged,
+        PaymentStatus::Failed => AttemptStatus::Failure,
+        PaymentStatus::Unknown => AttemptStatus::Pending,  // Safe default
+    }
+}
+```
+
+#### 7. **Flow-Specific Status Requirements**
+**Issue:** Different payment flows (Authorize, Capture, Refund) may have different status requirements
+
+**Example:** Some statuses only appear in certain flows:
+- `CAPTURE_REQUESTED` appears in Authorize flow
+- `REFUND_INITIATED` appears in Refund flow
+- `CONFIRMATION_AWAITED` appears in BankDebit flows
+
+### 🚨 Field Mapping Pitfalls
+
+#### 8. **Case Sensitivity Issues**
+**Issue:** Connector expects specific case but you send wrong case
+
+**Common Examples:**
+```rust
+// ❌ Bank names are case-sensitive
+BankRedirectData::Ideal { bank_name: Some(BankNames::Ing) } // lowercase "ing"
+
+// ✅ Convert to expected case
+IdealData {
+    bank_name: bank_name
+        .and_then(|name| Some(name.to_lowercase()))  // "ING" -> "ing"
+}
+```
+
+#### 9. **Required vs Optional Fields**
+**Issue:** Some fields are required by connector APIs but optional in our data structures
+
+**Examples:**
+- **Nordea**: `creditor.account` and `debtor.account` are mandatory from config
+- **Stripe**: `customer` object required for some payment methods
+- **Adyen**: `shopperEmail` required for certain flows
+
+#### 10. **Nested Field Flatten Requirements**
+**Issue:** Connector expects flattened structure but you send nested (or vice versa)
+
+**Example:**
+```rust
+// ❌ Nested (incorrect for form-urlencoded)
+payment_method_data: {
+    "ideal": { "bank": "ing" }
+}
+
+// ✅ Flattened (correct for form-urlencoded)
+payment_method_data[type]: "ideal",
+payment_method_data[ideal][bank]: "ing"
+```
+
+### 🚨 Testing Pitfalls
+
+#### 11. **Testing with Production Credentials**
+**Issue:** Using live keys leads to real transactions in tests
+
+**Prevention:**
+1. Always sandbox credentials in tests
+2. Use test card/bank numbers provided by connector
+3. Mock responses for status validation
+4. Never commit credentials to git
+
+#### 12. **Insufficient Status Testing**
+**Issue:** Only testing success path, not failure/edge cases
+
+**Test Checklist:**
+- [ ] Success flow with redirect URL
+- [ ] User cancellation at bank page
+- [ ] Bank decline/insufficient funds
+- [ ] Network timeout during redirect
+- [ ] Invalid bank selection
+- [ ] Missing required fields
+- [ ] All supported payment method variants
+
+### 🚨 Integration Pitfalls
+
+#### 13. ** webhook Processing Gaps**
+**Issue:** Payment succeeds but webhook processing fails due to missing status handlers
+
+**Prevention:**
+```rust
+// ✅ Handle webhook events that might arrive before sync
+fn process_webhook(event: WebhookEvent) -> Result<WebhookResponse, Error> {
+    match event.event_type {
+        WebhookEventType::PaymentIntentSucceeded => handle_success(event),
+        WebhookEventType::PaymentIntentFailed => handle_failure(event),
+        WebhookEventType::PaymentAttemptAuthenticationRedirected => {
+            // Special handler for AUTHENTICATION_REDIRECTED webhook
+            handle_authentication_redirected(event)
+        },
+_ => Err(Error::UnknownWebhookType(event.event_type)),
+    }
+}
+```
+
+#### 14. **Configuration Dependencies**
+**Issue**: Connector requires configuration values that aren't clearly documented
+
+**Common Config Needs:**
+- **Nordea**: `CREDITOR_ACCOUNT`, `DEBTOR_ACCOUNT`
+- **Paysafe**: `ACCOUNT_ID`, `CURRENCY`
+- **Connect2Pay**: `SECRET_KEY`, `WEBSITE_ID`
+- **All connectors**: Base URL, API version, timeout settings
+
+### Summary of Most Critical Issues
+
+| # | Issue | Impact | Frequency |
+|---|-------|---------|------------|
+| 1 | Missing BankRedirect handler | ❌ Complete failure | High |
+| 2 | Missing status variants | ❌ Deserialization error | Medium |
+| 3 | Special field requirements | ❌ API rejection | Medium |
+| 4 | Incomplete payment method support | ⚠️ Limited functionality | High |
+| 5 | Generic error messages | 🔧 Hard to debug | High |
+
+**Key Takeaway**: Most failures occur because connectors require **specific implementation details** that aren't immediately obvious from API documentation. Always check existing implementations for hidden requirements.
+
+## 📋 Appendix: Other Payment Method Critical Patterns
+
+This section briefly covers critical patterns found for other payment methods during hyperswitch analysis. While this guide focuses on BankRedirect, be aware of similar patterns in other payment method categories.
+
+### 🪪 Wallet Payment Methods (70+ variants)
+
+**Critical Issues:**
+- Most connectors only support 3-5 out of 70+ wallet variants
+- Missing variants cause "Payment method not supported" errors
+- Regional preferences vary significantly
+
+**Quick Fix Strategy:**
+```rust
+// Prioritize by market
+const TOP_WALLETS: &[&str] = &[
+    "PayPal", "ApplePay", "GooglePay",   // Global
+    "Alipay", "WeChatPay",             // China
+    "PayPalVenmo", "CashApp",          // US
+    "Trace", "MomoWallet",             // Asia
+    "Skrill", "Neteller",              // EU
+];
+
+// Check connector documentation for supported variants
+match &payment_method {
+    WalletData::PayPal(data) => handle_paypal(data),
+    WalletData::ApplePay(data) => handle_applepay(data),
+    // Add only what connector supports
+    _ => Err(ConnectorError::NotSupported {
+        message: format!("{} is not supported by {} connector",
+            wallet_variant_name(wallet), connector_name),
+        connector: connector_name,
+    })
+}
+```
+
+### 🏦 BankDebit Payment Methods (6 variants)
+
+**Critical Issues:**
+- Most connectors implement only SEPA Direct Debit
+- Missing IBAN validation for non-SEPA variants
+- Country-specific requirements
+
+**Common Pattern:**
+```rust
+// Most connectors - only SEPA implemented
+BankDebitData::SepaBankDebit { iban, .. } => {
+    // Implemented
+},
+
+BankDebitData::AchBankDebit { .. }      // US
+| BankDebitData::BacsBankDebit { .. }   // UK
+| BankDebitData::BecsBankDebit { .. }   // AU
+| BankDebitData::SepaGuarenteedBankDebit { .. }
+| BankDebitData::InstantBankTransfer { .. } => {
+    // Not implemented - market-specific
+    Err(ConnectorError::NotSupported { ... })
+}
+```
+
+### 📅 PayLater/BNPL Payment Methods (9 variants)
+
+**Critical Issues:**
+- Irony: Klarna connector doesn't support Klarna BNPL in some implementations
+- PayPal-related PayLater variants often missing
+- Country-specific BNPL availability
+
+**Quick Pattern:**
+```rust
+// Most common BNPL implementations
+PayLaterData::Klarna(data) => handle_klarna(data),
+PayLaterData::Afterpay(data) => handle_afterpay(data),
+PayLaterData::Affirm(data) => handle_affirm(data),
+
+// Often missing
+PayLaterData::PayPalPayLater(_)      // PayPal BNPL
+| PayLaterData::PayPalCredit(_)      // PayPal credit
+| PayLaterData::Klarna(_)           // Some Klarna implementations
+| PayLaterData::Walley(_)
+| PayLaterData::Atome(_) => {
+    Err(ConnectorError::NotSupported { ... })
+}
+```
+
+### 💳 Card Payment Methods (3 main + variants)
+
+**Critical Issues:**
+- CardDetails vs CardRedirect vs CardDetailsForNetworkTransactionId
+- Some connectors only handle standard card tokenization
+- Network token support varies
+
+**Pattern to Avoid:**
+```rust
+// ❌ Don't group all card types unless truly supported
+PaymentMethodData::Card(_)
+| PaymentMethodData::CardRedirect(_)
+| PaymentMethodData::CardDetailsForNetworkTransactionId(_) => {
+    // This hides specific card requirements
+}
+```
+
+**Better Pattern:**
+```rust
+// ✅ Handle explicitly or reject clearly
+PaymentMethodData::Card(card) => handle_card(card),
+PaymentMethodData::CardRedirect(redirect) => handle_card_redirect(redirect),
+PaymentMethodData::CardDetailsForNetworkTransactionId(network) => {
+    // Many connectors don't support network tokens
+    Err(ConnectorError::NotSupported {
+        message: "Network tokens not supported",
+        connector: connector_name,
+    })
+}
+```
+
+### 🎯 Key Implementation Strategy
+
+When implementing ANY payment method:
+
+1. **Start with Market Needs**:
+   - Europe: SEPA, iDEAL, Giropay, Sofort
+   - UK: BACS, FasterPayments
+   - US: ACH, Venmo, CashApp
+   - Asia: Alipay, WeChatPay, PromptPay, GrabPay
+
+2. **Progressive Implementation**:
+   ```rust
+   // Phase 1: Core methods
+   PaymentMethodData::Card(card) => implemented,
+   PaymentMethodData::BankRedirect(Ideal) => implemented,
+
+   // Phase 2: Market expansion
+   PaymentMethodData::Wallet(ApplePay) => implemented,
+   PaymentMethodData::Wallet(WeChatPay) => placeholder,
+
+   // Phase 3: Full support
+   // Add all remaining methods
+   ```
+
+3. **Always Document Gaps**:
+   ```markdown
+   # Supported Payment Methods
+
+   ✅ Fully Supported:
+   - Card (Credit/Debit)
+   - iDEAL (NL)
+   - PayPal (Global)
+
+   🚧 Partially Supported:
+   - ApplePay (iOS only)
+   - GooglePay (Android only)
+
+   ❌ Not Supported:
+   - All other BankRedirect variants
+   - Crypto payments
+   - BNPL methods
+   ```
+
+### 💡 Remember: The `bank_name: None` Pattern
+
+The iDEAL `bank_name: None` requirement in Airwallex is just one example of many undocumented requirements found across connectors. Always:
+
+1. **Check hyperswitch implementation** for the same connector
+2. **Look for special field handling** in existing connectors
+3. **Test with different bank variants** even if you think None is correct
+4. **Document ALL special requirements** in your connector README
+
 ## Integration Checklist
 
 ### Pre-Implementation Checklist
@@ -1439,6 +1899,7 @@ pub fn extract_billing_details<F, Req, Res>(
 - [ ] **Transformers File - Request**
   - [ ] Create BankRedirect request structures
   - [ ] Implement payment method mapping from `BankRedirectData`
+  - [ ] **CRITICAL: Add BankRedirect match arm in payment request transformation** (like Airwallex example)
   - [ ] Add bank selection logic (if applicable)
   - [ ] Build callback URL structures
   - [ ] Extract customer/debtor information
@@ -1446,6 +1907,7 @@ pub fn extract_billing_details<F, Req, Res>(
 
 - [ ] **Transformers File - Response**
   - [ ] Create response structures
+  - [ ] **CRITICAL: Include AUTHENTICATION_REDIRECTED in status enum**
   - [ ] Implement redirect URL extraction
   - [ ] Build RedirectForm (URI, Form, or HTML)
   - [ ] Map connector statuses to router statuses
@@ -1492,6 +1954,88 @@ pub fn extract_billing_details<F, Req, Res>(
   - [ ] Amount and currency correct
   - [ ] Transaction references maintained
   - [ ] Billing details included when required
+
+### Pattern 3: Complete BankRedirect Implementation Example (Airwallex-style)
+
+For connectors using the newer unified response structure with separate payment attempt tracking:
+
+```rust
+// ===== PAYMENT STATUS ENUM =====
+// Important: Include all statuses returned by the connector, including AUTHENTICATION_REDIRECTED
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AirwallexPaymentStatus {
+    RequiresPaymentMethod,
+    RequiresCustomerAction,
+    RequiresCapture,
+    Authorized,
+    Paid,
+    CaptureRequested,
+    Processing,
+    Succeeded,
+    Settled,
+    Cancelled,
+    Failed,
+    AuthenticationRedirected,  // <-- CRITICAL: Handle this status explicitly
+}
+
+// ===== STATUS MAPPING FUNCTION =====
+fn get_payment_status(
+    status: &AirwallexPaymentStatus,
+    next_action: &Option<AirwallexNextAction>,
+) -> AttemptStatus {
+    match status {
+        // ... other status mappings ...
+        AirwallexPaymentStatus::AuthenticationRedirected => {
+            // This status indicates the payment is ready for user authentication/redirect
+            AttemptStatus::AuthenticationPending
+        }
+        // ... rest of mappings ...
+    }
+}
+
+// ===== BANKREDIRECT HANDLER IN REQUEST TRANSFORMATION =====
+// Important: Add BankRedirect handling in payment request
+impl<T> TryFrom<&PaymentMethodData<T>> for AirwallexPaymentMethod {
+    type Error = error_stack::Report<ConnectorError>;
+
+    fn try_from(pm_data: &PaymentMethodData<T>) -> Result<Self, Self::Error> {
+        match pm_data {
+            PaymentMethodData::Card(card_data) => {
+                // Handle card payments
+            },
+            PaymentMethodData::BankRedirect(bank_redirect_data) => {
+                // CRITICAL: Handle BankRedirect - without this, you'll get "Payment Method not supported"
+                let airwallex_bank_redirect: AirwallexBankRedirectData = (&bank_redirect_data).try_into()?;
+                AirwallexPaymentMethod::BankRedirect(airwallex_bank_redirect)
+            },
+            _ => return Err(ConnectorError::NotSupported {
+                message: "Payment Method".to_string(),
+                connector: "Airwallex",
+            }.into()),
+        }
+    }
+}
+
+// ===== BANKREDIRECT DATA TRANSFORMATION IGNORES bank_id =====
+// For connectors like Airwallex that don't use/accept bank selection
+impl TryFrom<&BankRedirectData> for AirwallexBankRedirectData {
+    type Error = error_stack::Report<ConnectorError>;
+
+    fn try_from(bank_redirect: &BankRedirectData) -> Result<Self, Self::Error> {
+        match bank_redirect {
+            BankRedirectData::Ideal { .. } => {
+                // Note: Airwallex ignores bank_name - always use None
+                Ok(AirwallexBankRedirectData::Ideal(IdealData {
+                    ideal: IdealDetails { bank_name: None },  // Important: Don't send bank_id
+                    payment_method_type: AirwallexPaymentType::Ideal,
+                }))
+            },
+            // ... handle other bank redirect types ...
+        }
+    }
+}
+```
 
 ## Real-World Examples
 
@@ -1583,6 +2127,7 @@ VoltPaymentRequest {
 8. **Test All Redirect Types**: Each bank redirect type may have subtle differences
 9. **Document Bank Codes**: Clearly document bank code mappings and supported banks
 10. **Implement PSync**: BankRedirect flows require PSync for status verification after redirect
+11. **Handle AUTHENTICATION_REDIRECTED Status**: Some connectors like Airwallex return `AUTHENTICATION_REDIRECTED` as a distinct status - ensure your status enum includes this variant
 
 ## Placeholder Reference Guide
 
