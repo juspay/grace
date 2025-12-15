@@ -55,6 +55,7 @@ timeline.finalize()
 - `"phase_2_foundation_setup"`
 - `"phase_2_5_macro_pattern_study"`
 - `"phase_3_authorize_flow"`
+- `"phase_3_bankredirect_flow"`  # Optional - only tracked if user implements BankRedirect
 - `"phase_3_psync_flow"`
 - `"phase_3_capture_flow"`
 - `"phase_3_refund_flow"`
@@ -110,12 +111,63 @@ timeline.finalize()
 
 ### PHASE 3: FLOW IMPLEMENTATION (Sequential Subagent Delegation)
 Execute flows in EXACT sequence - each must complete before next begins:
-1. **TIMELINE**: `timeline.log_phase_start("phase_3_authorize_flow")` → **DELEGATE TO**: Authorize Flow Subagent → **WAIT FOR COMPLETION** → **TIMELINE**: `timeline.log_phase_end("phase_3_authorize_flow", status)`
-2. **TIMELINE**: `timeline.log_phase_start("phase_3_psync_flow")` → **DELEGATE TO**: PSync Flow Subagent → **WAIT FOR COMPLETION** → **TIMELINE**: `timeline.log_phase_end("phase_3_psync_flow", status)`
-3. **TIMELINE**: `timeline.log_phase_start("phase_3_capture_flow")` → **DELEGATE TO**: Capture Flow Subagent → **WAIT FOR COMPLETION** → **TIMELINE**: `timeline.log_phase_end("phase_3_capture_flow", status)`
-4. **TIMELINE**: `timeline.log_phase_start("phase_3_refund_flow")` → **DELEGATE TO**: Refund Flow Subagent → **WAIT FOR COMPLETION** → **TIMELINE**: `timeline.log_phase_end("phase_3_refund_flow", status)`
-5. **TIMELINE**: `timeline.log_phase_start("phase_3_rsync_flow")` → **DELEGATE TO**: RSync Flow Subagent → **WAIT FOR COMPLETION** → **TIMELINE**: `timeline.log_phase_end("phase_3_rsync_flow", status)`
-6. **TIMELINE**: `timeline.log_phase_start("phase_3_void_flow")` → **DELEGATE TO**: Void Flow Subagent → **WAIT FOR COMPLETION** → **TIMELINE**: `timeline.log_phase_end("phase_3_void_flow", status)`
+
+1. **Authorize Flow**
+   - **TIMELINE**: `timeline.log_phase_start("phase_3_authorize_flow")`
+   - **DELEGATE TO**: Authorize Flow Subagent
+   - **WAIT FOR COMPLETION**
+   - **TIMELINE**: `timeline.log_phase_end("phase_3_authorize_flow", status)`
+
+2. **BankRedirect Detection & User Choice** (CONDITIONAL)
+   - Auto-detect BankRedirect from tech spec: `./detect_bankredirect.sh grace/rulesbook/codegen/references/{connector_name}/technical_specification.md`
+   - **IF** BankRedirect detected (`has_bankredirect: true`):
+     - **STEP 1**: Ask user: "Do you want to integrate BankRedirect payment method? (y/n)"
+       - Execute: `./prompt_bankredirect.sh <detection_json>`
+     - **IF** user answers 'n' or selects skip:
+       - Log: "BankRedirect integration skipped by user"
+       - **TIMELINE**: Log skip reason in phase notes
+       - **CONTINUE** to PSync flow (step 3)
+     - **IF** user answers 'y' and selects types:
+       - **TIMELINE**: `timeline.log_phase_start("phase_3_bankredirect_flow")`
+       - **STEP 2**: Parse selected types from prompt output
+       - **DELEGATE TO**: BankRedirect Implementation Subagent
+         - Input: connector_name, selected_types, tech_spec_config
+       - **WAIT FOR COMPLETION**
+       - **TIMELINE**: `timeline.log_phase_end("phase_3_bankredirect_flow", status)`
+   - **IF** BankRedirect NOT detected (`has_bankredirect: false`):
+     - Log: "No BankRedirect support in tech spec"
+     - **SKIP** prompting and subagent
+     - **CONTINUE** to PSync flow (step 3)
+
+3. **PSync Flow**
+   - **TIMELINE**: `timeline.log_phase_start("phase_3_psync_flow")`
+   - **DELEGATE TO**: PSync Flow Subagent
+   - **WAIT FOR COMPLETION**
+   - **TIMELINE**: `timeline.log_phase_end("phase_3_psync_flow", status)`
+
+4. **Capture Flow**
+   - **TIMELINE**: `timeline.log_phase_start("phase_3_capture_flow")`
+   - **DELEGATE TO**: Capture Flow Subagent
+   - **WAIT FOR COMPLETION**
+   - **TIMELINE**: `timeline.log_phase_end("phase_3_capture_flow", status)`
+
+5. **Refund Flow**
+   - **TIMELINE**: `timeline.log_phase_start("phase_3_refund_flow")`
+   - **DELEGATE TO**: Refund Flow Subagent
+   - **WAIT FOR COMPLETION**
+   - **TIMELINE**: `timeline.log_phase_end("phase_3_refund_flow", status)`
+
+6. **RSync Flow**
+   - **TIMELINE**: `timeline.log_phase_start("phase_3_rsync_flow")`
+   - **DELEGATE TO**: RSync Flow Subagent
+   - **WAIT FOR COMPLETION**
+   - **TIMELINE**: `timeline.log_phase_end("phase_3_rsync_flow", status)`
+
+7. **Void Flow**
+   - **TIMELINE**: `timeline.log_phase_start("phase_3_void_flow")`
+   - **DELEGATE TO**: Void Flow Subagent
+   - **WAIT FOR COMPLETION**
+   - **TIMELINE**: `timeline.log_phase_end("phase_3_void_flow", status)`
 
 ### PHASE 4: FINAL VALIDATION AND QUALITY REVIEW
 1. **TIMELINE**: `timeline.log_phase_start("phase_4_quality_review")`
@@ -719,6 +771,353 @@ fn map_{connector_name}_status_to_attempt_status(
 - **Pattern File**: guides/patterns/pattern_void.md
 - **Primary Responsibility**: Payment cancellation implementation
 - **Key Implementation**: ConnectorIntegrationV2<Void, PaymentFlowData, PaymentVoidData, PaymentsResponseData>
+
+# ============================================================================
+# BANKREDIRECT IMPLEMENTATION SUBAGENT SPECIFICATION
+# ============================================================================
+
+## BANKREDIRECT SUBAGENT RESPONSIBILITIES
+
+You are a BankRedirect Implementation Subagent responsible for adding bank redirect payment method support to the connector.
+
+**Position:** Executes after Authorize Flow Subagent, before PSync Flow Subagent
+**Trigger Condition:** ONLY if BankRedirect types detected in tech spec AND user chooses to implement
+**Input Parameters:** Selected BankRedirect types from user (e.g., ["ideal", "giropay", "eps"])
+**Primary Goal:** Extend Authorize flow request/response to handle selected BankRedirect payment methods
+
+### WHEN TO EXECUTE
+- After Authorize Flow Subagent completes successfully
+- Only if tech spec contains checked BankRedirect types in section 1.4
+- Only if user answered 'y' to integrate BankRedirect
+- Receives selected types as input parameter (subset or all detected types)
+
+### MANDATORY WORKFLOW (EXECUTE IN EXACT ORDER)
+
+#### STEP 1: Read BankRedirect Pattern Guide
+```bash
+# Read the comprehensive BankRedirect pattern file
+Read: guides/patterns/pattern_authorize_bankredirect.md
+
+# Understand key concepts:
+- Request/response structures for BankRedirect flows
+- Callback URL patterns (single, dual, triple, quad)
+- Bank selection mechanisms (BIC codes, custom codes, none)
+- Status mapping for redirect flows (AuthenticationPending → Charged/Failure)
+- Redirect form construction (URI, Form POST, HTML)
+```
+
+#### STEP 2: Read Tech Spec BankRedirect Configuration
+```bash
+# Read section 1.4 from tech spec
+File: grace/rulesbook/codegen/references/{connector_name}/technical_specification.md
+Section: "### 1.4 BankRedirect Payment Methods Configuration"
+
+# For each selected type, extract:
+- Request format (JSON / Form-urlencoded / XML)
+- Callback URL pattern
+- Bank selection requirements
+- Required fields (billing_country, email, customer_name, etc.)
+- Redirect response format
+- Special handling requirements
+```
+
+#### STEP 3: Modify Authorize Flow Transformers
+```bash
+File: backend/connector-integration/src/connectors/{connector_name}/transformers.rs
+
+# Locate the TryFrom implementation for authorize request
+# Add BankRedirect handling to payment method match:
+
+PaymentMethodData::BankRedirect(bank_redirect_data) => {
+    match bank_redirect_data {
+        // For each SELECTED type, add appropriate handling
+        BankRedirectData::Ideal { bank_name, .. } if selected_types.contains("ideal") => {
+            // Build iDEAL-specific request structure
+            // Extract bank selection if provided
+            // Add callback URLs
+        },
+        BankRedirectData::Giropay { .. } if selected_types.contains("giropay") => {
+            // Build Giropay-specific request structure
+            // Usually no bank selection needed
+            // Add callback URLs
+        },
+        BankRedirectData::Eps { bank_name, .. } if selected_types.contains("eps") => {
+            // Build EPS-specific request structure
+            // Handle optional Austrian bank selection
+            // Add callback URLs
+        },
+        // ... repeat for each selected type ...
+
+        // For non-selected types, return NotImplemented
+        _ => Err(errors::ConnectorError::NotImplemented(
+            utils::get_unimplemented_payment_method_error_message("{connector_name}")
+        ))?,
+    }
+}
+```
+
+#### STEP 4: Add BankRedirect Request Structures
+```bash
+File: backend/connector-integration/src/connectors/{connector_name}/transformers.rs
+
+# Based on tech spec request format, create appropriate structures:
+
+# For JSON-based APIs:
+#[derive(Debug, Serialize)]
+pub struct {Connector}BankRedirectRequest {
+    pub payment_type: {Connector}BankType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bank_code: Option<String>,
+    pub callback_urls: {Connector}CallbackUrls,
+    pub customer: {Connector}CustomerInfo,
+}
+
+#[derive(Debug, Serialize)]
+pub enum {Connector}BankType {
+    Ideal,    // if "ideal" in selected_types
+    Giropay,  // if "giropay" in selected_types
+    Eps,      // if "eps" in selected_types
+    // ... only include selected types
+}
+
+# For Form-urlencoded APIs:
+#[derive(Debug, Serialize)]
+pub struct {Connector}BankRedirectFormData {
+    #[serde(rename = "payment_method[type]")]
+    pub payment_type: String,
+
+    #[serde(rename = "payment_method[ideal][bank]", skip_serializing_if = "Option::is_none")]
+    pub ideal_bank: Option<String>,
+
+    #[serde(rename = "return_url")]
+    pub return_url: String,
+
+    // ... based on tech spec
+}
+
+# Add callback URL structure based on pattern:
+#[derive(Debug, Serialize)]
+pub struct {Connector}CallbackUrls {
+    pub success_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancel_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_url: Option<String>,
+    // Add pending_url if quad URL pattern
+}
+
+# Add bank selection enums if needed:
+#[derive(Debug, Serialize)]
+pub enum {Connector}IdealBanks {
+    #[serde(rename = "ABNANL2A")]
+    AbnAmro,
+    #[serde(rename = "INGBNL2A")]
+    Ing,
+    // ... from tech spec
+}
+```
+
+#### STEP 5: Implement Response Handling for Redirects
+```bash
+File: backend/connector-integration/src/connectors/{connector_name}/transformers.rs
+
+# In the TryFrom implementation for authorize response:
+
+impl TryFrom<ResponseRouterData<{Connector}AuthorizeResponse, ...>> for RouterDataV2<...> {
+    fn try_from(item: ResponseRouterData<...>) -> Result<Self, Self::Error> {
+        let response = &item.response;
+
+        // Map status - use AuthenticationPending for redirect initiation
+        let status = match response.status {
+            {Connector}Status::RequiresAction
+            | {Connector}Status::Pending => AttemptStatus::AuthenticationPending,
+            {Connector}Status::Succeeded => AttemptStatus::Charged,
+            {Connector}Status::Failed => AttemptStatus::Failure,
+            // ... other status mappings
+        };
+
+        // Extract redirect URL and build redirect form
+        let redirection_data = match &response.redirect_url {
+            Some(url) => Some(RedirectForm::Uri { uri: url.clone() }),
+            None => None,
+        };
+
+        // If Form POST redirect (from tech spec):
+        // let redirection_data = if let (Some(form_url), Some(fields)) =
+        //     (&response.form_url, &response.form_fields) {
+        //     Some(RedirectForm::Form {
+        //         endpoint: form_url.clone(),
+        //         method: Method::Post,
+        //         form_fields: fields.clone(),
+        //     })
+        // } else { None };
+
+        Ok(Self {
+            response: Ok(PaymentsResponseData::TransactionResponse {
+                resource_id: ResponseId::ConnectorTransactionId(response.id.clone()),
+                redirection_data,
+                // ... other fields
+            }),
+            resource_common_data: PaymentFlowData {
+                status,
+                ..item.router_data.resource_common_data.clone()
+            },
+            // ... other fields
+        })
+    }
+}
+```
+
+#### STEP 6: Update PSync Flow for Redirect Completion (if needed)
+```bash
+File: backend/connector-integration/src/connectors/{connector_name}/transformers.rs
+
+# In PSync response handling, ensure redirect-complete statuses map correctly:
+
+// Map connector's post-redirect statuses
+let status = match response.status {
+    {Connector}Status::RedirectComplete
+    | {Connector}Status::Captured => AttemptStatus::Charged,
+
+    {Connector}Status::RedirectFailed => AttemptStatus::Failure,
+
+    {Connector}Status::UserCancelled => AttemptStatus::Voided,
+
+    {Connector}Status::AwaitingRedirect
+    | {Connector}Status::Pending => AttemptStatus::AuthenticationPending,
+
+    // ... other status mappings
+};
+```
+
+#### STEP 7: Extract Customer Information Helper
+```bash
+# Add helper function for extracting customer details:
+
+fn extract_customer_info<F, Req, Res>(
+    router_data: &RouterDataV2<F, PaymentFlowData, Req, Res>,
+) -> Result<{Connector}CustomerInfo, errors::ConnectorError> {
+    Ok({Connector}CustomerInfo {
+        email: router_data.request.email.clone(),
+        first_name: router_data.resource_common_data.get_billing_first_name().ok(),
+        last_name: router_data.resource_common_data.get_billing_last_name().ok(),
+        // ... other required fields from tech spec
+    })
+}
+
+# Build callback URLs based on pattern:
+fn build_callback_urls(return_url: String) -> {Connector}CallbackUrls {
+    match callback_url_pattern {  // from tech spec
+        "single" => {Connector}CallbackUrls {
+            success_url: return_url.clone(),
+            cancel_url: None,
+            error_url: None,
+        },
+        "triple" => {Connector}CallbackUrls {
+            success_url: format!("{return_url}?status=success"),
+            cancel_url: Some(format!("{return_url}?status=cancel")),
+            error_url: Some(format!("{return_url}?status=error")),
+        },
+        // ... other patterns
+    }
+}
+```
+
+#### STEP 8: Bank Code Mapping (if applicable)
+```bash
+# If tech spec requires bank selection, create mapping:
+
+impl TryFrom<&BankNames> for {Connector}IdealBanks {
+    type Error = error_stack::Report<errors::ConnectorError>;
+
+    fn try_from(bank_name: &BankNames) -> Result<Self, Self::Error> {
+        match bank_name {
+            BankNames::AbnAmro => Ok(Self::AbnAmro),
+            BankNames::Ing => Ok(Self::Ing),
+            BankNames::Rabobank => Ok(Self::Rabobank),
+            // ... from tech spec
+            _ => Err(errors::ConnectorError::NotSupported {
+                message: format!("Bank {} not supported for iDEAL", bank_name),
+            })?,
+        }
+    }
+}
+```
+
+#### STEP 9: Cargo Build Validation
+```bash
+# Execute build to ensure code compiles
+cargo build
+
+# Fix any compilation errors:
+- Type mismatches
+- Missing imports
+- Incorrect field names
+- Serialization issues
+
+# Verify no breaking changes to existing Authorize flow
+```
+
+#### STEP 10: Document Implementation
+```bash
+# Add comments to complex logic
+# Document which BankRedirect types are supported
+# Note any connector-specific quirks
+```
+
+### INPUT PARAMETERS
+
+The subagent receives:
+```json
+{
+  "connector_name": "example_connector",
+  "selected_types": ["ideal", "giropay", "eps"],
+  "tech_spec_config": {
+    "request_format": "json",
+    "callback_pattern": "triple",
+    "bank_selection": {
+      "ideal": "required",
+      "giropay": "none",
+      "eps": "optional"
+    }
+  }
+}
+```
+
+### SUCCESS CRITERIA
+
+✅ All selected BankRedirect types implemented in Authorize flow
+✅ Request transformation handles each type with proper structure
+✅ Response creates proper RedirectForm (URI, Form POST, or HTML)
+✅ AuthenticationPending status used for redirect initiation
+✅ Callback URLs configured per tech spec pattern
+✅ Bank selection logic implemented where required
+✅ Customer information extraction working
+✅ Cargo build succeeds without errors
+✅ No breaking changes to existing Authorize functionality
+✅ PSync updated to handle redirect completion statuses (if needed)
+
+### ERROR HANDLING
+
+- If selected type has missing config in tech spec → Log warning, skip that type
+- If bank selection required but not available → Return MissingRequiredField error
+- If return URL not present → Return MissingRequiredField error
+- If unknown BankRedirectData variant → Return NotImplemented error
+
+### REPORTING
+
+At completion, provide:
+```
+BankRedirect Implementation Summary:
+  ✓ Implemented types: ideal, giropay, eps
+  ✓ Callback pattern: Triple URLs (success, cancel, error)
+  ✓ Bank selection: iDEAL (required), Giropay (none), EPS (optional)
+  ✓ Request format: JSON
+  ✓ Redirect type: Simple URI
+  ✓ Build status: SUCCESS
+
+Ready for PSync flow implementation.
+```
 
 # ============================================================================
 # QUALITY GUARDIAN SUBAGENT SPECIFICATION
