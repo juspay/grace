@@ -309,6 +309,179 @@ def code():
     """Starts an interactive chat session with the AI agent."""
     asyncio.run(chat_loop())
 
+@cli.command()
+@click.option('--list', '-l', 'list_prompts', is_flag=True, help='List all available prompts')
+@click.option('--validate', '-v', is_flag=True, help='Validate all loaded prompts')
+@click.option('--stats', '-s', is_flag=True, help='Show prompt statistics')
+@click.option('--reload', '-r', is_flag=True, help='Reload all prompt sources')
+@click.option('--source', type=click.Choice(['default', 'promcode', 'system', 'user']), 
+              help='Filter by prompt source')
+@click.option('--info', help='Get detailed information about a specific prompt')
+def prompts(list_prompts, validate, stats, reload, source, info):
+    """Manage and inspect Grace Code prompts including Promcode integration."""
+    from src.ai.system.prompt_manager import get_prompt_manager, PromptSource
+    from src.ai.system.prompt_config import PromptConfig
+    from rich.console import Console
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich.syntax import Syntax
+    import json
+    
+    console = Console()
+    
+    try:
+        # Initialize prompt manager
+        prompt_manager = get_prompt_manager()
+        
+        # Handle reload first if requested
+        if reload:
+            console.print("[yellow]Reloading all prompt sources...[/yellow]")
+            success = prompt_manager.reload_all()
+            if success:
+                console.print("[green]✓ Successfully reloaded all prompt sources[/green]")
+            else:
+                console.print("[red]✗ Failed to reload some prompt sources[/red]")
+                return
+        
+        # Handle specific prompt info
+        if info:
+            prompt_entry = prompt_manager.get_prompt_info(info)
+            if prompt_entry:
+                console.print(f"\n[bold cyan]Prompt Information: {info}[/bold cyan]")
+                
+                # Create info table
+                info_table = Table(show_header=False, box=None)
+                info_table.add_column("Property", style="bold yellow")
+                info_table.add_column("Value")
+                
+                info_table.add_row("Name", prompt_entry.name)
+                info_table.add_row("Source", prompt_entry.source.value)
+                info_table.add_row("Priority", str(prompt_entry.priority))
+                info_table.add_row("Length", f"{len(prompt_entry.content)} characters")
+                info_table.add_row("Created", prompt_entry.metadata.created or "Unknown")
+                info_table.add_row("Version", prompt_entry.metadata.version)
+                
+                console.print(info_table)
+                
+                # Show content preview
+                content_preview = prompt_entry.content[:500]
+                if len(prompt_entry.content) > 500:
+                    content_preview += "\n... (truncated)"
+                
+                console.print(f"\n[bold]Content Preview:[/bold]")
+                console.print(Panel(content_preview, title="Prompt Content"))
+            else:
+                console.print(f"[red]Prompt '{info}' not found[/red]")
+            return
+        
+        # Handle list prompts
+        if list_prompts:
+            source_filter = None
+            if source:
+                source_filter = PromptSource(source)
+            
+            prompts_list = prompt_manager.list_prompts(source_filter)
+            
+            console.print(f"\n[bold cyan]Available Prompts[/bold cyan]")
+            if source:
+                console.print(f"[dim]Filtered by source: {source}[/dim]")
+            
+            # Create prompts table
+            prompts_table = Table(show_header=True)
+            prompts_table.add_column("Prompt Name", style="bold green")
+            prompts_table.add_column("Source", style="yellow")
+            prompts_table.add_column("Length", justify="right")
+            prompts_table.add_column("Enhanced", justify="center")
+            
+            for prompt_name in sorted(prompts_list):
+                entry = prompt_manager.get_prompt_info(prompt_name)
+                if entry:
+                    is_enhanced = prompt_name.startswith('enhanced')
+                    enhanced_marker = "✓" if is_enhanced else "-"
+                    
+                    prompts_table.add_row(
+                        prompt_name,
+                        entry.source.value,
+                        str(len(entry.content)),
+                        enhanced_marker
+                    )
+            
+            console.print(prompts_table)
+            console.print(f"\n[dim]Total prompts: {len(prompts_list)}[/dim]")
+        
+        # Handle validation
+        if validate:
+            console.print("\n[yellow]Validating prompts...[/yellow]")
+            issues = prompt_manager.validate_prompts()
+            
+            if not issues:
+                console.print("[green]✓ All prompts are valid[/green]")
+            else:
+                console.print(f"[red]Found issues in {len(issues)} prompts:[/red]")
+                
+                for prompt_name, prompt_issues in issues.items():
+                    console.print(f"\n[bold red]• {prompt_name}:[/bold red]")
+                    for issue in prompt_issues:
+                        console.print(f"  - {issue}")
+        
+        # Handle statistics
+        if stats:
+            stats_data = prompt_manager.get_statistics()
+            
+            console.print(f"\n[bold cyan]Prompt Statistics[/bold cyan]")
+            
+            # Create stats table
+            stats_table = Table(show_header=False, box=None)
+            stats_table.add_column("Metric", style="bold yellow")
+            stats_table.add_column("Value", style="green")
+            
+            stats_table.add_row("Total Prompts", str(stats_data['total_prompts']))
+            stats_table.add_row("Sources Loaded", str(stats_data['sources_loaded']))
+            stats_table.add_row("Total Content Length", f"{stats_data['total_content_length']:,} chars")
+            stats_table.add_row("Average Prompt Length", f"{stats_data['average_prompt_length']:,} chars")
+            
+            if stats_data.get('last_reload'):
+                stats_table.add_row("Last Reload", str(stats_data['last_reload']))
+            
+            console.print(stats_table)
+            
+            # Show prompts by source
+            console.print(f"\n[bold]Prompts by Source:[/bold]")
+            source_table = Table(show_header=True)
+            source_table.add_column("Source", style="yellow")
+            source_table.add_column("Count", justify="right", style="green")
+            
+            for source_name, count in stats_data['prompts_by_source'].items():
+                source_table.add_row(source_name, str(count))
+            
+            console.print(source_table)
+            
+            # Show loaded files
+            if stats_data.get('loaded_files'):
+                console.print(f"\n[bold]Loaded Files:[/bold]")
+                for file_path in stats_data['loaded_files']:
+                    console.print(f"  • {file_path}")
+        
+        # Default behavior - show basic info
+        if not any([list_prompts, validate, stats, reload, info]):
+            console.print("[bold cyan]Grace Code Prompt Management[/bold cyan]")
+            console.print("\nUse --help to see available options:")
+            console.print("  --list     List all prompts")
+            console.print("  --validate Validate prompts")
+            console.print("  --stats    Show statistics")
+            console.print("  --reload   Reload all sources")
+            console.print("  --info     Get prompt details")
+            
+            # Show quick stats
+            stats_data = prompt_manager.get_statistics()
+            console.print(f"\n[dim]Quick stats: {stats_data['total_prompts']} prompts from {stats_data['sources_loaded']} sources[/dim]")
+    
+    except Exception as e:
+        console.print(f"[red]Error managing prompts: {str(e)}[/red]")
+        if click.get_current_context().params.get('verbose'):
+            import traceback
+            console.print(f"[dim red]Traceback: {traceback.format_exc()}[/dim red]")
+
 
 def main():
     try:

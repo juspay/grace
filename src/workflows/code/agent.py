@@ -5,99 +5,103 @@ import requests
 from src.config import get_config
 from src.ai.system.prompt_config import PromptConfig
 from . import tool_functions
+from .tool_wrapper import wrap_tool_functions
 
 DEBUG = get_config().getLogConfig().debug
 
-# Define the tools with detailed descriptions
+# Get wrapped tool functions for visualization
+wrapped_tool_functions = wrap_tool_functions(tool_functions)
+
+# Define the tools with detailed descriptions using wrapped functions for visualization
 @tool
 def agent(input: tool_functions.AgentInput):
     """Delegate complex tasks to specialized agents"""
-    return tool_functions.agent(input)
+    return wrapped_tool_functions['agent'](input)
 
 @tool
 def bash(input: tool_functions.BashInput):
     """Execute shell commands for build, test, or system operations"""
-    return tool_functions.bash(input)
+    return wrapped_tool_functions['bash'](input)
 
 @tool
 def bash_output(input: tool_functions.BashOutputInput):
     """Get output from previously executed background shell commands"""
-    return tool_functions.bash_output(input)
+    return wrapped_tool_functions['bash_output'](input)
 
 @tool
 def exit_plan_mode(input: tool_functions.ExitPlanModeInput):
     """Exit planning mode and switch to execution mode"""
-    return tool_functions.exit_plan_mode(input)
+    return wrapped_tool_functions['exit_plan_mode'](input)
 
 @tool
 def file_edit(input: tool_functions.FileEditInput):
     """Make targeted edits to existing files for updates or fixes"""
-    return tool_functions.file_edit(input)
+    return wrapped_tool_functions['file_edit'](input)
 
 @tool
 def file_read(input: tool_functions.FileReadInput):
     """Read file contents for analysis, understanding code structure"""
-    return tool_functions.file_read(input)
+    return wrapped_tool_functions['file_read'](input)
 
 @tool
 def file_write(input: tool_functions.FileWriteInput):
     """Create new files or completely overwrite existing file contents"""
-    return tool_functions.file_write(input)
+    return wrapped_tool_functions['file_write'](input)
 
 @tool
 def glob(input: tool_functions.GlobInput):
     """Find files using glob patterns (*.py, *.js, etc.)"""
-    return tool_functions.glob(input)
+    return wrapped_tool_functions['glob'](input)
 
 @tool
 def grep(input: tool_functions.GrepInput):
     """Search for text patterns within files for code analysis"""
-    return tool_functions.grep(input)
+    return wrapped_tool_functions['grep'](input)
 
 @tool
 def kill_shell(input: tool_functions.KillShellInput):
     """Terminate running shell processes to clean up or stop commands"""
-    return tool_functions.kill_shell(input)
+    return wrapped_tool_functions['kill_shell'](input)
 
 @tool
 def list_mcp_resources(input: tool_functions.ListMcpResourcesInput):
     """List available MCP resources for discovering external tools"""
-    return tool_functions.list_mcp_resources(input)
+    return wrapped_tool_functions['list_mcp_resources'](input)
 
 @tool
 def mcp(input: tool_functions.McpInput):
     """Interact with Model Context Protocol resources for external integrations"""
-    return tool_functions.mcp(input)
+    return wrapped_tool_functions['mcp'](input)
 
 @tool
 def notebook_edit(input: tool_functions.NotebookEditInput):
     """Edit Jupyter notebooks for data analysis and ML workflows"""
-    return tool_functions.notebook_edit(input)
+    return wrapped_tool_functions['notebook_edit'](input)
 
 @tool
 def read_mcp_resource(input: tool_functions.ReadMcpResourceInput):
     """Read data from MCP resources for accessing external information"""
-    return tool_functions.read_mcp_resource(input)
+    return wrapped_tool_functions['read_mcp_resource'](input)
 
 @tool
 def todo_write(input: tool_functions.TodoWriteInput):
     """Create or update task lists for planning and tracking progress"""
-    return tool_functions.todo_write(input)
+    return wrapped_tool_functions['todo_write'](input)
 
 @tool
 def web_fetch(input: tool_functions.WebFetchInput):
     """Retrieve web content from URLs for documentation or API access"""
-    return tool_functions.web_fetch(input)
+    return wrapped_tool_functions['web_fetch'](input)
 
 @tool
 def web_search(input: tool_functions.WebSearchInput):
     """Search the web for documentation, solutions, or latest information"""
-    return tool_functions.web_search(input)
+    return wrapped_tool_functions['web_search'](input)
 
 @tool
 def ask_user_question(input: tool_functions.AskUserQuestionInput):
     """Ask users for clarification, preferences, or additional requirements"""
-    return tool_functions.ask_user_question(input)
+    return wrapped_tool_functions['ask_user_question'](input)
 
 
 tools = [
@@ -166,30 +170,46 @@ def create_langchain_agent_with_model_validation():
             "gemini-2.5-flash", "claude-sonnet-4-5", "glm-46-fp8", "glm-latest"
         ]
     
-    # Get the detailed system prompt from configuration
-    system_prompt = PromptConfig(promptfile = "code-prompts.yaml").get("graceSystemPrompt")
+    # Get the enhanced system prompt from configuration
+    prompt_config = PromptConfig(promptfile="code-prompts.yaml", use_enhanced=True)
+    
+    # Try to get enhanced system prompt first, fallback to standard
+    try:
+        system_prompt = prompt_config.get_enhanced(
+            "graceSystemPrompt", 
+            fallback_prompt=prompt_config.get("graceSystemPrompt")
+        )
+        if DEBUG:
+            print("DEBUG: Using enhanced system prompt from Promcode")
+    except Exception as e:
+        system_prompt = prompt_config.get("graceSystemPrompt")
+        if DEBUG:
+            print(f"DEBUG: Using standard system prompt: {e}")
     # Validate configured model
     configured_model = ai_config.model_id
     model_to_use = None
-    model_invalid = False
+    
+    if DEBUG:
+        print(f"DEBUG: Configured model: '{configured_model}'")
+        print(f"DEBUG: Available models: {available_models[:5]}...")  # Show first 5
+        print(f"DEBUG: Model in available: {configured_model in available_models}")
     
     if configured_model and configured_model in available_models:
         model_to_use = configured_model
+        if DEBUG:
+            print(f"DEBUG: Using configured model: {model_to_use}")
     else:
-        model_invalid = True
-        # Use first available model as fallback
-        model_to_use = available_models[0] if available_models else "gemini-2.5-pro"
-    
-    # Display model information if invalid
-    if model_invalid:
-        print(f"\n⚠️  Model Configuration Warning:")
-        print(f"   Configured model '{configured_model}' is not available.")
-        print(f"   Using fallback model: '{model_to_use}'")
-        print(f"\n📋 Available models:")
-        for i, model in enumerate(available_models, 1):
-            marker = "✓" if model == model_to_use else " "
-            print(f"   {marker} {i:2d}. {model}")
-        print()
+        if DEBUG:
+            print(f"DEBUG: Model invalid, prompting user selection")
+        # Ask user to select a model
+        model_to_use = _prompt_user_model_selection(configured_model, available_models)
+        if model_to_use is None:
+            # User cancelled, use default fallback
+            model_to_use = "gemini-2.5-pro"
+            print(f"Using default model: '{model_to_use}'")
+        else:
+            if DEBUG:
+                print(f"DEBUG: User selected model: {model_to_use}")
     
     # Create the chat model using ChatOpenAI
     from langchain_openai import ChatOpenAI
@@ -211,3 +231,45 @@ def create_langchain_agent_with_model_validation():
     )
 
     return agent_graph
+
+def _prompt_user_model_selection(configured_model: str, available_models: list) -> str:
+    """Prompt user to select a model from available options"""
+    try:
+        from rich.console import Console
+        from rich.prompt import Prompt
+        from rich.prompt import IntPrompt
+        
+        console = Console()
+        
+        console.print(f"\n⚠️  Model Configuration Issue:")
+        console.print(f"[dim]Configured model '{configured_model}' is not available.[/dim]")
+        console.print(f"\n[cyan]Please select a model from the available options:[/cyan]")
+        
+        # Display available models with numbers
+        for i, model in enumerate(available_models, 1):
+            console.print(f"  [yellow]{i:2d}.[/yellow] [bold]{model}[/bold]")
+        
+        console.print(f"\n[dim]Enter the number of your choice (1-{len(available_models)}), or press Enter to use default.[/dim]")
+        
+        # Simple input validation loop
+        while True:
+            choice = console.input("Select model > ").strip()
+            
+            if not choice or choice == "":  # User pressed Enter for default
+                console.print("Using default model: gemini-2.5-pro")
+                return None
+            
+            try:
+                choice_num = int(choice)
+                if 1 <= choice_num <= len(available_models):
+                    selected_model = available_models[choice_num - 1]
+                    console.print(f"Selected: {selected_model}")
+                    return selected_model
+                else:
+                    console.print(f"[red]Invalid choice. Please enter a number between 1 and {len(available_models)}[/red]")
+            except ValueError:
+                console.print("[red]Invalid input. Please enter a number.[red]")
+            
+    except Exception as e:
+        print(f"Error prompting for model selection: {e}")
+        return None
