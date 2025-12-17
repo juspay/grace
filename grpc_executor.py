@@ -6,6 +6,7 @@ Runs each set independently, stopping on auth failure
 
 import os
 import json
+import sys
 import time
 import subprocess
 from datetime import datetime
@@ -17,6 +18,11 @@ from grpc_generator import GrpcGenerator
 class GrpcExecutor:
     def __init__(self, env_file: str = ".env.grpc"):
         """Initialize the executor"""
+        self.env_file = env_file
+
+        # Verify executor-specific requirements
+        self._verify_executor_setup()
+
         self.generator = GrpcGenerator(env_file)
         self.output_dir = Path(os.getenv("GRPC_OUTPUT_DIR", "./grpc_test_results"))
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -331,6 +337,49 @@ class GrpcExecutor:
         print(f"{'='*60}")
 
         return final_results
+
+    def _verify_executor_setup(self):
+        """Verify executor-specific setup requirements"""
+        # Check if GRPC_OUTPUT_DIR can be created
+        output_dir = Path(os.getenv("GRPC_OUTPUT_DIR", "./grpc_test_results"))
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            print(f"✓ Output directory: {output_dir}")
+        except Exception as e:
+            print(f"✗ Cannot create output directory {output_dir}: {e}")
+            sys.exit(1)
+
+        # Check if test_sets.json has valid structure
+        test_sets_file = Path("test_sets.json")
+        if not test_sets_file.exists():
+            print(f"✗ Test sets file not found: {test_sets_file}")
+            sys.exit(1)
+
+        try:
+            with open(test_sets_file, 'r') as f:
+                data = json.load(f)
+                test_sets = data.get("test_sets", [])
+
+                if not test_sets:
+                    print("⚠️  No test sets defined in test_sets.json")
+                else:
+                    print(f"✓ Found {len(test_sets)} test sets")
+                    for i, test_set in enumerate(test_sets, 1):
+                        name = test_set.get("name", f"Unnamed_{i}")
+                        print(f"  - {name}")
+        except json.JSONDecodeError as e:
+            print(f"✗ Invalid JSON in test_sets.json: {e}")
+            sys.exit(1)
+
+        # Check output directory permissions
+        try:
+            test_file = output_dir / ".write_test"
+            test_file.write_text("test")
+            test_file.unlink()
+            print("✓ Output directory is writable")
+        except Exception as e:
+            print(f"✗ Output directory is not writable: {e}")
+            sys.exit(1)
 
 
 if __name__ == "__main__":

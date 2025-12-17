@@ -43,7 +43,7 @@
       ]
     },
     {
-      "name": "Automatic Capture Flow",
+      "name": "Automatic Refund Flow",
       "description": "Authorize → Refund → Payment Sync",
       "steps": [
         {

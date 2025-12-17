@@ -7,6 +7,8 @@ Reads environment variables and JSON templates to generate cURL commands
 import os
 import json
 import time
+import sys
+import subprocess
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -23,6 +25,10 @@ except ImportError:
 class GrpcGenerator:
     def __init__(self, env_file: str = ".env.grpc"):
         """Initialize the gRPC generator with environment configuration"""
+        # Minimal verification - just check if env file exists
+        if not Path(env_file).exists():
+            raise FileNotFoundError(f"Environment configuration file not found: {env_file}")
+
         # Load environment variables
         if HAS_DOTENV:
             load_dotenv(env_file)

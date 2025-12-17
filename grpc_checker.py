@@ -169,8 +169,18 @@ class GrpcChecker:
         if not results_file.exists():
             raise FileNotFoundError(f"Results file not found: {results_file}")
 
-        with open(results_file, 'r') as f:
-            results = json.load(f)
+        # Verify file is readable and valid JSON
+        try:
+            with open(results_file, 'r') as f:
+                results = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in results file: {e}")
+
+        # Verify required fields exist
+        required_fields = ["summary", "connector_name", "test_sets"]
+        for field in required_fields:
+            if field not in results:
+                raise ValueError(f"Missing required field in results file: {field}")
 
         analysis = {
             "summary": results["summary"],

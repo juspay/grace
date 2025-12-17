@@ -16,31 +16,178 @@ from grpc_executor import GrpcExecutor
 from grpc_checker import GrpcChecker
 
 
+def verify_setup(env_file=".env.grpc"):
+    """Verify the complete setup before running tests"""
+    import subprocess
+    import json
+
+    print("=== gRPC Test Framework Verification ===\n")
+    print("="*60)
+
+    all_good = True
+
+    # Check essential files
+    essential_files = [
+        (env_file, "Environment configuration"),
+        ("test_sets.json", "Test sets configuration"),
+        ("grpc_generator.py", "gRPC generator"),
+        ("grpc_executor.py", "gRPC executor"),
+        ("grpc_checker.py", "gRPC checker"),
+        ("run_grpc_tests.py", "Test runner")
+    ]
+
+    for filepath, description in essential_files:
+        if Path(filepath).exists():
+            print(f"✓ {description}: {filepath}")
+        else:
+            print(f"✗ {description}: {filepath} (MISSING)")
+            all_good = False
+
+    # Check request templates
+    print("\nChecking request templates:")
+    request_files = [
+        "grpc_requests/auth.json",
+        "grpc_requests/capture.json",
+        "grpc_requests/void.json",
+        "grpc_requests/refund.json",
+        "grpc_requests/sync.json",
+        "grpc_requests/rsync.json"
+    ]
+
+    for req_file in request_files:
+        if Path(req_file).exists():
+            print(f"✓ Template: {req_file.split('/')[-1]}")
+        else:
+            print(f"✗ Template: {req_file.split('/')[-1]} (MISSING)")
+            all_good = False
+
+    # Check configuration values
+    print("\nConfiguration verification:")
+    if Path(env_file).exists():
+        with open(env_file, 'r') as f:
+            env_config = {}
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    env_config[key.strip()] = value.strip()
+
+        required_keys = [
+            'CONNECTOR_NAME',
+            'CONNECTOR_AUTH_TYPE',
+            'CONNECTOR_API_KEY',
+            'CONNECTOR_KEY1',
+            'CARD_NUMBER',
+            'CARD_CVC'
+        ]
+
+        for key in required_keys:
+            if key in env_config:
+                if 'CVC' in key and env_config[key] == '999':
+                    print(f"⚠️  {key}: {env_config[key]} (Should be 123 for Powertranz)")
+                    all_good = False
+                else:
+                    masked_value = '*' * len(env_config[key]) if 'KEY' in key else env_config[key]
+                    print(f"✓ {key}: {masked_value}")
+            else:
+                print(f"✗ {key}: NOT SET")
+                all_good = False
+    else:
+        all_good = False
+
+    # Check test sets content
+    print("\nTest sets verification:")
+    if Path("test_sets.json").exists():
+        with open("test_sets.json", 'r') as f:
+            test_sets = json.load(f)
+
+        test_sets_list = test_sets.get('test_sets', [])
+        if not test_sets_list:
+            print("⚠️  No test sets defined")
+            all_good = False
+        else:
+            print(f"✓ Found {len(test_sets_list)} test set(s)")
+            for i, test_set in enumerate(test_sets_list, 1):
+                name = test_set.get('name', f'Unnamed_{i}')
+                description = test_set.get('description', 'No description')
+                print(f"  - {name}: {description}")
+
+                has_rsync = any(step.get('operation') == 'rsync'
+                              for step in test_set.get('steps', []))
+                if has_rsync:
+                    print(f"    ✓ Includes rsync operation for refund sync")
+
+    # Check server connectivity
+    print("\nServer connectivity check:")
+    try:
+        result = subprocess.run(
+            ["grpcurl", "-plaintext", "localhost:8000", "list"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            print("✓ gRPC server is running on localhost:8000")
+        else:
+            print("✗ gRPC server not responding on localhost:8000")
+            all_good = False
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        print("⚠️  Cannot verify gRPC server (grpcurl not installed or server not running)")
+
+    print("\n" + "="*60)
+    if all_good:
+        print("✓ Setup verification: PASSED")
+        print("\nYou can now run the tests with:")
+        print("  python3 run_grpc_tests.py")
+        print("  ./grace-test.sh")
+    else:
+        print("✗ Setup verification: FAILED")
+        print("\nPlease fix the issues above before running tests.")
+        sys.exit(1)
+
+    return all_good
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run gRPC tests for payment connectors")
     parser.add_argument("--env", default=".env.grpc", help="Environment file (default: .env.grpc)")
     parser.add_argument("--generate-only", action="store_true", help="Only generate cURL commands, don't execute")
     parser.add_argument("--check-only", action="store_true", help="Analyze existing results without running tests")
     parser.add_argument("--test-set", help="Run specific test set by name")
+    parser.add_argument("--skip-verify", action="store_true", help="Skip setup verification (not recommended)")
 
     args = parser.parse_args()
 
+    # Main verification for all operations (unless skipped)
+    if not args.skip_verify:
+        verify_setup(args.env)
+    else:
+        print("⚠️  Skipping setup verification (not recommended)")
+        print()
+
     try:
         if args.check_only:
-            # Analyze existing results
-            checker = GrpcChecker()
+            # For check-only, verify results directory exists
             results_dir = Path("grpc_test_results")
-
             if not results_dir.exists():
-                print("No grpc_test_results directory found")
+                print("✗ grpc_test_results directory not found")
+                print("Run tests first to generate results")
                 sys.exit(1)
 
+            print(f"✓ Results directory: {results_dir}")
+
+            # Find and verify latest results
             results_files = list(results_dir.glob("test_results_*.json"))
             if not results_files:
-                print("No test result files found")
+                print("✗ No test result files found")
                 sys.exit(1)
 
             latest_file = max(results_files, key=lambda p: p.stat().st_mtime)
+            print(f"✓ Latest results: {latest_file.name}\n")
+
+            # Analyze existing results
+            checker = GrpcChecker()
+
             print(f"\nAnalyzing results from: {latest_file}")
 
             analysis = checker.check_test_results(latest_file)
