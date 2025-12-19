@@ -14,6 +14,8 @@ load_dotenv()
 from .workflows import run_techspec_workflow, run_research_workflow, run_pr_workflow
 from .config import get_config
 from .scripts.searxng_setup import setup_docker, setup_local, check_docker
+from .ai.ai_service import AIService
+from .grace_test_workflow import run_workflow
 
 @click.group()
 @click.version_option(version='1.0.0')
@@ -300,6 +302,66 @@ def pr(pr_url, output, verbose):
             sys.exit(1)
 
     asyncio.run(run_pr())
+
+
+@cli.command()
+@click.argument('connector_name', required=True)
+@click.option('--env', '-e', default='.env.grpc', help='Environment file for gRPC configuration')
+@click.option('--test-set', '-t', help='Run specific test set by name')
+@click.option('--output-dir', '-o', help='Output directory for results (default: ./output/grpc-results)')
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+def gtest_full(connector_name, env, test_set, output_dir, verbose):
+    """Generate gRPC curls, execute tests, and analyze with Claude AI."""
+
+    async def run_complete_test():
+        try:
+            if verbose:
+                click.echo(f"🚀 Running complete test workflow for: {connector_name}")
+                click.echo(f"Environment: {env}")
+                if test_set:
+                    click.echo(f"Test set: {test_set}")
+                click.echo()
+
+            # Prepare workflow arguments
+            workflow_args = {
+                "connector_name": connector_name,
+                "env_file": env,
+                "test_set": test_set,
+                "output_dir": output_dir
+            }
+
+            # Run the complete workflow
+            results = await run_workflow(workflow_args)
+
+            # Display summary
+            test_exec = results.get("workflow_steps", {}).get("test_execution", {})
+
+            if test_exec.get("success"):
+                click.echo("\n✅ Tests completed successfully!")
+            else:
+                click.echo("\n❌ Some tests failed")
+                if test_exec.get("stderr"):
+                    click.echo(f"\nError: {test_exec['stderr'][-200:]}")
+
+            # Show output files
+            output_files = results.get("output_files", {})
+            if output_files:
+                click.echo("\n📁 Generated files:")
+                for file_type, file_path in output_files.items():
+                    click.echo(f"  {file_type}: {file_path}")
+
+            # Exit with appropriate code
+            sys.exit(0 if test_exec.get("success") else 1)
+
+        except Exception as e:
+            click.echo(f"❌ Workflow error: {str(e)}", err=True)
+            if verbose:
+                import traceback
+                click.echo(traceback.format_exc(), err=True)
+            sys.exit(1)
+
+    # Run the async workflow
+    asyncio.run(run_complete_test())
 
 
 def main():

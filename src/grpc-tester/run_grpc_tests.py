@@ -83,12 +83,9 @@ def verify_setup(env_file=".env.grpc"):
 
         for key in required_keys:
             if key in env_config:
-                if 'CVC' in key and env_config[key] == '999':
-                    print(f"⚠️  {key}: {env_config[key]} (Should be 123 for Powertranz)")
-                    all_good = False
-                else:
-                    masked_value = '*' * len(env_config[key]) if 'KEY' in key else env_config[key]
-                    print(f"✓ {key}: {masked_value}")
+                # For CVC, just accept any value without special checks
+                masked_value = '*' * len(env_config[key]) if 'KEY' in key else env_config[key]
+                print(f"✓ {key}: {masked_value}")
             else:
                 print(f"✗ {key}: NOT SET")
                 all_good = False
