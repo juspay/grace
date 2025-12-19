@@ -178,40 +178,47 @@ Be actionable and specific."""
             return {"error": f"No suitable .rs files found for connector: {connector_name}"}
 
         # Ask Claude to analyze and provide fixes
-        fix_prompt = """You are fixing payment connector code for {} after test failures.
+        fix_prompt = """You are an expert Rust developer fixing payment connector code for {} after test failures.
 
-Based on the test results showing "Invalid connector: Matching variant not found", you need to:
+CRITICAL ISSUE: The gRPC server returns "Invalid connector: Matching variant not found" when trying to process payments.
 
-1. **IDENTIFY THE PROBLEM**: Look for issues in:
-   - Connector name/identifier matching
-   - gRPC service implementation
-   - Error handling
-   - Module definitions
+YOUR TASK: Think step-by-step to identify AND fix the root cause.
 
-2. **PROVIDE FIXES**: For each issue found:
-   - Show exact code to replace (with line numbers if possible)
-   - Show the corrected code
-   - Explain why this fix works
+1. **THINK ABOUT THE PROBLEM**:
+   - Why does "Matching variant not found" happen?
+   - Where in the code are connector variants defined?
+   - How does the gRPC server match connector names?
+   - What variant name should "{}" using?
 
-3. **FORMAT YOUR RESPONSE**:
-   For each file that needs fixing, output in this format:
+2. **IDENTIFY THE FIX**:
+   - Look for enum definitions (PaymentConnector, ConnectorType, etc.)
+   - Check struct implementations
+   - Find where variant matching occurs
+   - Check routing or mapping logic
 
+3. **PROVIDE EXACT FIXES**:
+   - For each issue, provide actual code changes
+   - Use proper Rust syntax
+   - Line numbers if possible
+   - Show both BEFORE and AFTER
+
+4. **OUTPUT FORMAT**:
+   For each file needing changes:
    ```diff
    // File: path/to/file.rs
-   // Lines X-Y: Description of change
-   - old_code
-   + new_code
+   // Lines X-Y: Add TSYS variant to enum
+   pub enum PaymentConnector {
+       CardKnox,
+       Stripe,
+   - Razorpay,
+   +     Tsys,
+   }
    ```
 
-   Use proper Rust syntax and maintain consistency with existing code style.
+5. **BE PROACTIVE**: Don't just suggest, provide the exact fix that will make the tests pass!
 
-IMPORTANT: Look specifically for:
-- How connector variants are defined/matched
-- enum or struct definitions that should include "{}"
-- Service registration or routing issues
-- Any hardcoded connector names that don't match
-
-Focus on making the connector recognizable to the gRPC server as "{}". """
+Focus on making "{}" recognizable as a valid variant to the gRPC server.
+Remember: The fix WORKS when the tests pass! """
 
         fixes = []
 
@@ -261,7 +268,8 @@ Focus on making the connector recognizable to the gRPC server as "{}". """
 
         try:
             # Read current file content
-            lines = file_path.read_text(encoding='utf-8').split('\n')
+            original_content = file_path.read_text(encoding='utf-8')
+            original_lines = original_content.split('\n')
 
             # Extract and apply diffs
             import re
@@ -270,24 +278,52 @@ Focus on making the connector recognizable to the gRPC server as "{}". """
             diff_blocks = re.findall(r'```diff\n(.*?)\n```', diff_response, re.DOTALL)
 
             for diff_block in diff_blocks:
-                lines_patched = 0
+                new_lines = original_lines.copy()
+                modified_lines = set()
 
-                # Simple diff parsing (basic implementation)
-                for line in diff_block.split('\n'):
+                # Parse and apply diff changes
+                current_line_num = 0
+                for line_num, line in enumerate(new_lines):
+                    # Skip file headers in diff
+                    if line.startswith('// File:'):
+                        # Extract filename from diff if specified
+                        diff_file_match = re.search(r'// File:\s*(.+)', line)
+                        if diff_file_match:
+                            diff_specified = diff_file_match.group(1)
+                            # Verify if this is the right file
+                            if diff_specified != str(file_path):
+                                continue
+
+                    # Track removals and additions
                     if line.startswith('- '):
-                        # This is a removal - marked for replacement
-                        lines_patched += 1
+                        # Mark this line for removal
+                        modified_lines.add(line_num)
                     elif line.startswith('+ '):
-                        # This is an addition
-                        lines_patched += 1
+                        # This is an addition - insert after previous line
+                        code_to_add = line[2:]  # Remove '+ ' prefix
+                        new_lines.insert(line_num, code_to_add)
+                        modified_lines.add(line_num)
+                        current_line_num += 1
 
-                if lines_patched > 0:
-                    # For now, just log that we would apply the fix
-                    # In a real implementation, you'd parse and apply the actual changes
+                # Remove marked lines
+                new_lines = [line for i, line in enumerate(new_lines) if i not in modified_lines]
+
+                # Write the fixed file if changes were made
+                fixed_content = '\n'.join(new_lines)
+                if fixed_content != original_content:
+                    # Create backup
+                    backup_path = file_path.with_suffix(f'.rs.bak.{datetime.now().strftime("%Y%m%d_%H%M%S")}')
+                    backup_path.write_text(original_content, encoding='utf-8')
+
+                    # Write fixed content
+                    file_path.write_text(fixed_content, encoding='utf-8')
+
                     applied.append({
                         "file": str(file_path),
-                        "status": "Would apply fixes",
-                        "lines_affected": lines_patched
+                        "status": "Applied fixes successfully",
+                        "backup_created": str(backup_path),
+                        "lines_removed": len([l for l in original_lines if new_lines.count(l) == 0]),
+                        "lines_added": len([l for l in new_lines if original_lines.count(l) == 0])
                     })
 
         except Exception as e:
@@ -349,6 +385,20 @@ Focus on making the connector recognizable to the gRPC server as "{}". """
         print("📋 Step 4: Generating summary report...")
         summary = await self.generate_summary_report(results)
         results["workflow_steps"]["summary"] = summary
+
+        # Step 5: Show what Claude fixed
+        if code_analysis:
+            fixed_files = [c for c in code_analysis if c.get("success")]
+            if fixed_files:
+                print("\n🔧 Claude-applied Fixes:")
+                for fix in fixed_files:
+                    print(f"  ✅ {fix['file']}")
+                    if "backup_created" in fix:
+                        print(f"    📝 Backup: {fix['backup_created']}")
+                    if "lines_added" in fix:
+                        print(f"    ➕ Lines added: {fix['lines_added']}")
+                    if "lines_removed" in fix:
+                        print(f"    ↩️ Lines removed: {fix['lines_removed']}")
 
         # Save results
         if output_dir:
