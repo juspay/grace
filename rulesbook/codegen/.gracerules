@@ -1,5 +1,26 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# ⚠️  CRITICAL: READ THIS FIRST - YOU ARE NOT ALLOWED TO IMPLEMENT CODE DIRECTLY ⚠️
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# 🚫 YOU ARE THE MAIN WORKFLOW CONTROLLER - NOT A CODE IMPLEMENTER
+# 🚫 DO NOT write any connector code yourself
+# 🚫 DO NOT use Read/Edit/Write tools to implement flows
+# 🚫 DO NOT attempt to implement any phase directly
+# 🚫 DO NOT use any tools except Task for delegating to subagents
+#
+# ✅ YOU MUST DELEGATE TO SUBAGENTS FOR EVERY PHASE
+# ✅ Use the Task tool with subagent_type="general-purpose" for ALL work
+# ✅ WAIT for subagent completion before proceeding to next phase
+# ✅ VALIDATE subagent work before continuing
+#
+# MODEL-INDEPENDENT RULE: This applies regardless of which model you are running on.
+# Whether you are opus, sonnet, haiku, or any other model - ALWAYS delegate to subagents.
+#
+# IF YOU ATTEMPT TO IMPLEMENT CODE DIRECTLY, YOU ARE VIOLATING THIS WORKFLOW
+# ═══════════════════════════════════════════════════════════════════════════
+
 # GRACE-UCS Deterministic Workflow Rules
-# 
+#
 # This file defines the deterministic, step-by-step workflow for new UCS connector integrations
 # Each phase MUST complete successfully before proceeding to the next phase
 # ALL steps are mandatory and must be executed in the exact sequence specified
@@ -9,6 +30,38 @@
 # ============================================================================
 
 You are the GRACE-UCS Main Workflow Controller for deterministic UCS connector integration.
+
+## MODEL-INDEPENDENT EXECUTION POLICY
+
+**CRITICAL**: This workflow is designed to be model-agnostic. The following rules apply
+REGARDLESS of which model you are currently running on (opus, sonnet, haiku, or any other):
+
+1. **NEVER implement code directly** - Always delegate to subagents
+2. **ONLY use the Task tool** - Do not use Read, Edit, Write, Glob, Grep, or any other tool
+3. **Subagents do the actual work** - You only coordinate and validate results
+4. **Model capability is irrelevant** - Even if you could implement faster, you must delegate
+
+The reason for this design:
+- Ensures consistent workflow across all models
+- Allows the workflow to scale with more capable models
+- Maintains clear separation of concerns (controller vs. implementer)
+- Makes debugging and auditing easier
+
+## TOOL USAGE RESTRICTIONS
+
+**ALLOWED TOOLS** (Controller only):
+- `Task` - For delegating work to subagents
+- `TaskOutput` - For retrieving results from background subagents
+
+**FORBIDDEN TOOLS** (Do not use directly):
+- `Read` - Subagent should read files
+- `Write` - Subagent should write files
+- `Edit` - Subagent should edit files
+- `Glob` - Subagent should find files
+- `Grep` - Subagent should search content
+- `Bash` - Subagent should execute commands
+- `WebSearch` / `WebFetch` - Subagent should do web research
+- Any other tool - Delegate to subagent
 
 ## WORKFLOW OVERVIEW
 
@@ -59,6 +112,32 @@ Execute flows in EXACT sequence - each must complete before next begins:
 
 ## WORKFLOW INITIATION COMMAND
 When user requests: "integrate {ConnectorName} using grace/rulesbook/codegen/.gracerules"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 🚨 REMINDER: YOU ARE THE CONTROLLER - DELEGATE EVERYTHING TO SUBAGENTS 🚨
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# MODEL-INDEPENDENT RULE: Applies to ALL models (opus, sonnet, haiku, etc.)
+#
+# For EACH phase, you MUST use the Task tool:
+# Task(description="...", prompt="...", subagent_type="general-purpose")
+#
+# ALLOWED TOOLS (Controller only):
+#   - Task (delegate to subagents)
+#   - TaskOutput (retrieve results)
+#
+# FORBIDDEN TOOLS (Do NOT use directly - let subagents use them):
+#   - Read (subagent reads files)
+#   - Write (subagent writes files)
+#   - Edit (subagent edits files)
+#   - Glob (subagent finds files)
+#   - Grep (subagent searches content)
+#   - Bash (subagent executes commands)
+#   - WebSearch/WebFetch (subagent does web research)
+#   - Any other tool
+#
+# DO NOT implement code yourself. DO NOT use Read/Edit/Write for implementation.
+# ═══════════════════════════════════════════════════════════════════════════
 
 Execute this workflow:
 
@@ -1137,6 +1216,54 @@ Before finalizing any request/response struct, verify:
 # 🚨 CRITICAL EXECUTION RULES
 # ============================================================================
 
+## MODEL-INDEPENDENT TOOL USAGE POLICY
+
+**THIS SECTION APPLIES TO ALL MODELS - NO EXCEPTIONS**
+
+Whether you are running on opus, sonnet, haiku, or any other model, the following
+rules are MANDATORY and NON-NEGOTIABLE:
+
+### CONTROLLER TOOL PERMISSIONS
+
+**ALLOWED TOOLS** (Use these yourself):
+- `Task` - For delegating work to subagents
+- `TaskOutput` - For retrieving results from background subagents
+
+**FORBIDDEN TOOLS** (Do NOT use - subagents must use these):
+- `Read` - Subagent should read files
+- `Write` - Subagent should write files
+- `Edit` - Subagent should edit files
+- `Glob` - Subagent should find files
+- `Grep` - Subagent should search content
+- `Bash` - Subagent should execute commands
+- `WebSearch` - Subagent should do web searches
+- `WebFetch` - Subagent should fetch web content
+- `NotebookEdit` - Subagent should edit notebooks
+- `AskUserQuestion` - Subagent should ask user questions
+- `SlashCommand` - Subagent should execute slash commands
+- `Skill` - Subagent should invoke skills
+- `ExitPlanMode` - Subagent should exit plan mode
+- `EnterPlanMode` - Subagent should enter plan mode
+- `TodoWrite` - Subagent should manage todos
+- `KillShell` - Subagent should kill shells
+- `Any other tool` - Subagent should use it
+
+### WHY THIS RESTRICTION EXISTS
+
+1. **Consistency**: Same workflow across all models
+2. **Scalability**: More capable models can still benefit from the workflow
+3. **Separation of Concerns**: Clear distinction between controller and implementer
+4. **Auditability**: Easier to track who did what
+5. **Debugging**: Issues are isolated to specific subagents
+
+### WHAT HAPPENS IF YOU VIOLATE THIS
+
+If you use a forbidden tool directly:
+- You are violating the workflow design
+- The workflow becomes model-dependent
+- Benefits of the subagent architecture are lost
+- The implementation may not follow UCS patterns correctly
+
 ## MANDATORY EXECUTION PRINCIPLES
 
 ### 1. SEQUENTIAL EXECUTION ONLY
@@ -1152,16 +1279,16 @@ Before finalizing any request/response struct, verify:
 - **ESCALATE** if subagent fails after retries
 
 ### 3. BUILD VALIDATION REQUIREMENTS
-- **EXECUTE** cargo build after each major step
-- **RESOLVE** all compilation errors immediately
+- **SUBAGENT MUST** execute cargo build after each major step
+- **SUBAGENT MUST** resolve all compilation errors immediately
 - **NEVER** proceed with build failures
 - **DOCUMENT** build success in progress tracking
 
 ### 4. UCS CONVENTION ENFORCEMENT
-- **VALIDATE** UCS patterns at each step
-- **CORRECT** non-UCS code immediately
-- **REFERENCE** existing UCS connectors for patterns
-- **MAINTAIN** consistency with UCS architecture
+- **SUBAGENT MUST** validate UCS patterns at each step
+- **SUBAGENT MUST** correct non-UCS code immediately
+- **SUBAGENT MUST** reference existing UCS connectors for patterns
+- **SUBAGENT MUST** maintain consistency with UCS architecture
 
 ### 5. ERROR ESCALATION PROTOCOL
 - **ATTEMPT** resolution following documented procedures
@@ -1281,11 +1408,33 @@ This workflow activates when the user provides a command matching this pattern:
 - "integrate {ConnectorName} using grace/rulesbook/codegen/.gracerules"
 - "integrate {ConnectorName} connector using grace/rulesbook/codegen/.gracerules"
 
-Upon activation, immediately begin with:
-1. Reading tech spec from grace/rulesbook/codegen/references/{connector_name}/technical_specification.md
-2. Launching Foundation Setup Subagent
-3. Following the deterministic sequence exactly as specified
+## ACTIVATION CHECKLIST (Model-Independent)
+
+Upon activation, REGARDLESS of which model you are running on:
+
+1. ✅ Confirm you are in CONTROLLER mode only
+2. ✅ Verify you will ONLY use Task tool for delegation
+3. ✅ Verify you will NOT use Read/Write/Edit/Glob/Grep/Bash directly
+4. ✅ Begin timeline initialization
+5. ✅ Delegate first phase to appropriate subagent
+
+## IMMEDIATE ACTIONS UPON ACTIVATION
+
+Do NOT read files yourself. Do NOT execute commands yourself. Do NOT implement code yourself.
+
+Instead, immediately begin with:
+1. Initialize timeline tracker: `timeline = SimpleTimeline(connector_name="{connector_name}")`
+2. DELEGATE to Cypress Validation Subagent for Phase 0
+3. Wait for subagent completion before proceeding to next phase
+4. Follow the deterministic sequence exactly as specified
+
+## FINAL REMINDERS
 
 NO DEVIATION FROM THIS WORKFLOW IS PERMITTED.
 ALL STEPS MUST COMPLETE SUCCESSFULLY BEFORE PROCEEDING.
 SUBAGENTS MUST CONFIRM COMPLETION BEFORE NEXT PHASE BEGINS.
+
+YOU ARE THE COORDINATOR, NOT THE IMPLEMENTER.
+THE SUBAGENTS DO THE ACTUAL WORK.
+
+This applies to ALL models: opus, sonnet, haiku, or any other model.
