@@ -2,52 +2,169 @@
 
 This directory contains comprehensive implementation patterns for each payment flow in the UCS (Universal Connector Service) system. Each pattern file provides complete, reusable templates that can be consumed by AI to generate consistent, production-ready connector code.
 
+## 🆕 New Structure (2025)
+
+Patterns are now organized hierarchically for better discoverability and modular workflows:
+
+```
+guides/patterns/
+├── README.md                    # This file
+├── flow_macro_guide.md          # Shared macro patterns
+├── macro_patterns_reference.md  # Complete macro reference
+└── flows/                       # Flow-specific patterns
+    ├── README.md                # Flow patterns index
+    ├── authorize/               # Authorization flow with payment methods
+    │   ├── pattern_authorize.md # Core authorize pattern
+    │   ├── card.md              # Card payments
+    │   ├── wallet.md            # Digital wallets (Apple Pay, Google Pay)
+    │   ├── bank_transfer.md     # Bank transfers
+    │   ├── bank_debit.md        # Bank debits
+    │   ├── bank_redirect.md     # Bank redirects (iDEAL, etc.)
+    │   ├── upi.md               # UPI payments
+    │   ├── bnpl.md              # Buy Now Pay Later
+    │   ├── crypto.md            # Cryptocurrency
+    │   ├── gift_card.md         # Gift cards
+    │   ├── mobile_payment.md    # Mobile payments
+    │   └── reward.md            # Reward points
+    ├── capture/                 # Capture flow
+    ├── refund/                  # Refund flow
+    ├── void/                    # Void flow
+    ├── psync/                   # Payment sync
+    ├── rsync/                   # Refund sync
+    ├── setup_mandate/           # Mandate setup
+    ├── repeat_payment/          # Repeat payments
+    ├── IncomingWebhook/         # Webhook handling
+    └── ... (other advanced flows)
+```
+
+### Legacy Patterns (Being Migrated)
+
+The flat pattern files in this directory are being migrated to the new `flows/` structure. During migration, both locations are valid, but new implementations should use the `flows/` directory.
+
 ## 📚 Available Patterns
 
 ### Core Payment Flows
 
-| Pattern File | Flow Type | Status | Description |
-|-------------|-----------|---------|-------------|
-| [`pattern_authorize.md`](./pattern_authorize.md) | **Authorization** | ✅ Complete | Complete authorization flow patterns for any payment connector |
-| [`pattern_capture.md`](./pattern_capture.md) | **Capture** | ✅ Complete | Comprehensive capture flow patterns and implementations |
-| [`pattern_psync.md`](./pattern_psync.md) | **Payment Sync** | ✅ Complete | Payment status synchronization (Psync) flow patterns across 22 connectors |
-| `pattern_void.md` | **Void/Cancel** | ✅ Complete | Void payment authorization patterns |
-| `pattern_refund.md` | **Refund** | ✅ Complete | Full and partial refund flow patterns |
-| `pattern_rsync.md` | **Refund Sync** | ✅ Complete | Refund status synchronization patterns |
+| Flow | Pattern File | Status | Description |
+|------|--------------|--------|-------------|
+| **Authorize** | [`flows/authorize/pattern_authorize.md`](./flows/authorize/pattern_authorize.md) | ✅ Complete | Complete authorization flow patterns |
+| **Capture** | [`flows/capture/pattern_capture.md`](./flows/capture/pattern_capture.md) | ✅ Complete | Payment capture flow patterns |
+| **PSync** | [`flows/psync/pattern_psync.md`](./flows/psync/pattern_psync.md) | ✅ Complete | Payment status synchronization |
+| **Void** | [`flows/void/pattern_void.md`](./flows/void/pattern_void.md) | ✅ Complete | Void/cancel authorization |
+| **Refund** | [`flows/refund/pattern_refund.md`](./flows/refund/pattern_refund.md) | ✅ Complete | Full and partial refunds |
+| **RSync** | [`flows/rsync/pattern_rsync.md`](./flows/rsync/pattern_rsync.md) | ✅ Complete | Refund status synchronization |
 
 ### Advanced Flows
 
-| Pattern File | Flow Type | Status | Description |
-|-------------|-----------|---------|-------------|
-| `pattern_webhook.md` | **Webhooks** | 🚧 Planned | Webhook handling and signature verification patterns |
-| [`pattern_setup_mandate.md`](./pattern_setup_mandate.md) | **SetupMandate** | ✅ Complete | Comprehensive SetupMandate flow patterns for recurring payments across 8 connectors |
-| [`repeat_payment_flow_patterns.md`](./repeat_payment_flow_patterns.md) | **RepeatPayment** | ✅ Complete | Comprehensive RepeatPayment flow patterns for processing recurring payments using stored mandates across 7 connectors |
-| `pattern_dispute.md` | **Disputes** | 🚧 Planned | Dispute handling and evidence submission patterns |
-| `pattern_session.md` | **Session Token** | 🚧 Planned | Secure session management patterns |
-| `pattern_order.md` | **Create Order** | 🚧 Planned | Multi-step payment initiation patterns |
+| Flow | Pattern File | Status | Description |
+|------|--------------|--------|-------------|
+| **IncomingWebhook** | [`flows/IncomingWebhook/`](./flows/IncomingWebhook/) | ✅ Complete | Webhook handling and signature verification |
+| **SetupMandate** | [`flows/setup_mandate/`](./flows/setup_mandate/) | ✅ Complete | Recurring payment setup |
+| **RepeatPayment** | [`flows/repeat_payment/`](./flows/repeat_payment/) | ✅ Complete | Process recurring payments |
+| **MandateRevoke** | [`flows/mandate_revoke/`](./flows/mandate_revoke/) | ✅ Complete | Cancel stored mandates |
+| **PaymentMethodToken** | [`flows/payment_method_token/`](./flows/payment_method_token/) | ✅ Complete | Payment method tokenization |
+| **CreateOrder** | [`flows/createorder/`](./flows/createorder/) | ✅ Complete | Multi-step payment initiation |
+| **SessionToken** | [`flows/session_token/`](./flows/session_token/) | ✅ Complete | Secure session management |
+| **DefendDispute** | [`flows/defend_dispute/`](./flows/defend_dispute/) | ✅ Complete | Defend against disputes |
+| **AcceptDispute** | [`flows/accept_dispute/`](./flows/accept_dispute/) | ✅ Complete | Accept chargeback |
+| **DSync** | [`flows/dsync/`](./flows/dsync/) | ✅ Complete | Dispute status sync |
+
+### Payment Method Patterns (Authorize Flow)
+
+| Payment Method | Pattern File | Supported Flows |
+|----------------|--------------|-----------------|
+| **Card** | [`flows/authorize/card.md`](./flows/authorize/card.md) | All flows |
+| **Wallet** | [`flows/authorize/wallet.md`](./flows/authorize/wallet.md) | Authorize, Refund |
+| **Bank Transfer** | [`flows/authorize/bank_transfer.md`](./flows/authorize/bank_transfer.md) | Authorize, Refund |
+| **Bank Debit** | [`flows/authorize/bank_debit.md`](./flows/authorize/bank_debit.md) | Authorize, Refund |
+| **Bank Redirect** | [`flows/authorize/bank_redirect.md`](./flows/authorize/bank_redirect.md) | Authorize |
+| **UPI** | [`flows/authorize/upi.md`](./flows/authorize/upi.md) | Authorize, Refund |
+| **BNPL** | [`flows/authorize/bnpl.md`](./flows/authorize/bnpl.md) | Authorize, Refund |
+| **Crypto** | [`flows/authorize/crypto.md`](./flows/authorize/crypto.md) | Authorize |
+| **Gift Card** | [`flows/authorize/gift_card.md`](./flows/authorize/gift_card.md) | Authorize |
+| **Mobile Payment** | [`flows/authorize/mobile_payment.md`](./flows/authorize/mobile_payment.md) | Authorize, Refund |
+| **Reward** | [`flows/authorize/reward.md`](./flows/authorize/reward.md) | Authorize |
+
+## 🎯 Workflow Controllers
+
+Grace now supports multiple workflow controllers for different use cases:
+
+| Controller | Purpose | Trigger Pattern |
+|------------|---------|-----------------|
+| `.gracerules` | New connector integration | "integrate {connector}" |
+| `.gracerules_add_flow` | Add specific flow(s) to existing connector | "add {flow} flow to {connector}" |
+| `.gracerules_add_payment_method` | Add payment method(s) to existing connector | "add {Category}:{payment_method} to {connector}" |
+
+### Payment Method Specification Syntax
+
+The `.gracerules_add_payment_method` workflow **requires** category prefix syntax:
+
+```bash
+add {Category}:{type1},{type2} and {Category2}:{type3} to {connector}
+```
+
+**Examples:**
+```bash
+add Wallet:Apple Pay,Google Pay,PayPal to Stripe
+add Card:Credit,Debit to Adyen
+add BankTransfer:SEPA,ACH to Wise
+add Wallet:Apple Pay,Google Pay and Card:Credit,Debit to Stripe
+add Wallet:PayPal and BankTransfer:SEPA,ACH to Wise
+add UPI:Collect,Intent to PhonePe
+```
+
+**Available Categories:** Card, Wallet, BankTransfer, BankDebit, BankRedirect, UPI, BNPL, Crypto, GiftCard, MobilePayment, Reward
 
 ## 🎯 Pattern Usage
 
 ### For New Implementations
-1. **Choose the appropriate pattern file** for your flow
-2. **Replace placeholders** with connector-specific values
-3. **Follow the integration checklist** in each pattern
-4. **Test using provided test patterns**
 
-### For Resuming Partial Work
-1. **Reference existing implementation** against pattern
-2. **Identify missing components** using the checklists
-3. **Apply pattern templates** for missing flows
-4. **Ensure consistency** with existing code style
+Use `.gracerules` for complete new connector integration:
+
+```bash
+integrate {ConnectorName} using grace/rulesbook/codegen/.gracerules
+```
+
+This implements all core flows in sequence.
+
+### For Adding Specific Flows
+
+Use `.gracerules_flow` when adding flows to an existing connector:
+
+```bash
+add {flow_name} flow to {ConnectorName}
+# Example: "add Refund flow to Stripe"
+```
+
+Available flows: Authorize, Capture, Refund, Void, PSync, RSync, SetupMandate, IncomingWebhook, etc.
+
+### For Adding Payment Methods
+
+Use `.gracerules_payment_method` when adding payment methods:
+
+```bash
+add {payment_method} to {ConnectorName}
+# Example: "add Apple Pay to Stripe"
+```
+
+Available payment methods: Card, Wallet, BankTransfer, BankDebit, UPI, BNPL, Crypto, etc.
 
 ### AI Integration Commands
+
 ```bash
-# Use specific patterns for implementation
-implement authorization flow for [ConnectorName] using pattern_authorize.md
-add capture flow to [ConnectorName] using pattern_capture.md
-implement setup mandate flow for [ConnectorName] using pattern_setup_mandate.md
-add repeat payment flow to [ConnectorName] using repeat_payment_flow_patterns.md
-implement webhooks for [ConnectorName] using pattern_webhook.md
+# New connector - complete integration
+integrate {ConnectorName} using grace/rulesbook/codegen/.gracerules
+
+# Add specific flow
+add {flow_name} flow to {ConnectorName}
+
+# Add payment method
+add {payment_method} to {ConnectorName}
+
+# Examples:
+integrate Stripe using grace/rulesbook/codegen/.gracerules
+add Refund flow to Stripe
+add Apple Pay to Stripe
 ```
 
 ## 📖 Pattern Structure
@@ -59,28 +176,28 @@ Each pattern file follows a consistent structure:
 - Example implementations
 - Time-to-completion estimates
 
-### 2. **Implementation Analysis**
-- Real-world connector analysis
-- Implementation statistics
-- Common patterns identified
+### 2. **Prerequisites**
+- Required flows that must be implemented first
+- Dependencies and requirements
+- What must exist before using this pattern
 
 ### 3. **Modern Macro-Based Pattern**
 - Recommended implementation approach
 - Complete code templates
 - Type-safe implementations
+- Integration with existing code
 
-### 4. **Legacy Manual Pattern**
-- Alternative implementation style
-- Reference for special cases
-- Backward compatibility
+### 4. **Request/Response Patterns**
+- Data structure examples
+- Transformation patterns
+- Payment method specific handling
 
-### 5. **Specific Patterns**
-- Request/response structures
-- URL endpoint patterns
-- Authentication methods
-- Error handling strategies
+### 5. **Error Handling**
+- Error mapping strategies
+- Specific error messages
+- Common pitfalls
 
-### 6. **Testing & Validation**
+### 6. **Testing Patterns**
 - Unit test templates
 - Integration test patterns
 - Validation checklists
@@ -90,25 +207,16 @@ Each pattern file follows a consistent structure:
 - Step-by-step implementation guide
 - Quality validation steps
 
-## 🔄 Pattern Evolution
+## 🔄 Workflow Selection Guide
 
-### Current Focus (Phase 1)
-- ✅ **Authorization patterns** - Complete and battle-tested
-- ✅ **Capture patterns** - Comprehensive coverage of 8+ connectors
-- 🚧 **Void patterns** - Next priority
-- 🚧 **Refund patterns** - Following void
+Choose the right workflow based on your needs:
 
-### Future Expansion (Phase 2)
-- Webhook and event handling patterns
-- Advanced payment method patterns
-- Regional payment method patterns
-- Performance optimization patterns
-
-### Continuous Improvement
-- Patterns are updated based on new connector implementations
-- Real-world usage feedback incorporated
-- Best practices evolved from production experience
-- New connector API patterns integrated
+| Scenario | Use This | Workflow File |
+|----------|----------|---------------|
+| New connector from scratch | Complete Integration | `.gracerules` |
+| Add missing flow to existing connector | Flow Addition | `.gracerules_flow` |
+| Add payment method to existing connector | Payment Method Addition | `.gracerules_payment_method` |
+| Resume partial implementation | Depends on state | Use appropriate workflow |
 
 ## 💡 Contributing to Patterns
 
@@ -138,6 +246,11 @@ All pattern files maintain:
 - [`../learnings/learnings.md`](../learnings/learnings.md) - Implementation lessons learned
 - [`../../README.md`](../../README.md) - GRACE-UCS overview and usage
 
+### Pattern Reference
+- [`flows/README.md`](./flows/README.md) - Flow patterns index
+- [`flow_macro_guide.md`](./flow_macro_guide.md) - Macro usage reference
+- [`macro_patterns_reference.md`](./macro_patterns_reference.md) - Complete macro documentation
+
 ### Quality & Standards
 - [`../feedback.md`](../feedback.md) - Quality feedback database and review template
 - [`../quality/README.md`](../quality/README.md) - Quality system overview
@@ -147,4 +260,4 @@ All pattern files maintain:
 
 ---
 
-**💡 Pro Tip**: Always start with the pattern file that matches your target flow. The patterns are designed to be self-contained and provide everything needed for implementation.
+**💡 Pro Tip**: Always choose the right workflow controller for your task. Use `.gracerules` for new connectors, `.gracerules_flow` for adding flows, and `.gracerules_payment_method` for adding payment methods.

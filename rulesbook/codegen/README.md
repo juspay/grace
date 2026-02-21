@@ -1,15 +1,42 @@
 # Global Rapid Agentic Connector Exchange for UCS (GRACE-UCS)
 
-GRACE-UCS is a specialized AI-assisted system for UCS (Universal Connector Service) connector development that supports **complete connector lifecycle management** - from initial implementation to continuation of partially completed work.
+GRACE-UCS is a specialized AI-assisted system for UCS (Universal Connector Service) connector development that supports **complete connector lifecycle management** - from initial implementation to granular flow additions and payment method expansions.
 
 ## 🎯 Core Purpose
 
 GRACE-UCS enables:
-- **Full connector implementation** from scratch
-- **Resuming partial implementations** where developers left off
+- **Full connector implementation** from scratch (all 6 core flows)
+- **Granular flow addition** - Add just one flow to existing connectors
+- **Payment method expansion** - Add specific payment methods to existing connectors
 - **All payment method support** (cards, wallets, bank transfers, BNPL, etc.)
 - **Complete flow coverage** (authorize, capture, void, refund, sync, webhooks, etc.)
 - **UCS-specific patterns** tailored for gRPC-based stateless architecture
+
+## 🆕 New: Modular Workflow Controllers (2025)
+
+GRACE now supports **three specialized workflow controllers** for different use cases:
+
+| Workflow | File | Purpose | When to Use |
+|----------|------|---------|-------------|
+| **Complete Integration** | `.gracerules` | New connector from scratch | Building new connector |
+| **Flow Addition** | `.gracerules_add_flow` | Add specific flow(s) | Adding Refund, Webhook, etc. |
+| **Payment Method Addition** | `.gracerules_add_payment_method` | Add payment method(s) | Adding Apple Pay, Cards, etc. |
+
+### Quick Command Reference
+
+**Explicit Form (Required)**
+```bash
+# 1. New connector from scratch
+integrate [ConnectorName] using grace/rulesbook/codegen/.gracerules
+
+# 2. Add specific flow(s) to existing connector
+add [flow_name] flow to [ConnectorName] using grace/rulesbook/codegen/.gracerules_add_flow
+add [flow1] and [flow2] flows to [ConnectorName] using grace/rulesbook/codegen/.gracerules_add_flow
+
+# 3. Add payment method(s) to existing connector
+# Category prefix syntax (required)
+add [Category]:[pm1],[pm2] and [Category2]:[pm3] to [ConnectorName] using grace/rulesbook/codegen/.gracerules_add_payment_method
+```
 
 ## 🏗️ UCS Architecture Overview
 
@@ -19,6 +46,9 @@ The UCS connector-service uses a modern, stateless architecture:
 backend/
 ├── connector-integration/     # Connector-specific logic
 │   ├── src/connectors/       # Individual connector implementations
+│   │   ├── {connector}.rs    # Main connector file
+│   │   └── {connector}/
+│   │       └── transformers.rs  # Request/response transformations
 │   └── src/types.rs          # Common types and utilities
 ├── domain-types/             # Domain models and data structures
 ├── grpc-server/             # gRPC service implementation
@@ -31,59 +61,184 @@ backend/
 - **RouterDataV2**: Enhanced type-safe data flow
 - **ConnectorIntegrationV2**: Modern trait-based integration
 - **Domain-driven**: Clear separation of concerns
+- **Macro-based**: Uses `macro_connector_implementation!` for consistency
 
 ## 🚀 Usage Scenarios
 
-### 1. **New Connector Implementation**
-```
-integrate [ConnectorName] using grace-ucs/.gracerules
+### Scenario 1: New Connector Implementation
+
+Use when building a connector from scratch.
+
+```bash
+integrate Stripe using grace/rulesbook/codegen/.gracerules
 ```
 
-### 2. **Resume Partial Implementation**
-```
-continue implementing [ConnectorName] connector in UCS - I have partially implemented [specific_flows] and need to complete [remaining_flows]
+**What happens:**
+1. Creates connector foundation (struct, auth, common traits)
+2. Implements all 6 core flows: Authorize → PSync → Capture → Refund → RSync → Void
+3. Runs quality review
+4. Returns complete, production-ready connector
+
+**Prerequisites:**
+- Place tech spec in `grace/rulesbook/codegen/references/stripe/technical_specification.md`
+
+---
+
+### Scenario 2: Add Flow to Existing Connector
+
+Use when a connector exists but is missing specific flows.
+
+```bash
+add Refund flow to Stripe using grace/rulesbook/codegen/.gracerules_add_flow
 ```
 
-### 3. **Add Missing Flows**
-```
-add [flow_names] flows to existing [ConnectorName] connector in UCS
+**What happens:**
+1. Analyzes existing Stripe connector state
+2. Checks prerequisites (Refund needs Capture)
+3. Implements only the Refund flow
+4. Integrates with existing code
+
+**Other examples:**
+```bash
+add IncomingWebhook flow to Adyen using grace/rulesbook/codegen/.gracerules_add_flow
+add SetupMandate and RepeatPayment flows to Stripe using grace/rulesbook/codegen/.gracerules_add_flow
+add Void flow to PayPal using grace/rulesbook/codegen/.gracerules_add_flow
 ```
 
-### 4. **Debug/Fix Issues**
-```
-fix [ConnectorName] connector issues in UCS - having problems with [specific_issue_description]
+**Supported flows:** Authorize, Capture, Refund, Void, PSync, RSync, SetupMandate, RepeatPayment, IncomingWebhook, CreateOrder, SessionToken, PaymentMethodToken, DefendDispute, AcceptDispute, DSync, and more.
+
+---
+
+### Scenario 3: Add Payment Method to Existing Connector
+
+Use when a connector supports some payment methods but not others.
+
+**Category prefix syntax (required):**
+```bash
+add Wallet:Apple Pay,Google Pay,PayPal to Stripe using grace/rulesbook/codegen/.gracerules_add_payment_method
+add Card:Credit,Debit to Adyen using grace/rulesbook/codegen/.gracerules_add_payment_method
+add BankTransfer:SEPA,ACH to Wise using grace/rulesbook/codegen/.gracerules_add_payment_method
+add Wallet:Apple Pay,Google Pay and Card:Credit,Debit to Stripe using grace/rulesbook/codegen/.gracerules_add_payment_method
+add Wallet:PayPal and BankTransfer:SEPA,ACH to Wise using grace/rulesbook/codegen/.gracerules_add_payment_method
+add UPI:Collect,Intent to PhonePe using grace/rulesbook/codegen/.gracerules_add_payment_method
 ```
 
-### 5. **Add Payment Methods**
+**What happens:**
+1. Analyzes existing connector state
+2. Checks that Authorize flow exists (required)
+3. Parses category and payment method types from command
+4. Reads corresponding pattern file for each category
+5. Adds payment method handling in transformers
+6. Adds to applicable flows (Authorize, Refund, etc.)
+
+**Supported Categories:** Card, Wallet, BankTransfer, BankDebit, BankRedirect, UPI, BNPL, Crypto, GiftCard, MobilePayment, Reward
+
+---
+
+### Scenario 4: Resume Partial Implementation
+
+Use when you started a connector and need to continue.
+
+```bash
+# Option A: Add missing flows
+add Refund and RSync flows to MyConnector using grace/rulesbook/codegen/.gracerules_add_flow
+
+# Option B: Add payment methods
+add Wallet:Apple Pay to MyConnector using grace/rulesbook/codegen/.gracerules_add_payment_method
+
+# Option C: Continue with complete integration
+integrate MyConnector using grace/rulesbook/codegen/.gracerules
 ```
-add support for [payment_method_types] to [ConnectorName] connector in UCS
+
+---
+
+### Scenario 5: Debug/Fix Issues
+
+```bash
+fix error handling in Stripe Refund flow
+debug PayPal connector - getting timeout errors
 ```
 
 ## 📋 Comprehensive Flow Support
 
-### Core Payment Flows
-- **Authorization** - Initial payment authorization
-- **Capture** - Capture authorized payments
-- **Void/Cancel** - Cancel authorized payments
-- **Refund** - Full and partial refunds
-- **Sync** - Payment status synchronization
-- **Refund Sync** - Refund status synchronization
+### Core Payment Flows (6 Essential Flows)
+
+| Flow | Pattern File | Dependencies | Description |
+|------|--------------|--------------|-------------|
+| **Authorize** | `flows/authorize/pattern_authorize.md` | None | Initial payment authorization |
+| **PSync** | `flows/psync/pattern_psync.md` | Authorize | Payment status synchronization |
+| **Capture** | `flows/capture/pattern_capture.md` | Authorize | Capture authorized payments |
+| **Void** | `flows/void/pattern_void.md` | Authorize | Cancel authorized payments |
+| **Refund** | `flows/refund/pattern_refund.md` | Capture | Full and partial refunds |
+| **RSync** | `flows/rsync/pattern_rsync.md` | Refund | Refund status synchronization |
 
 ### Advanced Flows
-- **Create Order** - Multi-step payment initiation
-- **Session Token** - Secure payment session management
-- **Setup Mandate** - Recurring payment setup
-- **Webhook Handling** - Real-time payment notifications
-- **Dispute Management** - Handle chargebacks and disputes
 
-### Payment Method Coverage
-- **Cards** - Credit/Debit (Visa, Mastercard, Amex, etc.)
-- **Digital Wallets** - Apple Pay, Google Pay, PayPal, etc.
-- **Bank Transfers** - ACH, SEPA, Open Banking
-- **Buy Now Pay Later** - Klarna, Afterpay, Affirm
-- **Cryptocurrencies** - Bitcoin, Ethereum, stablecoins
-- **Regional Methods** - UPI, Alipay, WeChat Pay, etc.
-- **Cash/Vouchers** - Boleto, OXXO, convenience store payments
+| Flow | Pattern File | Dependencies | Description |
+|------|--------------|--------------|-------------|
+| **SetupMandate** | `flows/setup_mandate/` | Authorize | Set up recurring payments |
+| **RepeatPayment** | `flows/repeat_payment/` | SetupMandate | Process recurring payments |
+| **IncomingWebhook** | `flows/IncomingWebhook/` | PSync | Real-time event handling |
+| **CreateOrder** | `flows/createorder/` | - | Multi-step payment initiation |
+| **SessionToken** | `flows/session_token/` | - | Secure session management |
+| **PaymentMethodToken** | `flows/payment_method_token/` | - | Tokenize payment methods |
+| **DefendDispute** | `flows/defend_dispute/` | - | Defend chargebacks |
+| **AcceptDispute** | `flows/accept_dispute/` | - | Accept chargebacks |
+| **DSync** | `flows/dsync/` | - | Dispute status synchronization |
+| **MandateRevoke** | `flows/mandate_revoke/` | SetupMandate | Cancel stored mandates |
+| **IncrementalAuthorization** | `flows/IncrementalAuthorization/` | Authorize | Incremental auth flow |
+| **VoidPC** | `flows/void_pc/` | Capture | Void post-capture |
+
+### Payment Method Patterns (for Authorize Flow)
+
+| Payment Method | Pattern File | Supported Flows |
+|----------------|--------------|-----------------|
+| **Card** | `flows/authorize/card.md` | All flows |
+| **Wallet** | `flows/authorize/wallet.md` | Authorize, Refund |
+| **Bank Transfer** | `flows/authorize/bank_transfer.md` | Authorize, Refund |
+| **Bank Debit** | `flows/authorize/bank_debit.md` | Authorize, Refund |
+| **Bank Redirect** | `flows/authorize/bank_redirect.md` | Authorize |
+| **UPI** | `flows/authorize/upi.md` | Authorize, Refund |
+| **BNPL** | `flows/authorize/bnpl.md` | Authorize, Refund |
+| **Crypto** | `flows/authorize/crypto.md` | Authorize |
+| **Gift Card** | `flows/authorize/gift_card.md` | Authorize |
+| **Mobile Payment** | `flows/authorize/mobile_payment.md` | Authorize, Refund |
+| **Reward** | `flows/authorize/reward.md` | Authorize |
+
+## 🔄 Workflow Selection Guide
+
+Choose the right workflow based on your task:
+
+```
+What do you need to do?
+│
+├── New connector from scratch?
+│   └── Use .gracerules
+│       Command: integrate {Connector} using grace/rulesbook/codegen/.gracerules
+│
+├── Add to existing connector?
+│   │
+│   ├── Add a flow (Authorize, Capture, Refund, etc.)?
+│   │   └── Use .gracerules_flow
+│       Command: add {flow} flow to {Connector} using grace/rulesbook/codegen/.gracerules_flow
+│   │
+│   └── Add a payment method (Apple Pay, Cards, etc.)?
+│       └── Use .gracerules_payment_method
+│           Command: add {payment_method} to {Connector} using grace/rulesbook/codegen/.gracerules_payment_method
+│
+└── Fix or improve existing connector?
+    └── Use appropriate workflow or manual editing
+```
+
+### Decision Matrix
+
+| Scenario | Workflow | Prerequisites | Output |
+|----------|----------|---------------|--------|
+| New connector | `.gracerules` | Tech spec | Complete connector (6 flows) |
+| Add Refund flow | `.gracerules_flow` | Authorize, Capture | Refund flow only |
+| Add Apple Pay | `.gracerules_payment_method` | Authorize flow | PM support in Authorize (+Refund) |
+| Add Webhook | `.gracerules_flow` | PSync | IncomingWebhook flow |
+| Add Mandate | `.gracerules_flow` | Authorize | SetupMandate + RepeatPayment |
 
 ## 🛠️ Implementation States
 
@@ -124,58 +279,128 @@ GRACE-UCS tracks and can resume from any implementation state:
 ## 📖 How to Use GRACE
 
 ### For New Implementation:
-1. Place connector API documentation in `grace/rulesbook/codegen/references/{{connector_name}}/`
-2. Run: `integrate [ConnectorName] using .gracerules`
-3. AI will create complete implementation plan and code
 
-### For Resuming Work:
-1. Describe current state: "I have [existing_functionality] implemented"
-2. Specify what you need: "Need to add [missing_functionality]"
-3. AI will analyze existing code and continue from there
+1. **Prepare Tech Spec**
+   ```bash
+   mkdir -p grace/rulesbook/codegen/references/{connector_name}/
+   # Place technical_specification.md in this directory
+   ```
+
+2. **Run Integration Command**
+   ```bash
+   integrate {ConnectorName} using grace/rulesbook/codegen/.gracerules
+   ```
+
+3. **AI will execute:**
+   - Phase 1: Tech spec validation
+   - Phase 2: Foundation setup
+   - Phase 3: Sequential flow implementation (6 core flows)
+   - Phase 4: Quality review
+
+### For Adding Flows:
+
+1. **Identify missing flow(s)**
+2. **Run flow addition command**
+   ```bash
+   add {flow_name} flow to {ConnectorName}
+   ```
+3. **AI will:**
+   - Analyze existing connector
+   - Check prerequisites
+   - Implement only the requested flow(s)
+   - Run quality review
+
+### For Adding Payment Methods:
+
+1. **Verify Authorize flow exists** (required)
+2. **Run payment method command**
+   ```bash
+   add {payment_method} to {ConnectorName}
+   ```
+3. **AI will:**
+   - Analyze current payment methods
+   - Add PM handling in transformers
+   - Update relevant flows
+   - Run quality review
 
 ### For Debugging:
-1. Describe the issue: "Getting [error_description] when [specific_scenario]"
-2. AI will analyze code, identify issue, and provide fix
+
+1. **Describe the issue**
+   ```bash
+   fix {ConnectorName} connector - {error_description}
+   ```
+2. **AI will analyze and fix**
 
 ## 🔧 UCS-Specific Patterns
 
-GRACE-UCS provides dedicated pattern files for each payment flow:
+### Pattern Organization
 
-### Available Flow Patterns
-- **📖 `guides/patterns/README.md`** - Pattern directory index and usage guide
-- **✅ `guides/patterns/pattern_authorize.md`** - Complete authorization flow patterns and implementations
-- **✅ `guides/patterns/pattern_capture.md`** - Comprehensive capture flow patterns and examples
-- **🚧 Future patterns**: void, refund, sync, webhook, dispute flows
+```
+guides/patterns/
+├── README.md                    # Pattern overview
+├── flow_macro_guide.md          # Macro usage reference
+├── macro_patterns_reference.md  # Complete macro documentation
+└── flows/                       # Flow-specific patterns
+    ├── README.md                # Flow patterns index
+    ├── authorize/
+    │   ├── pattern_authorize.md # Core authorize flow
+    │   ├── card.md              # Card payments
+    │   ├── wallet.md            # Digital wallets
+    │   └── ...                  # Other payment methods
+    ├── capture/
+    ├── refund/
+    ├── void/
+    ├── psync/
+    ├── rsync/
+    └── ...                      # Advanced flows
+```
 
 ### Pattern Usage
+
 Each pattern file provides:
 - **🎯 Quick Start Guide** with placeholder replacement examples
-- **📊 Real-world Analysis** from existing connector implementations
+- **📋 Prerequisites** - What must exist before implementation
 - **🏗️ Modern Macro-Based Templates** for consistent implementations
 - **🔧 Legacy Manual Patterns** for special cases
 - **🧪 Testing Strategies** and integration checklists
 - **✅ Validation Steps** and quality checks
 
 ### Using Patterns with AI
+
 ```bash
-# Use specific patterns for targeted implementation
-implement authorization flow for NewPayment using pattern_authorize.md
-add capture flow to ExistingConnector using pattern_capture.md
-implement complete connector flows using guides/patterns/ directory
+# New connector - uses patterns automatically
+integrate NewPayment using grace/rulesbook/codegen/.gracerules
+
+# Add specific flow - uses flow pattern
+add Refund flow to ExistingConnector
+
+# Add payment method - uses PM pattern
+add Apple Pay to ExistingConnector
 ```
 
 ### Connector Structure
+
 ```rust
-// Main connector file: backend/connector-integration/src/connectors/connector_name.rs
-impl ConnectorIntegrationV2<Flow, Request, Response> for ConnectorName {
-    // UCS-specific implementations using patterns from guides/patterns/
+// Main connector file: backend/connector-integration/src/connectors/{connector}.rs
+pub mod transformers;
+
+pub struct ConnectorName<T> {
+    phantom: std::marker::PhantomData<T>,
 }
 
-// Transformers: backend/connector-integration/src/connectors/connector_name/transformers.rs
+// Macro-based flow implementation
+macros::macro_connector_implementation!(
+    connector: ConnectorName,
+    flow_name: Authorize,
+    // ... parameters
+);
+
+// Transformers: backend/connector-integration/src/connectors/{connector}/transformers.rs
 // Request/response transformations for all payment methods and flows
 ```
 
 ### Data Flow
+
 ```
 gRPC Request → RouterDataV2 → Connector Transform → HTTP Request → External API
 External Response → Connector Transform → RouterDataV2 → gRPC Response
@@ -184,58 +409,136 @@ External Response → Connector Transform → RouterDataV2 → gRPC Response
 ## 📁 Directory Structure
 
 ```
-grace/rulbook/codegen/
-├── .gracerules                          # Main AI instructions
+grace/rulesbook/codegen/
+├── .gracerules                          # New connector integration
+├── .gracerules_flow                     # Add specific flows
+├── .gracerules_payment_method           # Add payment methods
 ├── README.md                            # This file
 ├── guides/
-│   ├── feedback.md                      # Quality feedback database with review template
-│   ├── quality/                         # Quality system documentation
-│   │   ├── README.md                    # Quality system overview
-│   │   ├── quality_review_template.md   # Standalone review template
-│   │   └── CONTRIBUTING_FEEDBACK.md     # Guide for adding feedback entries
-│   ├── connector_integration_guide.md   # Step-by-step UCS integration
-│   ├── patterns/                        # Flow-specific UCS patterns
-│   │   ├── README.md                    # Pattern directory index and usage guide
-│   │   ├── pattern_authorize.md         # Authorization flow patterns
-│   │   └── pattern_capture.md           # Capture flow patterns
-│   ├── learnings/learnings.md           # Lessons from UCS implementations
-│   ├── types/types.md                   # UCS type system guide
-│   └── integrations/integrations.md     # Previous UCS integrations
+│   ├── workflow_selection.md            # How to choose workflow
+│   ├── feedback.md                      # Quality feedback database
+│   ├── quality/                         # Quality system docs
+│   │   ├── README.md
+│   │   ├── quality_review_template.md
+│   │   └── CONTRIBUTING_FEEDBACK.md
+│   ├── connector_integration_guide.md   # Step-by-step integration
+│   ├── patterns/                        # Flow-specific patterns
+│   │   ├── README.md                    # Pattern directory index
+│   │   ├── flow_macro_guide.md          # Macro patterns
+│   │   ├── macro_patterns_reference.md  # Macro reference
+│   │   └── flows/                       # Flow patterns (new structure)
+│   │       ├── README.md
+│   │       ├── authorize/
+│   │       │   ├── pattern_authorize.md
+│   │       │   ├── card.md
+│   │       │   ├── wallet.md
+│   │       │   └── ...
+│   │       ├── capture/
+│   │       ├── refund/
+│   │       ├── void/
+│   │       └── ...
+│   ├── learnings/learnings.md           # Implementation lessons
+│   └── types/types.md                   # UCS type system
 ├── connector_integration/
 │   └── template/
-│       ├── tech_spec.md                 # UCS technical specification template
-│       └── planner_steps.md             # UCS implementation planning template
+│       ├── tech_spec.md                 # Tech spec template
+│       └── planner_steps.md             # Planning template
 └── references/
-    └── {{connector_name}}/               # Connector-specific documentation
+    └── {connector_name}/                 # Connector-specific docs
+        ├── technical_specification.md
         ├── api_docs.md
-        ├── payment_flows.yaml
         └── webhook_spec.json
 ```
 
 ## 🎯 Key Benefits
 
-1. **Resumable Development**: Pick up exactly where you left off
-2. **Complete Coverage**: All payment methods and flows supported
-3. **UCS-Optimized**: Patterns specific to UCS architecture
-4. **AI-Assisted**: Intelligent code generation and problem solving
-5. **Quality Assured**: Automated quality reviews ensure high code standards
-6. **Production-Ready**: Follows UCS best practices and patterns
-7. **Extensible**: Easy to add new flows and payment methods
-8. **Continuous Learning**: Feedback system captures and applies lessons learned
+1. **🎯 Granular Control**: Add just one flow or payment method, not everything
+2. **🔄 Resumable Development**: Pick up exactly where you left off
+3. **📦 Complete Coverage**: All payment methods and flows supported
+4. **🏗️ UCS-Optimized**: Patterns specific to UCS architecture
+5. **🤖 AI-Assisted**: Intelligent code generation and problem solving
+6. **✅ Quality Assured**: Automated quality reviews ensure high standards
+7. **🚀 Production-Ready**: Follows UCS best practices and patterns
+8. **📈 Extensible**: Easy to add new flows and payment methods
+9. **📚 Continuous Learning**: Feedback system captures lessons learned
 
 ## 🚀 Getting Started
 
-1. **For new connector**: Place API docs in `references/` and run integration command
-2. **For existing connector**: Describe current state and desired additions
-3. **For debugging**: Explain the issue and AI will help diagnose and fix
+### Quick Start Examples
 
-GRACE-UCS makes UCS connector development efficient, comprehensive, and resumable at any stage.
+```bash
+# 1. New connector
+integrate Stripe using grace/rulesbook/codegen/.gracerules
+
+# 2. Add missing flow
+add Refund flow to MyConnector
+
+# 3. Add payment method
+add Apple Pay to Stripe
+
+# 4. Multiple flows
+add SetupMandate and RepeatPayment flows to Stripe
+
+# 5. Multiple payment methods
+add Apple Pay and Google Pay to Adyen
+```
+
+### Step-by-Step: New Connector
+
+1. Create tech spec:
+   ```bash
+   mkdir -p grace/rulesbook/codegen/references/mypayment/
+   # Create technical_specification.md with:
+   # - Connector name: MyPayment
+   # - Base URL: https://api.mypayment.com
+   # - Auth type: API Key / OAuth / etc.
+   # - Supported flows
+   # - Supported payment methods
+   # - API endpoints
+   ```
+
+2. Run integration:
+   ```bash
+   integrate MyPayment using grace/rulesbook/codegen/.gracerules
+   ```
+
+3. Wait for completion:
+   - AI creates foundation
+   - AI implements 6 core flows
+   - AI runs quality review
+   - AI provides completion report
+
+### Step-by-Step: Add Flow
+
+1. Identify missing flow (e.g., Refund)
+
+2. Check prerequisites:
+   - Refund needs Capture
+   - Verify Capture exists
+
+3. Run command:
+   ```bash
+   add Refund flow to MyConnector
+   ```
+
+4. AI implements only Refund flow
+
+### Step-by-Step: Add Payment Method
+
+1. Verify Authorize flow exists
+
+2. Run command:
+   ```bash
+   add Apple Pay to MyConnector
+   ```
+
+3. AI adds Apple Pay handling to transformers
 
 ---
 
 ## 🛡️ Quality Enforcement System
 
-GRACE-UCS includes an automated **Quality Guardian Subagent** (8th subagent) that ensures every connector meets high quality standards.
+GRACE-UCS includes an automated **Quality Guardian Subagent** that ensures every implementation meets high quality standards.
 
 ### Quality Review Process
 
@@ -251,11 +554,9 @@ Foundation → Flow Implementation → All Flows Complete → Cargo Build ✅
 
 ### When Quality Review Runs
 
-The Quality Guardian activates **ONCE** after all flows are implemented and code compiles successfully:
-- ✅ All 6 flows completed (Authorize, PSync, Capture, Refund, RSync, Void)
-- ✅ Cargo build passes without errors
-- 🛡️ Quality Guardian performs comprehensive review
-- ⚖️ Quality score calculated based on UCS compliance
+- **New Connector**: After all 6 flows implemented
+- **Flow Addition**: After requested flow(s) implemented
+- **Payment Method Addition**: After PM implementation complete
 
 ### Quality Scoring System
 
@@ -277,19 +578,19 @@ Thresholds:
 - ConnectorIntegrationV2 usage (not ConnectorIntegration)
 - domain_types imports (not hyperswitch_*)
 - Generic connector struct pattern
+- Macro-based implementation (not manual traits)
 
 **Code Quality:**
-- No code duplication across flows
+- No code duplication
 - Consistent error handling
 - Proper status mapping
-- Payment method support
-- Cross-flow consistency
+- Specific error messages (not generic)
+- No fields hardcoded to None
 
 **Security & Performance:**
 - No exposed credentials
 - Efficient resource usage
 - Proper input validation
-- Security best practices
 
 ### Feedback Database
 
@@ -297,7 +598,7 @@ All quality issues and success patterns are captured in `guides/feedback.md`:
 
 ```
 guides/feedback.md
-├── Quality Review Template (for generating reports)
+├── Quality Review Template
 ├── Section 1: Critical Patterns (Must Follow)
 ├── Section 2: UCS-Specific Guidelines
 ├── Section 3: Flow-Specific Best Practices
@@ -307,21 +608,17 @@ guides/feedback.md
 └── Section 7: Historical Feedback Archive
 ```
 
-**Benefits of the Feedback System:**
-- 📚 Learn from past issues before implementing
-- 🎯 Targeted guidance for common problems
-- 📈 Continuous improvement over time
-- ✨ Success pattern library for best practices
+---
 
-### Quality Documentation
+## 💡 Pro Tips
 
-For detailed information about the quality system:
-
-- **[guides/quality/README.md](guides/quality/README.md)** - Complete quality system overview
-- **[guides/quality/quality_review_template.md](guides/quality/quality_review_template.md)** - Standalone review template
-- **[guides/quality/CONTRIBUTING_FEEDBACK.md](guides/quality/CONTRIBUTING_FEEDBACK.md)** - How to add feedback entries
-- **[guides/feedback.md](guides/feedback.md)** - Main feedback database
+1. **Choose the right workflow** - Don't use `.gracerules` for adding a single flow
+2. **Check prerequisites** - Refund needs Capture, Payment Methods need Authorize
+3. **Be specific** - "add Refund flow to Stripe" is better than "fix Stripe"
+4. **One task at a time** - Complete one workflow before starting another
+5. **Use tech specs** - Always provide comprehensive tech specs for new connectors
+6. **Review feedback.md** - Learn from past issues before implementing
 
 ---
 
-# grace-ucs
+**GRACE-UCS makes UCS connector development efficient, granular, and resumable at any stage.**
