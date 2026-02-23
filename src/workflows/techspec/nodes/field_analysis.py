@@ -42,26 +42,31 @@ def _build_analysis_prompt(
 --- CONNECTOR NAME ---
 {connector_name}
 
---- TECHNICAL SPECIFICATION FILE ---
+--- TECHNICAL SPECIFICATION FILE (edit this file in-place) ---
 {tech_spec_filepath}
 
-INSTRUCTIONS:
-1. First, use the Read tool to read the technical specification file listed above
-2. Analyze the specification thoroughly to identify all API flows
-3. If you need to reference other files, use the Glob tool to discover them and Read tool to examine them
-4. Show your reasoning step by step as you identify flows, categorize fields, and build dependency chains
+CRITICAL WORKFLOW — EDIT THE TECH SPEC IN-PLACE:
+You must add the API sequence and field dependency analysis DIRECTLY into the technical specification file.
+Do NOT create a separate analysis document. Do NOT just output text.
 
-Perform a complete field dependency analysis for this connector following the step-by-step process defined above.
-Generate the full analysis including:
-1. All API flows identified
-2. Field source categorization for each flow
-3. Prerequisite API call chains
-4. Complete field dependency map
-5. All UNDECIDED fields with specific questions
-6. Summary document
+Follow this process:
+1. Use the Read tool to read the technical specification file: {tech_spec_filepath}
+2. Analyze the specification to identify all API flows
+3. For each flow, determine:
+   - Field source categorization (USER_PROVIDED, PREVIOUS_API, UNDECIDED)
+   - Prerequisite API call chains and their sequence
+   - Complete field dependency map
+4. Use the Edit tool to ADD the following sections to the END of the tech spec file:
+   - "## API Call Sequences" — showing the ordered sequence for each flow
+   - "## Field Dependency Analysis" — showing field sources and prerequisites
+   - "## UNDECIDED Fields" — listing fields needing clarification with specific questions
+5. Do a final Read to verify the spec now contains the analysis
 
-Process methodically — read the spec first, then analyze each flow one at a time.
-Output the complete analysis as a markdown document — no preamble, just the full analysis."""
+RULES:
+- ALWAYS use Edit tool to modify the tech spec file — never output a separate document
+- Preserve ALL existing content in the spec
+- Append the analysis sections at the end
+- Show your reasoning as you analyze each flow"""
 
     return full_prompt
 
@@ -136,7 +141,7 @@ def field_analysis(state: TechspecWorkflowState) -> TechspecWorkflowState:
         abs_output_dir = Path(output_dir).resolve() if output_dir else Path.cwd()
 
         options = ClaudeAgentOptions(
-            allowed_tools=["Read", "Glob", "Grep"],
+            allowed_tools=["Read", "Write", "Edit", "Glob", "Grep"],
             permission_mode="bypassPermissions",
             cwd=str(abs_output_dir),
             env=env_vars,
@@ -192,22 +197,19 @@ def field_analysis(state: TechspecWorkflowState) -> TechspecWorkflowState:
         console.rule("[bold cyan]Field Analysis Complete[/bold cyan]")
         console.print()
 
-        if analysis_result_parts:
-            analysis_content = "\n".join(analysis_result_parts)
+        # Read the updated spec back from disk (Claude edited it in-place)
+        spec_path = Path(tech_spec_abs_path)
+        if spec_path.exists():
+            updated_spec = spec_path.read_text(encoding="utf-8")
 
-            # Save analysis to the field-analysis subdirectory
-            analysis_filename = f"{connector_name.lower()}_field_dependency_analysis.md"
-            analysis_filepath = analysis_dir / analysis_filename
-            analysis_filepath.write_text(analysis_content, encoding="utf-8")
+            state["field_dependency_analysis"] = updated_spec
+            state["field_dependency_filepath"] = spec_path
 
-            state["field_dependency_analysis"] = analysis_content
-            state["field_dependency_filepath"] = analysis_filepath
-
-            console.print(f"[green]✓[/green] Field dependency analysis saved to: {analysis_filepath}")
-            click.echo(f"Field dependency analysis completed!")
+            console.print(f"[green]✓[/green] API sequence added to tech spec: {tech_spec_abs_path}")
+            click.echo(f"Field dependency analysis complete ({turn_count} turns)!")
         else:
-            console.print("[yellow]Warning: Claude Agent SDK returned no analysis content[/yellow]")
-            state.setdefault("warnings", []).append("Field analysis returned no content")
+            console.print("[yellow]Warning: Tech spec file not found after analysis[/yellow]")
+            state.setdefault("warnings", []).append("Field analysis: spec file not found after edit")
 
     except ImportError:
         error_msg = "claude-agent-sdk not installed. Install with: pip install claude-agent-sdk"

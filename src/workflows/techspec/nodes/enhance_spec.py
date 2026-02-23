@@ -59,25 +59,32 @@ def _build_enhancement_prompt(
 --- CONNECTOR NAME ---
 {connector_name}
 
---- TECHNICAL SPECIFICATION FILE (read this first) ---
+--- TECHNICAL SPECIFICATION FILE (this is the file you must edit in-place) ---
 {tech_spec_filepath}
 
 --- SOURCE MARKDOWN DOCUMENTATION FILES (process each one sequentially) ---
 {files_listing}
 
-INSTRUCTIONS:
-1. First, use the Read tool to read the technical specification file listed above
-2. Understand the current structure and identify gaps
-3. Then, process EACH source markdown documentation file ONE AT A TIME:
-   a. Use the Read tool to read the file
-   b. Extract relevant information (API endpoints, request/response formats, authentication, error handling, etc.)
-   c. Note what information from this file should be added to enrich the specification
-   d. Move to the next file ONLY after fully processing the current one
-4. After reading and processing ALL files, output the complete updated technical specification as markdown
-5. Show your reasoning as you process each file — explain what you found and what you are adding
+CRITICAL WORKFLOW — EDIT THE SPEC IN-PLACE:
+You must modify the technical specification file directly. Do NOT output a new spec at the end.
+Follow this exact loop for EACH source file:
 
-Process files SEQUENTIALLY — read one file, extract info, then move to the next.
-At the end, output ONLY the complete updated technical specification as markdown."""
+1. First, use the Read tool to read the technical specification file: {tech_spec_filepath}
+2. Understand the current structure and identify gaps
+3. Then, for EACH source markdown documentation file listed above:
+   a. Use the Read tool to read ONE source file
+   b. Extract relevant information (API endpoints, request/response formats, authentication, error handling, etc.)
+   c. Use the Edit tool to UPDATE the technical specification file ({tech_spec_filepath}) with the new information
+   d. Confirm what you added/changed
+   e. Move to the NEXT source file — do NOT proceed until the current file's changes are written
+4. After processing ALL source files, do a final Read of the spec to verify completeness
+
+RULES:
+- ALWAYS edit the spec file in-place using Edit tool — never output a new document
+- Process files ONE AT A TIME: Read source → Edit spec → next source
+- Preserve existing correct information in the spec
+- Add missing details, don't duplicate existing content
+- Flag any conflicting information between files"""
 
     return full_prompt
 
@@ -165,7 +172,7 @@ def enhance_spec(state: TechspecWorkflowState) -> TechspecWorkflowState:
         abs_output_dir = Path(output_dir).resolve() if output_dir else Path.cwd()
 
         options = ClaudeAgentOptions(
-            allowed_tools=["Read", "Glob", "Grep"],
+            allowed_tools=["Read", "Write", "Edit", "Glob", "Grep"],
             permission_mode="bypassPermissions",
             cwd=str(abs_output_dir),
             env=env_vars,
@@ -221,23 +228,19 @@ def enhance_spec(state: TechspecWorkflowState) -> TechspecWorkflowState:
         console.rule("[bold cyan]Enhancement Complete[/bold cyan]")
         console.print()
 
-        if enhanced_result_parts:
-            enhanced_spec = "\n".join(enhanced_result_parts)
-
-            # Save enhanced spec
-            filemanager_out = FileManager(base_path=str(output_dir))
-            enhanced_filename = f"{connector_name.lower()}_enhanced_spec.md"
-            enhanced_filepath = Path("specs") / enhanced_filename
-            filemanager_out.write_file(enhanced_filepath, enhanced_spec)
+        # Read the enhanced spec back from disk (Claude edited it in-place)
+        spec_path = Path(tech_spec_abs_path)
+        if spec_path.exists():
+            enhanced_spec = spec_path.read_text(encoding="utf-8")
 
             state["enhanced_spec"] = enhanced_spec
-            state["enhanced_spec_filepath"] = output_dir / enhanced_filepath
+            state["enhanced_spec_filepath"] = spec_path
 
-            console.print(f"[green]✓[/green] Enhanced specification saved to: {output_dir / enhanced_filepath}")
-            click.echo(f"Enhanced specification generated!")
+            console.print(f"[green]✓[/green] Tech spec enhanced in-place: {tech_spec_abs_path}")
+            click.echo(f"Enhancement complete ({turn_count} turns)!")
         else:
-            console.print("[yellow]Warning: Claude Agent SDK returned no enhancement content[/yellow]")
-            state.setdefault("warnings", []).append("Enhancement returned no content")
+            console.print("[yellow]Warning: Tech spec file not found after enhancement[/yellow]")
+            state.setdefault("warnings", []).append("Enhancement: spec file not found after edit")
 
     except ImportError:
         error_msg = "claude-agent-sdk not installed. Install with: pip install claude-agent-sdk"
