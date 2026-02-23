@@ -229,20 +229,28 @@ Instructions:
         self, tech_spec: str, connector: bool = True, base_name: str = "tech_spec"
     ) -> str:
         try:
+            # Truncate tech spec to first 2000 chars to save tokens
+            truncated_spec = tech_spec[:2000] if len(tech_spec) > 2000 else tech_spec
+            
             prompt = (
                 prompt_config().get_with_values(
                     "techspecFileNamePrompt",
                     {
-                        "tech_spec": tech_spec or "",
-                        "isConnectorAvailable": "give the name like this connectorName/connectorName"
-                        if connector
-                        else "",
+                        "tech_spec": truncated_spec or "",
                     },
                 )
                 or ""
             )
-            name = self.generate([{"role": "user", "content": prompt}], max_tokens=10)
-            return name[0].strip().replace(" ", "_")
+            name = self.generate([{"role": "user", "content": prompt}], max_tokens=20)
+            # Clean up the response - remove any extra text, quotes, or formatting
+            cleaned_name = name[0].strip().split('\n')[0].split('.')[0]
+            cleaned_name = cleaned_name.strip('"\'` ').replace(" ", "")
+            # Remove path separators & other unsafe characters from the name
+            cleaned_name = cleaned_name.replace("/", "").replace("\\", "").replace(":", "")
+            # If the LLM returned something too long (likely a sentence), fall back
+            if len(cleaned_name) > 40:
+                cleaned_name = base_name
+            return cleaned_name if cleaned_name else base_name
         except Exception as e:
             return base_name
 

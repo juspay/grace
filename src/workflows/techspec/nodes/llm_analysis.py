@@ -67,7 +67,11 @@ def llm_analysis(state: TechspecWorkflowState) -> TechspecWorkflowState:
             if spec_success and tech_spec:
                 # Save the tech spec
                 filemanager.update_base_path(output_dir)
-                state["file_name"] = llm_client.get_file_name(tech_spec) + ".md"
+                # Use connector_name if available, otherwise generate filename from LLM
+                if state.get("connector_name"):
+                    state["file_name"] = f"{state['connector_name']}.md"
+                else:
+                    state["file_name"] = llm_client.get_file_name(tech_spec) + ".md"
                 spec_filepath = filemanager.save_tech_spec(tech_spec, 
                                                            state["file_name"])
 

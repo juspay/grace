@@ -77,3 +77,18 @@ class LogConfig:
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if self.log_level not in valid_levels:
             raise ValueError(f"Invalid log level: {self.log_level}")
+
+@dataclass
+class ClaudeAgentConfig:
+    """Claude Agent SDK configuration for spec enhancement and analysis."""
+    api_key: str = ""
+    base_url: str = ""
+    model: Optional[str] = None
+    max_turns: int = 25
+    enabled: bool = True
+
+    def __post_init__(self) -> None:
+        """Validate configuration after initialization."""
+        if self.enabled and not self.api_key:
+            console.print("[yellow]Claude Agent SDK: No API key configured, enhancement steps will be skipped[/yellow]")
+            self.enabled = False

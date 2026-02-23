@@ -35,6 +35,16 @@ def output_node(state: WorkflowState) -> WorkflowState:
     if "tech_spec" in state:
         click.echo(f"• Generated {len(state['tech_spec'])} character specification")
     
+    if state.get("enhanced_spec"):
+        click.echo(f"• Enhanced specification: {len(state['enhanced_spec'])} characters")
+        if state.get("enhanced_spec_filepath"):
+            click.echo(f"• Enhanced spec saved to: {state['enhanced_spec_filepath']}")
+
+    if state.get("field_dependency_analysis"):
+        click.echo(f"• Field dependency analysis: {len(state['field_dependency_analysis'])} characters")
+        if state.get("field_dependency_filepath"):
+            click.echo(f"• Analysis saved to: {state['field_dependency_filepath']}")
+
     if state["metadata"].get("mock_server_generated", False):
         click.echo(f"• Mock server generated successfully")
         if "mock_server_dir" in state:

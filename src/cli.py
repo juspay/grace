@@ -62,11 +62,13 @@ def setupsearch(local):
 @click.option('--test-only', is_flag=True, help='Run in test mode without generating files')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
 @click.option('--mock-server', '-m', is_flag=True, help='Enable mock server for API interactions (for testing)')
-def techspec(connector, folder, urls, output, test_only, verbose, mock_server):
+@click.option('--enhance', '-e', is_flag=True, help='Enable Claude Agent SDK enhancement and field analysis')
+def techspec(connector, folder, urls, output, test_only, verbose, mock_server, enhance):
     # we will use the other flags in future for more customization don't remove them
     """ -m flag to mock server and use --help for more details
     -u pass the urls file for docs
     -f pass the docs folder
+    -e enable Claude Agent SDK spec enhancement and field dependency analysis
     """
     async def run_techspec():
         """Async wrapper for techspec workflow."""
@@ -78,6 +80,8 @@ def techspec(connector, folder, urls, output, test_only, verbose, mock_server):
                     click.echo(f"Output dir: {output}")
                 if mock_server:
                     click.echo("Mock server: ENABLED")
+                if enhance:
+                    click.echo("Claude Agent Enhancement: ENABLED")
                 if test_only:
                     click.echo("Mode: TEST ONLY")
                 click.echo()
@@ -95,6 +99,7 @@ def techspec(connector, folder, urls, output, test_only, verbose, mock_server):
                 test_only=test_only,
                 verbose=verbose,
                 mock_server=mock_server,
+                enhance=enhance,
             )
 
             if result["success"]:

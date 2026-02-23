@@ -5,7 +5,7 @@ from pathlib import Path
 import click
 from dotenv import load_dotenv
 from typing import Optional
-from .types.config import AIConfig, ResearchConfig, TechSpecConfig, LogConfig
+from .types.config import AIConfig, ResearchConfig, TechSpecConfig, LogConfig, ClaudeAgentConfig
 
 
 class Config:
@@ -13,6 +13,7 @@ class Config:
     techSpecConfig: TechSpecConfig
     logConfig: LogConfig
     researchConfig: ResearchConfig
+    claudeAgentConfig: ClaudeAgentConfig
 
 
     def __init__(self, env_file: Optional[str] = None):
@@ -101,6 +102,17 @@ class Config:
             with_ai_browser=os.getenv("WITH_AI_BROWSER", "true").lower() == "true",
         )
 
+        # Claude Agent SDK config — defaults to AI_API_KEY + AI_BASE_URL if ANTHROPIC_API_KEY is not set
+        claude_api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("AI_API_KEY", "")
+        claude_base_url = os.getenv("ANTHROPIC_BASE_URL") or os.getenv("AI_BASE_URL", "")
+        self.claudeAgentConfig = ClaudeAgentConfig(
+            api_key=claude_api_key,
+            base_url=claude_base_url,
+            model=os.getenv("CLAUDE_AGENT_MODEL"),
+            max_turns=int(os.getenv("CLAUDE_AGENT_MAX_TURNS", "25")),
+            enabled=os.getenv("CLAUDE_AGENT_ENABLED", "true").lower() == "true",
+        )
+
     def getAiConfig(self) -> AIConfig:
         return self.aiConfig
     
@@ -112,6 +124,9 @@ class Config:
 
     def getResearchConfig(self) -> ResearchConfig:
         return self.researchConfig
+
+    def getClaudeAgentConfig(self) -> ClaudeAgentConfig:
+        return self.claudeAgentConfig
 
 
 _config_instance: Optional[Config] = None

@@ -74,3 +74,10 @@ class TechspecWorkflowState(TypedDict, total=False):
 
     # Node control flags
     node_config: Dict[str, Dict[str, Any]]
+
+    # Claude Agent SDK enhancement
+    enhance: bool  # Whether to run enhancement steps
+    enhanced_spec: str  # Tech spec after Claude Agent enhancement
+    enhanced_spec_filepath: Path  # Path to enhanced spec file
+    field_dependency_analysis: str  # Field dependency analysis output
+    field_dependency_filepath: Path  # Path to field dependency analysis file

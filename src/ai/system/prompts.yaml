@@ -65,13 +65,19 @@ techspecPrompt: |
   {content}
 
 techspecFileNamePrompt: |
-  Generate a concise filename for the technical specification document without any spaces or special characters, 
-  just the name with single world with the same name as the connector name in the techspec: {tech_spec}
-  If unable to generate, return "tech_spec_{connector}"
-  Only return the filename without any additional text or formatting.
-  {isConnectorAvailable}
-  Don't give generic names like payments and all, try to find the unique connector name from the techspec
-  strictly follow the instructions.
+  Extract ONLY the connector/payment gateway name from the technical specification below.
+  
+  Requirements:
+  - Return ONLY the name, nothing else
+  - No explanations, no punctuation, no "The connector is called X"
+  - Single word or compound name (e.g., "Finix", "Stripe", "PayPal", "Airwallex")
+  - No spaces, use PascalCase for compound names
+  - If unable to determine, return "TechSpec"
+  
+  Technical Specification:
+  {tech_spec}
+  
+  Connector name:
 
 techspecMockServerPrompt: |
   Create an express server which mocks all the api calls mentioned here. 

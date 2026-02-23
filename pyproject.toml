@@ -7,7 +7,7 @@ name = "grace-cli"
 version = "1.0.0"
 description = "Grace CLI - Intelligent research and technical specification generator"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Grace Team"}
@@ -61,6 +61,8 @@ dependencies = [
     "python-docx>=1.2.0",
     "pandas>=2.3.3",
     "openpyxl>=3.1.5",
+    # Claude Agent SDK for spec enhancement
+    "claude-agent-sdk>=0.1.30",
 ]
 
 [project.optional-dependencies]
