@@ -30,20 +30,26 @@ def _read_analysis_prompt() -> str:
 def _build_analysis_prompt(
     analysis_instructions: str,
     connector_name: str,
-    tech_spec_content: str,
+    tech_spec_filepath: str,
 ) -> str:
-    """Build the full prompt for the field dependency analysis step."""
+    """Build the prompt for the field dependency analysis step.
+    
+    Instead of embedding the full tech spec, provides the file path so Claude
+    uses its Read tool to read and analyze it with visible progress.
+    """
     full_prompt = f"""{analysis_instructions}
 
 --- CONNECTOR NAME ---
 {connector_name}
 
---- TECHNICAL SPECIFICATION ---
-{tech_spec_content}
+--- TECHNICAL SPECIFICATION FILE ---
+{tech_spec_filepath}
 
-IMPORTANT: The complete technical specification is provided above in this prompt. Do NOT search the filesystem for it.
-Use ONLY the specification content above to perform the field dependency analysis.
-If you need to use tools, the working directory is the connector's output folder.
+INSTRUCTIONS:
+1. First, use the Read tool to read the technical specification file listed above
+2. Analyze the specification thoroughly to identify all API flows
+3. If you need to reference other files, use the Glob tool to discover them and Read tool to examine them
+4. Show your reasoning step by step as you identify flows, categorize fields, and build dependency chains
 
 Perform a complete field dependency analysis for this connector following the step-by-step process defined above.
 Generate the full analysis including:
@@ -54,6 +60,7 @@ Generate the full analysis including:
 5. All UNDECIDED fields with specific questions
 6. Summary document
 
+Process methodically — read the spec first, then analyze each flow one at a time.
 Output the complete analysis as a markdown document — no preamble, just the full analysis."""
 
     return full_prompt
@@ -78,8 +85,29 @@ def field_analysis(state: TechspecWorkflowState) -> TechspecWorkflowState:
         state.setdefault("errors", []).append(str(e))
         return state
 
-    # Build prompt
-    full_prompt = _build_analysis_prompt(analysis_instructions, connector_name, tech_spec)
+    # Resolve the tech spec file path so Claude can read it from disk
+    output_dir = state.get("output_dir")
+    filemanager = FileManager(base_path=str(output_dir))
+
+    # Determine which spec file to point Claude at
+    enhanced_spec_filepath = state.get("enhanced_spec_filepath")
+    spec_filepath = state.get("spec_filepath")
+
+    if enhanced_spec_filepath and Path(enhanced_spec_filepath).exists():
+        tech_spec_abs_path = str(Path(enhanced_spec_filepath).resolve())
+    elif spec_filepath:
+        tech_spec_abs_path = str((filemanager.base_path / "specs" / spec_filepath).resolve())
+    else:
+        # Fallback: write spec to a temp file so Claude can read it
+        temp_path = Path(output_dir).resolve() / "specs" / f"{connector_name.lower()}_analysis_input.md"
+        temp_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path.write_text(tech_spec, encoding="utf-8")
+        tech_spec_abs_path = str(temp_path)
+
+    console.print(f"[dim]Analyzing spec file: {tech_spec_abs_path}[/dim]")
+
+    # Build prompt with file path (not content)
+    full_prompt = _build_analysis_prompt(analysis_instructions, connector_name, tech_spec_abs_path)
 
     # Get Claude Agent SDK config
     claude_config = get_config().getClaudeAgentConfig()
@@ -132,7 +160,7 @@ def field_analysis(state: TechspecWorkflowState) -> TechspecWorkflowState:
                 # Send the prompt and receive responses
                 await client.query(full_prompt)
                 async for message in client.receive_response():
-                    console.print(message) 
+                    # console.print(message) 
                     if isinstance(message, AssistantMessage):
                         turn_count += 1
                         for block in message.content:

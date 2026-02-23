@@ -37,13 +37,13 @@ def _read_enhancer_prompt() -> str:
 def _build_enhancement_prompt(
     enhancer_instructions: str,
     connector_name: str,
-    tech_spec_content: str,
-    markdown_files_content: List[str],
+    tech_spec_filepath: str,
+    markdown_file_paths: List[str],
 ) -> str:
-    """Build the full prompt for the enhancement step.
+    """Build the prompt that instructs Claude to read files sequentially.
     
-    Dynamically replaces hardcoded connector references in the enhancer
-    prompt with the actual connector name.
+    Instead of embedding all content inline, provides file paths so Claude
+    uses its Read tool to process files one by one with visible progress.
     """
     # Replace hardcoded references with dynamic connector name
     prompt = enhancer_instructions
@@ -51,27 +51,33 @@ def _build_enhancement_prompt(
     prompt = prompt.replace("airwallex", connector_name.lower())
     prompt = prompt.replace("output/airwallex", f"output/{connector_name.lower()}")
 
-    # Build the combined content for Claude to review
-    md_sections = []
-    for i, content in enumerate(markdown_files_content):
-        md_sections.append(f"--- Source Document {i + 1} ---\n{content}")
-    combined_md = "\n\n".join(md_sections)
+    # Build file listing
+    files_listing = "\n".join(f"  {i+1}. {path}" for i, path in enumerate(markdown_file_paths))
 
     full_prompt = f"""{prompt}
 
 --- CONNECTOR NAME ---
 {connector_name}
 
---- CURRENT TECHNICAL SPECIFICATION ---
-{tech_spec_content}
+--- TECHNICAL SPECIFICATION FILE (read this first) ---
+{tech_spec_filepath}
 
---- SOURCE MARKDOWN DOCUMENTATION ---
-{combined_md}
+--- SOURCE MARKDOWN DOCUMENTATION FILES (process each one sequentially) ---
+{files_listing}
 
-IMPORTANT: All the content you need is provided above in this prompt. Do NOT attempt to read files from disk or explore the filesystem.
-Review the technical specification against the source documentation provided above.
-Enrich and complete the specification following the instructions provided.
-Output ONLY the complete updated technical specification as markdown — no preamble, no explanation, just the full enriched spec."""
+INSTRUCTIONS:
+1. First, use the Read tool to read the technical specification file listed above
+2. Understand the current structure and identify gaps
+3. Then, process EACH source markdown documentation file ONE AT A TIME:
+   a. Use the Read tool to read the file
+   b. Extract relevant information (API endpoints, request/response formats, authentication, error handling, etc.)
+   c. Note what information from this file should be added to enrich the specification
+   d. Move to the next file ONLY after fully processing the current one
+4. After reading and processing ALL files, output the complete updated technical specification as markdown
+5. Show your reasoning as you process each file — explain what you found and what you are adding
+
+Process files SEQUENTIALLY — read one file, extract info, then move to the next.
+At the end, output ONLY the complete updated technical specification as markdown."""
 
     return full_prompt
 
@@ -94,32 +100,48 @@ def enhance_spec(state: TechspecWorkflowState) -> TechspecWorkflowState:
         state.setdefault("errors", []).append(str(e))
         return state
 
-    # Read all scraped markdown files content
+    # Resolve absolute paths for markdown files so Claude can read them
     output_dir = state.get("output_dir")
     markdown_files = state.get("markdown_files", [])
     connector_name = state.get("connector_name") or state.get("file_name", "unknown")
 
-    markdown_contents = []
     filemanager = FileManager(base_path=str(output_dir))
 
     if state.get("folder"):
         filemanager.update_base_path("")
 
+    # Resolve markdown file paths to absolute paths
+    markdown_abs_paths = []
     for md_file in markdown_files:
-        try:
-            content = filemanager.read_file(md_file)
-            if content:
-                markdown_contents.append(content)
-        except Exception as e:
-            console.print(f"[yellow]Warning: Could not read {md_file}: {e}[/yellow]")
+        abs_path = (filemanager.base_path / md_file).resolve()
+        if abs_path.exists():
+            markdown_abs_paths.append(str(abs_path))
+        else:
+            console.print(f"[yellow]Warning: File not found: {abs_path}[/yellow]")
 
-    if not markdown_contents:
+    if not markdown_abs_paths:
         console.print("[yellow]No markdown source docs found, skipping enhancement[/yellow]")
         return state
 
-    # Build the prompt
+    # Resolve tech spec file path
+    spec_filepath = state.get("spec_filepath")
+    if spec_filepath:
+        tech_spec_abs_path = str((filemanager.base_path / "specs" / spec_filepath).resolve())
+    else:
+        # Fallback: write tech spec to a temp file so Claude can read it
+        temp_spec_path = Path(output_dir).resolve() / "specs" / f"{connector_name.lower()}_temp_spec.md"
+        temp_spec_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_spec_path.write_text(tech_spec, encoding="utf-8")
+        tech_spec_abs_path = str(temp_spec_path)
+
+    console.print(f"[dim]Tech spec file: {tech_spec_abs_path}[/dim]")
+    console.print(f"[dim]Source files to process: {len(markdown_abs_paths)}[/dim]")
+    for i, p in enumerate(markdown_abs_paths, 1):
+        console.print(f"[dim]  {i}. {Path(p).name}[/dim]")
+
+    # Build the prompt with file paths (not content)
     full_prompt = _build_enhancement_prompt(
-        enhancer_instructions, connector_name, tech_spec, markdown_contents
+        enhancer_instructions, connector_name, tech_spec_abs_path, markdown_abs_paths
     )
 
     # Get Claude Agent SDK config
@@ -167,7 +189,7 @@ def enhance_spec(state: TechspecWorkflowState) -> TechspecWorkflowState:
                 # Send the prompt and receive responses
                 await client.query(full_prompt)
                 async for message in client.receive_response():
-                    console.print(message)  # Add spacing between turns
+                    # console.print(message)  # Add spacing between turns
                     if isinstance(message, AssistantMessage):
                         turn_count += 1
                         for block in message.content:
