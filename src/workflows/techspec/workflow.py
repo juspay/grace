@@ -6,7 +6,7 @@ from src.config import get_config
 from langgraph.graph import StateGraph, START, END
 from .states.techspec_state import TechspecWorkflowState
 from datetime import datetime
-from .nodes import collect_urls, scrap_urls, llm_analysis, output_node, mock_server
+from .nodes import collect_urls, scrap_urls, llm_analysis, output_node, mock_server, enhance_spec, field_analysis
 class TechspecWorkflow:
     def __init__(self):
         self.graph = self._build_workflow_graph()
@@ -20,6 +20,8 @@ class TechspecWorkflow:
         workflow.add_node("collect_urls", collect_urls)
         workflow.add_node("crawling", scrap_urls)
         workflow.add_node("llm_analysis", llm_analysis)
+        workflow.add_node("enhance_spec", enhance_spec)
+        workflow.add_node("field_analysis", field_analysis)
         workflow.add_node("mock_server", lambda state: asyncio.run(mock_server(state)))
         workflow.add_node("output", output_node)
         workflow.add_node("end", lambda state: state)  # Terminal node
@@ -56,6 +58,21 @@ class TechspecWorkflow:
         workflow.add_conditional_edges(
             "llm_analysis",
             self._should_continue_after_llm,
+            {
+                "enhance_spec": "enhance_spec",
+                "mock_server": "mock_server",
+                "output": "output",
+                "end": "end"
+            }
+        )
+        
+        # Enhancement step flows to field analysis
+        workflow.add_edge("enhance_spec", "field_analysis")
+
+        # Field analysis flows to mock_server or output
+        workflow.add_conditional_edges(
+            "field_analysis",
+            self._should_continue_after_field_analysis,
             {
                 "mock_server": "mock_server",
                 "output": "output",
@@ -95,9 +112,18 @@ class TechspecWorkflow:
             return "end"
         return "llm_analysis"
 
-    def _should_continue_after_llm(self, state: TechspecWorkflowState) -> Literal["mock_server", "output", "end"]:
+    def _should_continue_after_llm(self, state: TechspecWorkflowState) -> Literal["enhance_spec", "mock_server", "output", "end"]:
+        # Check if enhancement is enabled and we have a spec
+        if state.get("enhance") and state.get("tech_spec"):
+            return "enhance_spec"
         # Check if mock server generation is enabled and we have a spec
         if (state.get("mock_server") and state.get("tech_spec")):
+            return "mock_server"
+        return "output"
+
+    def _should_continue_after_field_analysis(self, state: TechspecWorkflowState) -> Literal["mock_server", "output", "end"]:
+        # After field analysis, check if mock server is enabled
+        if state.get("mock_server") and (state.get("enhanced_spec") or state.get("tech_spec")):
             return "mock_server"
         return "output"
 
@@ -115,6 +141,7 @@ class TechspecWorkflow:
                      urls_file: Optional[str] = None,
                      output_dir: Optional[str] = None,
                      mock_server: bool = False,
+                     enhance: bool = False,
                      test_only: bool = False,
                      verbose: bool = False) -> Dict[str, Any]:
         """Execute the techspec workflow."""
@@ -132,6 +159,7 @@ class TechspecWorkflow:
             "folder" : folder or None,
             "output_dir": output_path,
             "mock_server" : mock_server,
+            "enhance": enhance,
             "config": config,
             "test_only": test_only,
             "verbose": verbose,
@@ -181,6 +209,7 @@ async def run_techspec_workflow(connector_name: str,
                                 urls_file: Optional[str] = None,
                                output_dir: Optional[str] = None,
                                mock_server: bool = False,
+                               enhance: bool = False,
                                test_only: bool = False,
                                verbose: bool = False,
                                ) -> Dict[str, Any]:
@@ -191,6 +220,7 @@ async def run_techspec_workflow(connector_name: str,
         urls_file=urls_file,
         output_dir=output_dir,
         mock_server=mock_server,
+        enhance=enhance,
         test_only=test_only,
         verbose=verbose
     )
