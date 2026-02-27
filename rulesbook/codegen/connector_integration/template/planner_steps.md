@@ -570,7 +570,8 @@ async fn test_payment_authorize_apple_pay() {
 
 **Common Continuation Commands:**
 - `continue implementing {{connector_name}} connector in UCS - I have completed [X] and need to implement [Y]`
-- `add [payment_method] support to existing {{connector_name}} connector in UCS`
+- `add [payment_method] to {{connector_name}} using grace/rulesbook/codegen/.gracerules_add_payment_method`
+- `add [flow] flow to {{connector_name}} using grace/rulesbook/codegen/.gracerules_add_flow`
 - `implement webhook handling for {{connector_name}} connector in UCS`
 - `debug {{connector_name}} connector [specific_issue] in UCS`
 

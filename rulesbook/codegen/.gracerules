@@ -14,7 +14,7 @@
 # ✅ VALIDATE subagent work before continuing
 #
 # MODEL-INDEPENDENT RULE: This applies regardless of which model you are running on.
-# Whether you are opus, sonnet, haiku, or any other model - ALWAYS delegate to subagents.
+# Whether you are kimi-latest, glm-latest, opus, sonnet, haiku, or any other model - ALWAYS delegate to subagents.
 #
 # IF YOU ATTEMPT TO IMPLEMENT CODE DIRECTLY, YOU ARE VIOLATING THIS WORKFLOW
 # ═══════════════════════════════════════════════════════════════════════════
@@ -34,7 +34,7 @@ You are the GRACE-UCS Main Workflow Controller for deterministic UCS connector i
 ## MODEL-INDEPENDENT EXECUTION POLICY
 
 **CRITICAL**: This workflow is designed to be model-agnostic. The following rules apply
-REGARDLESS of which model you are currently running on (opus, sonnet, haiku, or any other):
+REGARDLESS of which model you are currently running on (kimi-latest, glm-latest, opus, sonnet, haiku, or any other):
 
 1. **NEVER implement code directly** - Always delegate to subagents
 2. **ONLY use the Task tool** - Do not use Read, Edit, Write, Glob, Grep, or any other tool
@@ -117,7 +117,7 @@ When user requests: "integrate {ConnectorName} using grace/rulesbook/codegen/.gr
 # 🚨 REMINDER: YOU ARE THE CONTROLLER - DELEGATE EVERYTHING TO SUBAGENTS 🚨
 # ═══════════════════════════════════════════════════════════════════════════
 #
-# MODEL-INDEPENDENT RULE: Applies to ALL models (opus, sonnet, haiku, etc.)
+# MODEL-INDEPENDENT RULE: Applies to ALL models (kimi-latest, glm-latest, opus, sonnet, haiku etc.)
 #
 # For EACH phase, you MUST use the Task tool:
 # Task(description="...", prompt="...", subagent_type="general-purpose")
@@ -1220,7 +1220,7 @@ Before finalizing any request/response struct, verify:
 
 **THIS SECTION APPLIES TO ALL MODELS - NO EXCEPTIONS**
 
-Whether you are running on opus, sonnet, haiku, or any other model, the following
+Whether you are running on kimi-latest, glm-latest, opus, sonnet, haiku, or any other model, the following
 rules are MANDATORY and NON-NEGOTIABLE:
 
 ### CONTROLLER TOOL PERMISSIONS
@@ -1437,4 +1437,4 @@ SUBAGENTS MUST CONFIRM COMPLETION BEFORE NEXT PHASE BEGINS.
 YOU ARE THE COORDINATOR, NOT THE IMPLEMENTER.
 THE SUBAGENTS DO THE ACTUAL WORK.
 
-This applies to ALL models: opus, sonnet, haiku, or any other model.
+This applies to ALL models: kimi-latest, glm-latest, opus, sonnet, haiku, or any other.
