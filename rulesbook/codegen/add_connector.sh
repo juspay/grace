@@ -38,6 +38,7 @@ readonly DOMAIN_TYPES_TYPES_FILE="$BACKEND_DIR/domain_types/src/types.rs"
 readonly INTEGRATION_TYPES_FILE="$BACKEND_DIR/connector-integration/src/types.rs"
 readonly CONNECTORS_MODULE_FILE="$BACKEND_DIR/connector-integration/src/connectors.rs"
 readonly PROTO_FILE="$BACKEND_DIR/grpc-api-types/proto/payment.proto"
+readonly ROUTER_DATA_FILE="$BACKEND_DIR/domain_types/src/router_data.rs"
 readonly CONFIG_FILE="$CONFIG_DIR/development.toml"
 readonly SANDBOX_CONFIG_FILE="$CONFIG_DIR/sandbox.toml"
 readonly PRODUCTION_CONFIG_FILE="$CONFIG_DIR/production.toml"
@@ -676,6 +677,7 @@ create_backup() {
         "$DOMAIN_TYPES_TYPES_FILE"
         "$CONNECTORS_MODULE_FILE"
         "$INTEGRATION_TYPES_FILE"
+        "$ROUTER_DATA_FILE"
         "$CONFIG_FILE"
         "$SANDBOX_CONFIG_FILE"
         "$PRODUCTION_CONFIG_FILE"
@@ -691,6 +693,9 @@ create_backup() {
             elif [[ "$file" == "$INTEGRATION_TYPES_FILE" ]]; then
                 cp "$file" "$BACKUP_DIR/integration_types.rs"
                 log_debug "Backed up: connector-integration/types.rs"
+            elif [[ "$file" == "$ROUTER_DATA_FILE" ]]; then
+                cp "$file" "$BACKUP_DIR/router_data.rs"
+                log_debug "Backed up: domain_types/router_data.rs"
             else
                 cp "$file" "$BACKUP_DIR/$(basename "$file")"
                 log_debug "Backed up: $(basename "$file")"
@@ -873,6 +878,104 @@ update_domain_types_file() {
     log_success "Added $NAME_SNAKE to Connectors struct in types.rs"
 }
 
+update_router_data() {
+    log_step "Updating router_data.rs (ConnectorSpecificAuth + match arm)"
+
+    # Check if already exists
+    if grep -q "ConnectorEnum::$NAME_PASCAL =>" "$ROUTER_DATA_FILE" 2>/dev/null; then
+        log_warning "Skipping router_data update - $NAME_PASCAL already exists"
+        return 0
+    fi
+
+    # 1. Add ConnectorSpecificAuth enum variant (default: HeaderKey with api_key)
+    #    Insert before the closing brace of the enum
+    sed -i.bak "/^pub enum ConnectorSpecificAuth {/,/^}/ s/^}/    $NAME_PASCAL {\n        api_key: Secret<String>,\n    },\n}/" "$ROUTER_DATA_FILE"
+    rm -f "$ROUTER_DATA_FILE.bak"
+
+    # 2. Add match arm in the ConnectorEnum match for ConnectorAuthType conversion
+    #    Insert before the closing brace of the match statement in
+    #    ForeignTryFrom<(&ConnectorAuthType, &connector_types::ConnectorEnum)>
+    #    We find the last match arm (Revolv3) and add after it
+    sed -i.bak "/ConnectorEnum::Revolv3 => match auth {/,/},/ {
+        /},/ a\\
+\\            ConnectorEnum::$NAME_PASCAL => match auth {\\
+                ConnectorAuthType::HeaderKey { api_key } => Ok(Self::$NAME_PASCAL {\\
+                    api_key: api_key.clone(),\\
+                }),\\
+                _ => Err(err().into()),\\
+            },
+    }" "$ROUTER_DATA_FILE"
+    rm -f "$ROUTER_DATA_FILE.bak"
+
+    log_success "Updated router_data.rs with $NAME_PASCAL auth variant and match arm"
+}
+
+update_protobuf_auth() {
+    log_step "Updating protobuf auth definitions"
+
+    # Check if auth message already exists
+    if grep -q "${NAME_PASCAL}Auth" "$PROTO_FILE" 2>/dev/null; then
+        log_warning "Skipping protobuf auth update - ${NAME_PASCAL}Auth already exists"
+        return 0
+    fi
+
+    # 1. Add auth message before the ConnectorAuth message
+    sed -i.bak "/^message ConnectorAuth {/i\\
+message ${NAME_PASCAL}Auth {\\
+  SecretString api_key = 1;\\
+}\\
+" "$PROTO_FILE"
+    rm -f "$PROTO_FILE.bak"
+
+    # 2. Get the next oneof field number by finding the highest existing one
+    local max_field_num
+    max_field_num=$(grep -E "Auth [a-z_]+ = [0-9]+;" "$PROTO_FILE" | \
+                    sed -E 's/.*= ([0-9]+);/\1/' | \
+                    sort -n | tail -1)
+    local next_field_num=$((max_field_num + 1))
+
+    # 3. Add oneof entry before the closing brace of ConnectorAuth
+    #    Insert after the last entry in the oneof
+    sed -i.bak "/^  oneof auth_type {/,/^  }/ s|^  }|    // $NAME_UPPER = $ENUM_ORDINAL\n    ${NAME_PASCAL}Auth $(echo "$NAME_SNAKE" | tr '[:upper:]' '[:lower:]') = $next_field_num;\n  }|" "$PROTO_FILE"
+    rm -f "$PROTO_FILE.bak"
+
+    log_success "Updated protobuf with ${NAME_PASCAL}Auth message and oneof entry"
+}
+
+update_router_data_grpc_auth() {
+    log_step "Updating router_data.rs gRPC AuthType mapping"
+
+    # Check if already exists
+    if grep -q "AuthType::$NAME_PASCAL(" "$ROUTER_DATA_FILE" 2>/dev/null; then
+        log_warning "Skipping gRPC auth mapping - $NAME_PASCAL already exists"
+        return 0
+    fi
+
+    # Find the last AuthType match arm and add after it
+    # We insert before the closing brace of the match statement in
+    # ForeignTryFrom<grpc_api_types::payments::ConnectorAuth>
+    local last_auth_type
+    last_auth_type=$(grep -E "AuthType::[A-Z][A-Za-z0-9]*\(" "$ROUTER_DATA_FILE" | tail -1 | sed -E 's/.*AuthType::([A-Za-z0-9]+)\(.*/\1/')
+
+    # Compute the lowercase variable binding name used in the existing code
+    local last_auth_lower
+    last_auth_lower=$(echo "$last_auth_type" | tr '[:upper:]' '[:lower:]')
+
+    # Use the lowercase name for the new variable binding
+    local name_lower
+    name_lower=$(echo "$NAME_SNAKE" | tr '[:upper:]' '[:lower:]')
+
+    sed -i.bak "/AuthType::${last_auth_type}(${last_auth_lower})/,/}),/ {
+        /}),/ a\\
+\\            AuthType::$NAME_PASCAL($name_lower) => Ok(Self::$NAME_PASCAL {\\
+                api_key: $name_lower.api_key.ok_or_else(err)?,\\
+            }),
+    }" "$ROUTER_DATA_FILE"
+    rm -f "$ROUTER_DATA_FILE.bak"
+
+    log_success "Updated router_data.rs with gRPC AuthType::$NAME_PASCAL mapping"
+}
+
 update_connectors_module() {
     log_step "Updating connectors module"
 
@@ -1009,6 +1112,9 @@ emergency_rollback() {
                     "integration_types.rs")
                         cp "$backup_file" "$INTEGRATION_TYPES_FILE"
                         ;;
+                    "router_data.rs")
+                        cp "$backup_file" "$ROUTER_DATA_FILE"
+                        ;;
                     "connectors.rs")
                         cp "$backup_file" "$CONNECTORS_MODULE_FILE"
                         ;;
@@ -1052,6 +1158,7 @@ show_implementation_plan() {
     echo "📝 Files to modify:"
     echo "   ├── backend/grpc-api-types/proto/payment.proto"
     echo "   ├── backend/domain_types/src/connector_types.rs"
+    echo "   ├── backend/domain_types/src/router_data.rs"
     echo "   ├── backend/connector-integration/src/connectors.rs"
     echo "   ├── backend/connector-integration/src/types.rs"
     echo "   └── config/development.toml"
@@ -1130,8 +1237,11 @@ main() {
     # Execute main operations
     create_connector_files
     update_protobuf
+    update_protobuf_auth
     update_domain_types
     update_domain_types_file
+    update_router_data
+    update_router_data_grpc_auth
     update_connectors_module
     update_integration_types
     update_config
