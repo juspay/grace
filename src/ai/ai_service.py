@@ -1,5 +1,9 @@
+"""LiteLLM client for AI-powered tech spec generation."""
+
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+
+from typing import List, Optional, Tuple, Any
+import datetime
 
 try:
     import litellm  # type: ignore[import-untyped]
@@ -12,20 +16,18 @@ from src.utils.ai_utils import combine_markdown_files
 
 from .system.prompt_config import prompt_config
 
-
 class AIService:
     config: AIConfig
-
-    def __init__(self, config: Union[AIConfig, None] = None):
+    def __init__(self, config: AIConfig):
         if litellm is None:
             raise ImportError(
                 "litellm package is required. Install with: pip install litellm"
             )
 
-        self.config = config or get_config().getAiConfig()
-        if self.config.base_url:
-            litellm.api_base = self.config.base_url
-        litellm.api_key = self.config.api_key
+        self.config = config
+        if config.base_url:
+            litellm.api_base = config.base_url
+        litellm.api_key = config.api_key
 
         # Enable context window fallback as suggested by LiteLLM
         litellm.context_window_fallback_dict = {
@@ -57,33 +59,9 @@ class AIService:
             return result, True, ""
 
         except Exception as e:
-            return "", False, str(e)
+            raise RuntimeError(f"Error generating text: {str(e)}")
 
-    async def vision_generate(
-        self, messages: Any, max_tokens: Optional[int] = None
-    ) -> Any:
-        completion_args = {
-            "model": self.config.vision_model_id,
-            "messages": messages,
-            "api_key": self.config.api_key,
-            "temperature": 0.1,
-        }
-        if max_tokens is not None:
-            completion_args["max_tokens"] = max_tokens
-
-        if self.config.base_url:
-            completion_args["api_base"] = self.config.base_url
-
-        # Use async completion
-        response = await litellm.acompletion(**completion_args)
-        result = response.choices[0].message.content
-        if not result or not result.strip():
-            return ""
-        return result
-
-    def generate_tech_spec(
-        self, filemanager, markdown_files: List[Path]
-    ) -> Tuple[bool, Optional[str], Optional[str]]:
+    def generate_tech_spec(self, markdown_files: List[Path], prompt: str) -> Tuple[bool, Optional[str], Optional[str]]:
         try:
             from src.utils.ai_utils import chunk_content_by_tokens, estimate_tokens
 

@@ -1,17 +1,23 @@
+"""Techspec workflow using LangGraph for technical specification generation."""
+
 import asyncio
 import click
-from typing import Dict, Any, Literal, Optional
+from typing import Dict, Any, List, Literal, Optional
 from pathlib import Path
-from src.config import get_config
+from src.config import Config, TechSpecConfig, get_config
 from langgraph.graph import StateGraph, START, END
 from .states.techspec_state import TechspecWorkflowState
 from datetime import datetime
 from .nodes import collect_urls, scrap_urls, llm_analysis, output_node, mock_server, enhance_spec, field_analysis
 class TechspecWorkflow:
+    """LangGraph-based techspec workflow orchestrator."""
+
     def __init__(self):
+        """Initialize the techspec workflow."""
         self.graph = self._build_workflow_graph()
 
     def _build_workflow_graph(self):
+        """Build the LangGraph workflow graph."""
 
         # Create state graph
         workflow = StateGraph(TechspecWorkflowState)
@@ -200,6 +206,7 @@ class TechspecWorkflow:
 
 # Factory function for easy workflow creation
 def create_techspec_workflow() -> TechspecWorkflow:
+    """Create and return a new techspec workflow instance."""
     return TechspecWorkflow()
 
 
@@ -211,8 +218,8 @@ async def run_techspec_workflow(connector_name: str,
                                mock_server: bool = False,
                                enhance: bool = False,
                                test_only: bool = False,
-                               verbose: bool = False,
-                               ) -> Dict[str, Any]:
+                               verbose: bool = False) -> Dict[str, Any]:
+    """Run techspec workflow from CLI."""
     workflow = create_techspec_workflow()
     return await workflow.execute(
         connector_name=connector_name,

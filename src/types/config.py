@@ -9,13 +9,11 @@ class AIConfig:
     api_key: str
     provider: str = "litellm"
     base_url: str = "https://grid.juspay.net"
-    model_id: str = "openai/qwen3-coder-480b"
-    vision_model_id: str = "openai/glm-46-fp8"
+    model_id: str = "qwen3-coder-480b"
     project_id: Optional[str] = None
     max_tokens: int = 50000
     location: str = "us-east5"
     temperature: float = 0.7
-    browser_headless: bool = True
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -44,21 +42,11 @@ class TechSpecConfig:
 
 @dataclass
 class ResearchConfig:
-    
-    # Search configuration
+    """Research configuration."""
     searchTool: str = "searxng"
     baseURL: str = "https://localhost:32678"
-
     formatType: str = "markdown"
     depth: int = 5
-
-    with_ai_browser: bool = False
-    
-    
-    # Proxy configuration
-    proxy_url: Optional[str] = None
-    proxy_username: Optional[str] = None
-    proxy_password: Optional[str] = None
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -77,18 +65,3 @@ class LogConfig:
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if self.log_level not in valid_levels:
             raise ValueError(f"Invalid log level: {self.log_level}")
-
-@dataclass
-class ClaudeAgentConfig:
-    """Claude Agent SDK configuration for spec enhancement and analysis."""
-    api_key: str = ""
-    base_url: str = ""
-    model: Optional[str] = None
-    max_turns: int = 25
-    enabled: bool = True
-
-    def __post_init__(self) -> None:
-        """Validate configuration after initialization."""
-        if self.enabled and not self.api_key:
-            console.print("[yellow]Claude Agent SDK: No API key configured, enhancement steps will be skipped[/yellow]")
-            self.enabled = False

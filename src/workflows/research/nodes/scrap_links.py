@@ -1,5 +1,5 @@
 from ..states.research_state import WorkflowState
 
 
-def generate_queries(state: WorkflowState) -> WorkflowState:
+def scrap_links(state: WorkflowState) -> WorkflowState:
    return state
