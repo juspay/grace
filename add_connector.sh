@@ -1553,7 +1553,9 @@ remove_empty_integration_impl() {
     local flow_name="$1"
     local connector_file="$2"
 
-    # After rustfmt, the empty impl block is formatted as:
+    # After rustfmt, the empty impl block can be formatted in TWO ways:
+    #
+    # MULTI-LINE (when type params are long):
     # Line N:   impl<T: PaymentMethodDataTypes ...>
     # Line N+1:     ConnectorIntegrationV2<
     # Line N+2:         connector_flow::FlowName,
@@ -1563,6 +1565,13 @@ remove_empty_integration_impl() {
     # Line N+6:     > for ConnectorPascal<T>
     # Line N+7: {
     # Line N+8: }
+    #
+    # SINGLE-LINE (when type params fit on one line):
+    # Line N:   impl<T: PaymentMethodDataTypes ...>
+    # Line N+1:     ConnectorIntegrationV2<connector_flow::FlowName, Data1, Data2, Data3>
+    # Line N+2:     for ConnectorPascal<T>
+    # Line N+3: {
+    # Line N+4: }
 
     # Find the line with connector_flow::FlowName inside a ConnectorIntegrationV2 block
     local flow_line
@@ -1573,19 +1582,29 @@ remove_empty_integration_impl() {
         return 0
     fi
 
-    # Verify this is inside a ConnectorIntegrationV2 block (check line before)
-    local prev_line
-    prev_line=$(awk -v line="$((flow_line - 1))" 'NR == line { print }' "$connector_file")
-    if ! echo "$prev_line" | grep -q "ConnectorIntegrationV2<"; then
+    # Determine format: check if ConnectorIntegrationV2< is on the same line or previous line
+    local current_line_text prev_line_text start_line
+    current_line_text=$(awk -v line="$flow_line" 'NR == line { print }' "$connector_file")
+    prev_line_text=$(awk -v line="$((flow_line - 1))" 'NR == line { print }' "$connector_file")
+
+    if echo "$current_line_text" | grep -q "ConnectorIntegrationV2<"; then
+        # SINGLE-LINE format: ConnectorIntegrationV2<connector_flow::FlowName, ...> on same line
+        # Block starts 1 line before (the impl<T: ...> line)
+        start_line=$((flow_line - 1))
+        log_debug "Found single-line format ConnectorIntegrationV2 for $flow_name"
+    elif echo "$prev_line_text" | grep -q "ConnectorIntegrationV2<"; then
+        # MULTI-LINE format: ConnectorIntegrationV2< on previous line
+        # Block starts 2 lines before (the impl<T: ...> line)
+        start_line=$((flow_line - 2))
+        log_debug "Found multi-line format ConnectorIntegrationV2 for $flow_name"
+    else
         log_debug "connector_flow::${flow_name} found but not in ConnectorIntegrationV2 block, skipping"
         return 0
     fi
 
     log_debug "Removing empty ConnectorIntegrationV2 impl for $flow_name"
 
-    # The block starts 2 lines before the flow_line (impl<T: ...>) and ends at }
     # Find the closing } after flow_line
-    local start_line=$((flow_line - 2))
     local end_line
     end_line=$(awk -v start="$flow_line" 'NR > start && /^\}$/ { print NR; exit }' "$connector_file")
 
@@ -1595,9 +1614,9 @@ remove_empty_integration_impl() {
     fi
 
     # Also remove trailing blank line if present
-    local after_line
-    after_line=$(awk -v line="$((end_line + 1))" 'NR == line { print }' "$connector_file")
-    if [[ -z "$after_line" ]]; then
+    local after_line_text
+    after_line_text=$(awk -v line="$((end_line + 1))" 'NR == line { print }' "$connector_file")
+    if [[ -z "$after_line_text" ]]; then
         end_line=$((end_line + 1))
     fi
 
@@ -1732,24 +1751,35 @@ add_transformer_stubs() {
         mv "${transformers_file}.tmp" "$transformers_file"
     fi
 
-    # Ensure connector_types request_data import exists (e.g., PaymentsCaptureData)
-    # Strip generic <T> for the import check
+    # Ensure all connector_types imports exist for this flow:
+    # - request_data (e.g., PaymentsCaptureData, RefundsData)
+    # - resource_data (e.g., PaymentFlowData, RefundFlowData)
+    # - response_data (e.g., PaymentsResponseData, RefundsResponseData)
     local request_data_bare
     request_data_bare="${request_data%%<*}"
-    if ! grep -qw "${request_data_bare}" "$transformers_file"; then
-        log_debug "Adding missing ${request_data_bare} import to connector_types"
-        # Find the connector_types::{...} block and add the import before the closing }
-        awk -v import="$request_data_bare" '
-            /connector_types::\{/ || in_block {
-                in_block = 1
-                if (/\}/) {
-                    sub(/\}/, import ", }")
-                    in_block = 0
+
+    local types_to_add=()
+    for type_name in "$request_data_bare" "$resource_data" "$response_data"; do
+        if ! grep -qw "${type_name}" "$transformers_file"; then
+            types_to_add+=("$type_name")
+        fi
+    done
+
+    if [[ ${#types_to_add[@]} -gt 0 ]]; then
+        for import_type in "${types_to_add[@]}"; do
+            log_debug "Adding missing ${import_type} import to connector_types"
+            awk -v import="$import_type" '
+                /connector_types::\{/ || in_block {
+                    in_block = 1
+                    if (/\}/) {
+                        sub(/\}/, import ", }")
+                        in_block = 0
+                    }
                 }
-            }
-            { print }
-        ' "$transformers_file" > "${transformers_file}.tmp"
-        mv "${transformers_file}.tmp" "$transformers_file"
+                { print }
+            ' "$transformers_file" > "${transformers_file}.tmp"
+            mv "${transformers_file}.tmp" "$transformers_file"
+        done
     fi
 
     # Append stubs to end of file
