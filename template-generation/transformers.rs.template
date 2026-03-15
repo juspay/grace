@@ -1,0 +1,437 @@
+use crate::types::ResponseRouterData;
+use common_enums::{AttemptStatus, Currency, RefundStatus};
+use common_utils::types::MinorUnit;
+use domain_types::{
+    connector_flow::{Authorize, Capture, PSync, RSync, Refund, Void},
+    connector_types::{
+        PaymentFlowData, PaymentVoidData, PaymentsCaptureData, PaymentsAuthorizeData,
+        PaymentsResponseData, PaymentsSyncData, RefundFlowData, RefundSyncData, RefundsData,
+        RefundsResponseData, ResponseId,
+    },
+    errors,
+    payment_method_data::PaymentMethodDataTypes,
+    router_data::ConnectorSpecificConfig,
+    router_data_v2::RouterDataV2,
+};
+use hyperswitch_masking::Secret;
+use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
+
+// =============================================================================
+// AUTH TYPE
+// =============================================================================
+// TODO: Update fields to match connector's authentication requirements.
+// Common patterns:
+//   - Single API key: { api_key: Secret<String> }
+//   - Key + secret: { api_key: Secret<String>, api_secret: Secret<String> }
+//   - Username + password: { user_name: Secret<String>, password: Secret<String> }
+#[derive(Debug, Clone)]
+pub struct {{CONNECTOR_NAME_PASCAL}}AuthType {
+    pub api_key: Secret<String>,
+}
+
+impl TryFrom<&ConnectorSpecificConfig> for {{CONNECTOR_NAME_PASCAL}}AuthType {
+    type Error = error_stack::Report<errors::ConnectorError>;
+
+    fn try_from(auth_type: &ConnectorSpecificConfig) -> Result<Self, Self::Error> {
+        match auth_type {
+            // TODO: Update to match the ConnectorSpecificConfig variant registered
+            // in backend/domain_types/src/router_data.rs for this connector.
+            ConnectorSpecificConfig::{{CONNECTOR_NAME_PASCAL}} {
+                api_key,
+                ..
+            } => Ok(Self {
+                api_key: api_key.clone(),
+            }),
+            _ => Err(error_stack::report!(
+                errors::ConnectorError::FailedToObtainAuthType
+            )),
+        }
+    }
+}
+
+// =============================================================================
+// ERROR RESPONSE
+// =============================================================================
+// TODO: Update to match connector's actual error response format.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct {{CONNECTOR_NAME_PASCAL}}ErrorResponse {
+    pub code: Option<String>,
+    pub message: Option<String>,
+}
+
+// =============================================================================
+// PAYMENT STATUS MAPPING
+// =============================================================================
+// TODO: Update variants and serde renames to match connector's actual status values.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum {{CONNECTOR_NAME_PASCAL}}PaymentStatus {
+    Succeeded,
+    Failed,
+    Pending,
+    Processing,
+}
+
+impl From<&{{CONNECTOR_NAME_PASCAL}}PaymentStatus> for AttemptStatus {
+    fn from(status: &{{CONNECTOR_NAME_PASCAL}}PaymentStatus) -> Self {
+        match status {
+            {{CONNECTOR_NAME_PASCAL}}PaymentStatus::Succeeded => Self::Charged,
+            {{CONNECTOR_NAME_PASCAL}}PaymentStatus::Failed => Self::Failure,
+            {{CONNECTOR_NAME_PASCAL}}PaymentStatus::Pending => Self::Pending,
+            {{CONNECTOR_NAME_PASCAL}}PaymentStatus::Processing => Self::Pending,
+        }
+    }
+}
+
+// =============================================================================
+// AUTHORIZE FLOW TYPES
+// =============================================================================
+
+// TODO: Update fields to match connector's payment creation request body.
+#[derive(Debug, Serialize)]
+pub struct {{CONNECTOR_NAME_PASCAL}}AuthorizeRequest {
+    pub amount: MinorUnit,
+    pub currency: Currency,
+}
+
+// TODO: Update fields to match connector's payment creation response body.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct {{CONNECTOR_NAME_PASCAL}}AuthorizeResponse {
+    pub id: String,
+    pub status: {{CONNECTOR_NAME_PASCAL}}PaymentStatus,
+}
+
+impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
+    TryFrom<
+        super::{{CONNECTOR_NAME_PASCAL}}RouterData<
+            RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>,
+            T,
+        >,
+    > for {{CONNECTOR_NAME_PASCAL}}AuthorizeRequest
+{
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(
+        item: super::{{CONNECTOR_NAME_PASCAL}}RouterData<
+            RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>,
+            T,
+        >,
+    ) -> Result<Self, Self::Error> {
+        // TODO: Build the request body from item.router_data fields.
+        // Access payment data: item.router_data.request
+        // Access common data: item.router_data.resource_common_data
+        // Access auth: item.router_data.connector_config (use {{CONNECTOR_NAME_PASCAL}}AuthType::try_from)
+        Ok(Self {
+            amount: item.router_data.request.minor_amount,
+            currency: item.router_data.request.currency,
+        })
+    }
+}
+
+impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
+    TryFrom<ResponseRouterData<{{CONNECTOR_NAME_PASCAL}}AuthorizeResponse, Self>>
+    for RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>
+{
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(
+        item: ResponseRouterData<{{CONNECTOR_NAME_PASCAL}}AuthorizeResponse, Self>,
+    ) -> Result<Self, Self::Error> {
+        let response = &item.response;
+        let status = AttemptStatus::from(&response.status);
+        Ok(Self {
+            response: Ok(PaymentsResponseData::TransactionResponse {
+                resource_id: ResponseId::ConnectorTransactionId(response.id.clone()),
+                redirection_data: None,
+                mandate_reference: None,
+                connector_metadata: None,
+                network_txn_id: None,
+                connector_response_reference_id: Some(response.id.clone()),
+                incremental_authorization_allowed: None,
+                status_code: item.http_code,
+            }),
+            resource_common_data: PaymentFlowData {
+                status,
+                ..item.router_data.resource_common_data.clone()
+            },
+            ..item.router_data
+        })
+    }
+}
+
+// =============================================================================
+// PSYNC FLOW TYPES
+// =============================================================================
+
+// TODO: Update to match connector's payment status inquiry response.
+// Often the same as AuthorizeResponse — use a type alias if so.
+pub type {{CONNECTOR_NAME_PASCAL}}PSyncResponse = {{CONNECTOR_NAME_PASCAL}}AuthorizeResponse;
+
+impl TryFrom<ResponseRouterData<{{CONNECTOR_NAME_PASCAL}}PSyncResponse, Self>>
+    for RouterDataV2<PSync, PaymentFlowData, PaymentsSyncData, PaymentsResponseData>
+{
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(
+        item: ResponseRouterData<{{CONNECTOR_NAME_PASCAL}}PSyncResponse, Self>,
+    ) -> Result<Self, Self::Error> {
+        let response = &item.response;
+        let status = AttemptStatus::from(&response.status);
+        Ok(Self {
+            response: Ok(PaymentsResponseData::TransactionResponse {
+                resource_id: ResponseId::ConnectorTransactionId(response.id.clone()),
+                redirection_data: None,
+                mandate_reference: None,
+                connector_metadata: None,
+                network_txn_id: None,
+                connector_response_reference_id: Some(response.id.clone()),
+                incremental_authorization_allowed: None,
+                status_code: item.http_code,
+            }),
+            resource_common_data: PaymentFlowData {
+                status,
+                ..item.router_data.resource_common_data.clone()
+            },
+            ..item.router_data
+        })
+    }
+}
+
+// =============================================================================
+// CAPTURE FLOW TYPES
+// =============================================================================
+
+// TODO: Update fields to match connector's capture request body.
+#[derive(Debug, Serialize)]
+pub struct {{CONNECTOR_NAME_PASCAL}}CaptureRequest {
+    pub amount: MinorUnit,
+}
+
+// TODO: Update to match connector's capture response. Often same as AuthorizeResponse.
+pub type {{CONNECTOR_NAME_PASCAL}}CaptureResponse = {{CONNECTOR_NAME_PASCAL}}AuthorizeResponse;
+
+impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
+    TryFrom<
+        super::{{CONNECTOR_NAME_PASCAL}}RouterData<
+            RouterDataV2<Capture, PaymentFlowData, PaymentsCaptureData, PaymentsResponseData>,
+            T,
+        >,
+    > for {{CONNECTOR_NAME_PASCAL}}CaptureRequest
+{
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(
+        item: super::{{CONNECTOR_NAME_PASCAL}}RouterData<
+            RouterDataV2<Capture, PaymentFlowData, PaymentsCaptureData, PaymentsResponseData>,
+            T,
+        >,
+    ) -> Result<Self, Self::Error> {
+        Ok(Self {
+            amount: item.router_data.request.minor_amount_to_capture,
+        })
+    }
+}
+
+impl TryFrom<ResponseRouterData<{{CONNECTOR_NAME_PASCAL}}CaptureResponse, Self>>
+    for RouterDataV2<Capture, PaymentFlowData, PaymentsCaptureData, PaymentsResponseData>
+{
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(
+        item: ResponseRouterData<{{CONNECTOR_NAME_PASCAL}}CaptureResponse, Self>,
+    ) -> Result<Self, Self::Error> {
+        let response = &item.response;
+        let status = AttemptStatus::from(&response.status);
+        Ok(Self {
+            response: Ok(PaymentsResponseData::TransactionResponse {
+                resource_id: ResponseId::ConnectorTransactionId(response.id.clone()),
+                redirection_data: None,
+                mandate_reference: None,
+                connector_metadata: None,
+                network_txn_id: None,
+                connector_response_reference_id: Some(response.id.clone()),
+                incremental_authorization_allowed: None,
+                status_code: item.http_code,
+            }),
+            resource_common_data: PaymentFlowData {
+                status,
+                ..item.router_data.resource_common_data.clone()
+            },
+            ..item.router_data
+        })
+    }
+}
+
+// =============================================================================
+// VOID FLOW TYPES
+// =============================================================================
+
+// TODO: Update fields to match connector's void/cancel request body.
+// Some connectors use an empty body or just POST to a cancel endpoint.
+#[derive(Debug, Serialize)]
+pub struct {{CONNECTOR_NAME_PASCAL}}VoidRequest {
+    pub cancellation_reason: Option<String>,
+}
+
+// TODO: Update to match connector's void response.
+pub type {{CONNECTOR_NAME_PASCAL}}VoidResponse = {{CONNECTOR_NAME_PASCAL}}AuthorizeResponse;
+
+impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
+    TryFrom<
+        super::{{CONNECTOR_NAME_PASCAL}}RouterData<
+            RouterDataV2<Void, PaymentFlowData, PaymentVoidData, PaymentsResponseData>,
+            T,
+        >,
+    > for {{CONNECTOR_NAME_PASCAL}}VoidRequest
+{
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(
+        item: super::{{CONNECTOR_NAME_PASCAL}}RouterData<
+            RouterDataV2<Void, PaymentFlowData, PaymentVoidData, PaymentsResponseData>,
+            T,
+        >,
+    ) -> Result<Self, Self::Error> {
+        Ok(Self {
+            cancellation_reason: item.router_data.request.cancellation_reason.clone(),
+        })
+    }
+}
+
+impl TryFrom<ResponseRouterData<{{CONNECTOR_NAME_PASCAL}}VoidResponse, Self>>
+    for RouterDataV2<Void, PaymentFlowData, PaymentVoidData, PaymentsResponseData>
+{
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(
+        item: ResponseRouterData<{{CONNECTOR_NAME_PASCAL}}VoidResponse, Self>,
+    ) -> Result<Self, Self::Error> {
+        let response = &item.response;
+        // TODO: Map connector void statuses correctly.
+        // Typically: success -> Voided, failure -> VoidFailed
+        let status = match &response.status {
+            {{CONNECTOR_NAME_PASCAL}}PaymentStatus::Succeeded => AttemptStatus::Voided,
+            {{CONNECTOR_NAME_PASCAL}}PaymentStatus::Failed => AttemptStatus::VoidFailed,
+            _ => AttemptStatus::VoidInitiated,
+        };
+        Ok(Self {
+            response: Ok(PaymentsResponseData::TransactionResponse {
+                resource_id: ResponseId::ConnectorTransactionId(response.id.clone()),
+                redirection_data: None,
+                mandate_reference: None,
+                connector_metadata: None,
+                network_txn_id: None,
+                connector_response_reference_id: Some(response.id.clone()),
+                incremental_authorization_allowed: None,
+                status_code: item.http_code,
+            }),
+            resource_common_data: PaymentFlowData {
+                status,
+                ..item.router_data.resource_common_data.clone()
+            },
+            ..item.router_data
+        })
+    }
+}
+
+// =============================================================================
+// REFUND STATUS MAPPING
+// =============================================================================
+
+// TODO: Update variants and serde renames to match connector's refund status values.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum {{CONNECTOR_NAME_PASCAL}}RefundStatus {
+    Succeeded,
+    Failed,
+    Pending,
+}
+
+impl From<&{{CONNECTOR_NAME_PASCAL}}RefundStatus> for RefundStatus {
+    fn from(status: &{{CONNECTOR_NAME_PASCAL}}RefundStatus) -> Self {
+        match status {
+            {{CONNECTOR_NAME_PASCAL}}RefundStatus::Succeeded => Self::Success,
+            {{CONNECTOR_NAME_PASCAL}}RefundStatus::Failed => Self::Failure,
+            {{CONNECTOR_NAME_PASCAL}}RefundStatus::Pending => Self::Pending,
+        }
+    }
+}
+
+// =============================================================================
+// REFUND FLOW TYPES
+// =============================================================================
+
+// TODO: Update fields to match connector's refund request body.
+#[derive(Debug, Serialize)]
+pub struct {{CONNECTOR_NAME_PASCAL}}RefundRequest {
+    pub amount: MinorUnit,
+}
+
+// TODO: Update fields to match connector's refund response body.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct {{CONNECTOR_NAME_PASCAL}}RefundResponse {
+    pub id: String,
+    pub status: {{CONNECTOR_NAME_PASCAL}}RefundStatus,
+}
+
+impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
+    TryFrom<
+        super::{{CONNECTOR_NAME_PASCAL}}RouterData<
+            RouterDataV2<Refund, RefundFlowData, RefundsData, RefundsResponseData>,
+            T,
+        >,
+    > for {{CONNECTOR_NAME_PASCAL}}RefundRequest
+{
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(
+        item: super::{{CONNECTOR_NAME_PASCAL}}RouterData<
+            RouterDataV2<Refund, RefundFlowData, RefundsData, RefundsResponseData>,
+            T,
+        >,
+    ) -> Result<Self, Self::Error> {
+        Ok(Self {
+            amount: item.router_data.request.minor_refund_amount,
+        })
+    }
+}
+
+impl TryFrom<ResponseRouterData<{{CONNECTOR_NAME_PASCAL}}RefundResponse, Self>>
+    for RouterDataV2<Refund, RefundFlowData, RefundsData, RefundsResponseData>
+{
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(
+        item: ResponseRouterData<{{CONNECTOR_NAME_PASCAL}}RefundResponse, Self>,
+    ) -> Result<Self, Self::Error> {
+        let response = &item.response;
+        let refund_status = RefundStatus::from(&response.status);
+        Ok(Self {
+            response: Ok(RefundsResponseData {
+                connector_refund_id: response.id.clone(),
+                refund_status,
+                status_code: item.http_code,
+            }),
+            ..item.router_data
+        })
+    }
+}
+
+// =============================================================================
+// RSYNC FLOW TYPES
+// =============================================================================
+
+// TODO: Update if refund status inquiry returns different format than refund response.
+pub type {{CONNECTOR_NAME_PASCAL}}RSyncResponse = {{CONNECTOR_NAME_PASCAL}}RefundResponse;
+
+impl TryFrom<ResponseRouterData<{{CONNECTOR_NAME_PASCAL}}RSyncResponse, Self>>
+    for RouterDataV2<RSync, RefundFlowData, RefundSyncData, RefundsResponseData>
+{
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(
+        item: ResponseRouterData<{{CONNECTOR_NAME_PASCAL}}RSyncResponse, Self>,
+    ) -> Result<Self, Self::Error> {
+        let response = &item.response;
+        let refund_status = RefundStatus::from(&response.status);
+        Ok(Self {
+            response: Ok(RefundsResponseData {
+                connector_refund_id: response.id.clone(),
+                refund_status,
+                status_code: item.http_code,
+            }),
+            ..item.router_data
+        })
+    }
+}

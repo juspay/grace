@@ -1,35 +1,17 @@
 .DS_Store
-
-scripts/__pycache__/
-scripts/grace_cli.egg-info/
-
-.grace_registry.json
-
-venv/*
-
-.venv/*
-uv.lock
-grace_cli.egg-info/
-__pycache__/
-*.pyc
-.DS_Store
 .idea/
 .vscode/
 .env
-.ipynb_checkpoints/
+.envrc
 
 # Logs
 logs/
 *.log
-npm-debug.log*
 
-output/
-
-
-# rulesbook/codegen/references/specs/*
-
+# Connector references (scraped docs and generated specs)
+# Keep references/README.md tracked
 **/references/**
+!**/references/README.md
 
-grace
-.grace
-.envrc
+# External repos (reference only, not part of grace)
+connector-service/
