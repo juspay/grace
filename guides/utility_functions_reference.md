@@ -33,6 +33,10 @@ fn alpha2_to_alpha3(code: &str) -> String {
 ```
 
 ✅ **RIGHT** - Use existing utility:
+
+> **WARNING**: This function may not exist in the current codebase. Verify availability before use.
+> Alternative: Use `CountryAlpha2` enum directly — the framework handles country code conversion internally.
+
 ```rust
 use domain_types::utils::convert_country_alpha2_to_alpha3;
 
@@ -49,6 +53,10 @@ let expiry = format!("{}/{}", month, &year[2..]);
 ```
 
 ✅ **RIGHT** - Use existing utility:
+
+> **WARNING**: This function may not exist in the current codebase. Verify availability before use.
+> Alternative: Format expiry manually: `format!("{}{}{}", month, delimiter, &year[2..])` using Secret-wrapped values.
+
 ```rust
 use domain_types::utils::get_card_expiry_month_year_2_digit_with_delimiter;
 
@@ -72,6 +80,10 @@ let state_code = match state_name {
 ```
 
 ✅ **RIGHT** - Use existing utility:
+
+> **WARNING**: This function may not exist in the current codebase. Verify availability before use.
+> Alternative: Use `StateCode` enum or handle state mapping in your connector's transformer.
+
 ```rust
 use domain_types::utils::convert_us_state_to_code;
 
@@ -256,6 +268,10 @@ let amount_str = convert_amount(
 **Description:** Converts minor unit amount to currency base unit as string.
 **Use Case:** Converting cents to dollars (e.g., 1000 cents -> "10.00" dollars).
 
+> **NOTE:** This function takes `i64`, not `MinorUnit`. If you have a `MinorUnit` value, extract the inner `i64` first
+> (e.g., `amount.0` or via `.into()`). Prefer using `convert_amount` with `StringMajorUnitForConnector`
+> for new code, as it accepts `MinorUnit` directly.
+
 ### `to_currency_base_unit_with_zero_decimal_check`
 **Location:** `domain_types::utils::to_currency_base_unit_with_zero_decimal_check`
 **Signature:** `fn to_currency_base_unit_with_zero_decimal_check(amount: i64, currency: Currency) -> Result<String, Error>`
@@ -320,6 +336,10 @@ struct Response {
 ```
 
 ### `convert_us_state_to_code`
+
+> **WARNING**: This function may not exist in the current codebase. Verify availability before use.
+> Alternative: Use `StateCode` enum or handle state mapping in your connector's transformer.
+
 **Location:** `domain_types::utils::convert_us_state_to_code`
 **Signature:** `fn convert_us_state_to_code(state: &str) -> String`
 **Description:** Converts US state full names to 2-letter abbreviations (e.g., "California" -> "CA").

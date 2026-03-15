@@ -56,6 +56,15 @@ The IncomingWebhook flow handles asynchronous notifications from payment connect
 
 ## Core Webhook Architecture
 
+### Important: Two IncomingWebhook Traits
+
+The codebase has two webhook-related traits:
+1. **`IncomingWebhook`** (in `connector_types.rs`) — Synchronous webhook processing
+2. **`IncomingWebhookV2`** (in `webhooks.rs`) — Async webhook processing with V2 types
+
+For new UCS V2 connectors, you MUST implement `IncomingWebhookV2` (the async version).
+The synchronous `IncomingWebhook` trait is for legacy V1 connectors only.
+
 ### Trait Definition
 
 The `IncomingWebhook` trait is defined in `backend/interfaces/src/connector_types.rs`:
@@ -151,6 +160,21 @@ pub struct ConnectorWebhookSecrets {
 ```
 
 ## Signature Verification Patterns
+
+### Security: Timing-Safe Signature Comparison
+
+When verifying webhook signatures, you MUST use constant-time comparison
+to prevent timing attacks:
+
+```rust
+// WRONG — vulnerable to timing attacks:
+// computed_signature == received_signature
+
+// CORRECT — use constant-time comparison:
+use subtle::ConstantTimeEq;
+computed_signature.ct_eq(&received_signature).into()
+// Or use ring::hmac::verify() which is timing-safe by default
+```
 
 ### Pattern 1: HMAC-SHA256 (Most Common)
 

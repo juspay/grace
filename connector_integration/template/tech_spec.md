@@ -36,10 +36,11 @@ Integration of the {{connector_name}} connector to UCS connector-service
 
 <reference_docs>
 | Document | Purpose |
+|----------|---------|
 | `grace/guides/types/types.md` | UCS type definitions and data structures |
-| `grace/guides/patterns/patterns.md` | UCS implementation patterns |
+| `grace/guides/patterns/macro_patterns_reference.md` | UCS macro implementation patterns |
 | `grace/guides/learnings/learnings.md` | Lessons from previous UCS integrations |
-| `grace/guides/errors/errors.md` | UCS error handling strategies |
+| `grace/guides/patterns/flow_macro_guide.md` | Flow-specific macro usage guide |
 
 ### UCS ConnectorCommon
 Contains common description of the connector for UCS architecture:
@@ -87,7 +88,7 @@ impl ConnectorIntegrationV2<Flow, ResourceData, RequestData, ResponseData> for {
     
     fn get_url(
         &self,
-        req: &RouterDataV2<Flow, Request, Response>,
+        req: &RouterDataV2<Flow, ResourceData, RequestData, ResponseData>,
         connectors: &Connectors,
     ) -> CustomResult<String, errors::ConnectorError> {
         // UCS URL building
@@ -95,7 +96,7 @@ impl ConnectorIntegrationV2<Flow, ResourceData, RequestData, ResponseData> for {
     
     fn get_request_body(
         &self,
-        req: &RouterDataV2<Flow, Request, Response>,
+        req: &RouterDataV2<Flow, ResourceData, RequestData, ResponseData>,
         _connectors: &Connectors,
     ) -> CustomResult<RequestContent, errors::ConnectorError> {
         // UCS request transformation
@@ -103,7 +104,7 @@ impl ConnectorIntegrationV2<Flow, ResourceData, RequestData, ResponseData> for {
     
     fn build_request(
         &self,
-        req: &RouterDataV2<Flow, Request, Response>,
+        req: &RouterDataV2<Flow, ResourceData, RequestData, ResponseData>,
         connectors: &Connectors,
     ) -> CustomResult<Option<RequestDetails>, errors::ConnectorError> {
         // UCS request building
@@ -111,10 +112,10 @@ impl ConnectorIntegrationV2<Flow, ResourceData, RequestData, ResponseData> for {
     
     fn handle_response(
         &self,
-        data: &RouterDataV2<Flow, Request, Response>,
+        data: &RouterDataV2<Flow, ResourceData, RequestData, ResponseData>,
         event_builder: Option<&mut ConnectorEvent>,
         res: Response,
-    ) -> CustomResult<RouterDataV2<Flow, Request, Response>, errors::ConnectorError> {
+    ) -> CustomResult<RouterDataV2<Flow, ResourceData, RequestData, ResponseData>, errors::ConnectorError> {
         // UCS response handling
     }
     
@@ -127,6 +128,11 @@ impl ConnectorIntegrationV2<Flow, ResourceData, RequestData, ResponseData> for {
     }
 }
 ```
+
+> **Note:** The `ConnectorIntegrationV2` signature above is a simplified reference showing the
+> trait structure. Actual UCS implementations use the macro-based pattern (`create_all_prerequisites!`
+> and `macro_connector_implementation!`) which generates these trait impls automatically.
+> See `template-generation/macro_templates.md` for the macro-based approach.
 
 ### UCS Flow Types
 All flows that should be implemented:
@@ -493,7 +499,7 @@ async fn test_all_payment_methods() {
 
 ### 10.2 UCS Internal References
 - grace/guides/connector_integration_guide.md
-- grace/guides/patterns/patterns.md
+- grace/guides/patterns/README.md
 - grace/guides/types/types.md
 - Similar UCS connectors: [List examples]
 

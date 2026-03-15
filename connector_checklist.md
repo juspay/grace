@@ -30,6 +30,8 @@ After implementing a connector (via `integrate_connector.md`, `add_flow.md`, or 
 - [ ] `common_get_content_type()` returns the correct content type for this connector's API
 - [ ] `build_error_response()` handles all documented error response formats
 - [ ] Connector registered in the connector enum / mod.rs
+- [ ] All code uses `RouterDataV2`, NOT legacy `RouterData`
+- [ ] Imports use `domain_types` crate (NOT `hyperswitch_domain_models`)
 
 ## 3. Flows
 
@@ -76,6 +78,7 @@ For each implemented flow, verify:
 - [ ] Serde serialization attributes are correct (`rename`, `skip_serializing_if`, etc.)
 - [ ] Enum variants cover all documented values (status codes, error types, etc.)
 - [ ] Amount conversion uses existing `common_utils` (NO custom amount conversion code)
+- [ ] All amount fields use `MinorUnit` type (not raw `i64`/`f64`/`u64`)
 - [ ] Currency unit (`CurrencyUnit::Minor` or `CurrencyUnit::Base`) matches connector API docs
 - [ ] Date/time formats match connector expectations
 
@@ -95,9 +98,11 @@ For each implemented flow, verify:
   - `PaymentFlowData` for payment flows (Authorize, Capture, Void, PSync)
   - `RefundFlowData` for refund flows (Refund, RSync)
   - `DisputeFlowData` for dispute flows (if applicable)
-- [ ] Request/Response type naming conventions followed:
-  - `{ConnectorName}PaymentsRequest`, `{ConnectorName}PaymentsResponse`
+- [ ] Request/Response type naming conventions followed (flow-specific per UCS-004):
+  - `{ConnectorName}AuthorizeRequest`, `{ConnectorName}AuthorizeResponse` (not generic "Payments")
+  - `{ConnectorName}CaptureRequest`, `{ConnectorName}CaptureResponse`
   - `{ConnectorName}RefundRequest`, `{ConnectorName}RefundResponse`
+- [ ] `amount_converters` field declared in `create_all_prerequisites!` for all payment flows
 
 ## 7. Payment Methods
 
@@ -135,9 +140,18 @@ For each supported payment method:
 - [ ] Error mappings match the tech spec
 - [ ] No undocumented assumptions made during implementation
 
+## 11. Security Review
+
+- [ ] No hardcoded API keys, tokens, or credentials in connector code
+- [ ] All sensitive fields (card number, CVV, expiry) masked using `Maskable` / `Secret`
+- [ ] No PCI-sensitive data logged or included in error messages
+- [ ] Webhook signature verification implemented (if webhooks supported)
+- [ ] Authentication credentials extracted from `ConnectorSpecificConfig`, not hardcoded
+- [ ] Error responses do not leak raw connector error details to end users
+
 ---
 
-## 11. ConnectorSpecificConfig Registration
+## 12. ConnectorSpecificConfig Registration
 
 - [ ] Enum variant added to `ConnectorSpecificConfig` in `router_data.rs`
 - [ ] Added to `extract_base_url!` macro in `router_data.rs`
@@ -163,8 +177,9 @@ After completing the checklist:
 | Payment Methods | Pass/Fail |
 | Webhooks | Pass/Fail/N/A |
 | Tests | Pass/Fail |
-| ConnectorSpecificConfig | Pass/Fail |
 | Tech Spec Alignment | Pass/Fail |
+| Security Review | Pass/Fail |
+| ConnectorSpecificConfig | Pass/Fail |
 
 **Overall: PASS / FAIL**
 

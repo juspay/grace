@@ -155,7 +155,7 @@ Quality Guardian reviews code at these checkpoints:
 ### Score Calculation
 
 ```
-Quality Score = 100 - (Critical × 20) - (Warning × 5) - (Suggestion × 1)
+Quality Score = 100 - (Critical × 20) - (Warning × 5) - (min(Suggestion, 10) × 0.5)
 ```
 
 ### Severity Impact
@@ -164,7 +164,7 @@ Quality Score = 100 - (Critical × 20) - (Warning × 5) - (Suggestion × 1)
 |----------|-----------------|----------------|
 | 🚨 Critical | -20 | UCS pattern violations, security issues |
 | ⚠️ Warning | -5 | Code quality, technical debt |
-| 💡 Suggestion | -1 | Minor improvements, optimizations |
+| 💡 Suggestion | -0.5 (max 10) | Minor improvements, optimizations |
 | ✨ Success | 0 | Positive reinforcement (no penalty) |
 
 ### Score Thresholds
@@ -184,9 +184,9 @@ Scenario: Connector with quality issues
 
 Critical Issues: 1 (Wrong UCS trait used)    = -20 points
 Warning Issues: 2 (Code duplication)         = -10 points
-Suggestions: 5 (Documentation improvements)  = -5 points
+Suggestions: 5 (Documentation improvements)  = -2.5 points
 
-Quality Score = 100 - 20 - 10 - 5 = 65
+Quality Score = 100 - 20 - 10 - 2.5 = 67.5
 
 Result: ⚠️ FAIR - Pass with warnings
 ```
@@ -315,13 +315,14 @@ The feedback database (`guides/feedback.md`) is organized into:
    - Section 5: Common Anti-Patterns
    - Section 6: Success Patterns
    - Section 7: Historical Feedback Archive
+   - Section 8: Security Guidelines
 
 ### Feedback Entry Anatomy
 
 Each feedback entry contains:
 
 ```yaml
-id: FB-XXX                    # Unique identifier
+id: [PREFIX]-[ID]             # Semantic ID (e.g., UCS-001, ANTI-003, SEC-002)
 category: [CATEGORY]          # Classification
 severity: CRITICAL|WARNING|...# Impact level
 connector: [name]|general     # Scope

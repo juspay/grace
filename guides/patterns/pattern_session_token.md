@@ -214,6 +214,9 @@ macros::create_all_prerequisites!(
 impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
     connector_types::ValidationTrait for {ConnectorName}<T>
 {
+    // NOTE: should_do_session_token() takes 0 parameters.
+    // This is connector-specific — return true/false based on connector capabilities.
+    // Unlike should_do_access_token(1 param) or should_do_payment_method_token(2 params).
     fn should_do_session_token(&self) -> bool {
         true // Enable CreateSessionToken flow
     }
@@ -380,20 +383,25 @@ pub struct {ConnectorName}AuthType {
 impl TryFrom<&ConnectorSpecificConfig> for {ConnectorName}AuthType {
     type Error = ConnectorError;
 
+    // IMPORTANT: Only the first matching arm executes in Rust.
+    // If multiple match arms have the same pattern, only the first runs.
+    // Restructure to use different patterns or combine into one arm.
+    //
+    // The original code had three arms all matching ConnectorSpecificConfig::{{ConnectorName}}.
+    // In Rust, only the first arm would ever execute — the others were dead code.
+    // Combined into a single arm that handles all field extraction.
     fn try_from(auth_type: &ConnectorSpecificConfig) -> Result<Self, Self::Error> {
         match auth_type {
-            ConnectorSpecificConfig::{{ConnectorName}} { api_key, .. } => Ok(Self {
-                api_key: api_key.to_owned(),
-                api_secret: None,
-            }),
-            ConnectorSpecificConfig::{{ConnectorName}} { api_key, api_secret, .. } => Ok(Self {
-                api_key: api_key.to_owned(),
-                api_secret: Some(api_secret.to_owned()),
-            }),
-            ConnectorSpecificConfig::{{ConnectorName}} { api_key, key1, .. } => Ok(Self {
-                api_key: api_key.to_owned(),
-                api_secret: Some(key1.to_owned()),
-            }),
+            ConnectorSpecificConfig::{{ConnectorName}} { api_key, api_secret, key1, .. } => {
+                let secondary_secret = api_secret
+                    .as_ref()
+                    .map(|s| s.to_owned())
+                    .or_else(|| key1.as_ref().map(|k| k.to_owned()));
+                Ok(Self {
+                    api_key: api_key.to_owned(),
+                    api_secret: secondary_secret,
+                })
+            }
             _ => Err(ConnectorError::FailedToObtainAuthType),
         }
     }
@@ -665,6 +673,9 @@ pub struct {ConnectorName}ErrorResponse {
 impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
     connector_types::ValidationTrait for {ConnectorName}<T>
 {
+    // NOTE: should_do_session_token() takes 0 parameters.
+    // This is connector-specific — return true/false based on connector capabilities.
+    // Unlike should_do_access_token(1 param) or should_do_payment_method_token(2 params).
     fn should_do_session_token(&self) -> bool {
         true // Enable CreateSessionToken flow
     }

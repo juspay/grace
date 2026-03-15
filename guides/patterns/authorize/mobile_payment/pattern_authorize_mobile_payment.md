@@ -1,5 +1,9 @@
 # Mobile Payment Authorize Flow Pattern
 
+> **Scope Note (C-09):** This pattern covers **Direct Carrier Billing (DCB)** only.
+> Apple Pay, Google Pay, and Samsung Pay are covered in [wallet/pattern_authorize_wallet.md](../wallet/pattern_authorize_wallet.md).
+> UPI-based mobile payments are covered in [upi/pattern_authorize_upi.md](../upi/pattern_authorize_upi.md).
+
 **Payment Method Category**: Mobile Payment
 **Primary Variant**: Direct Carrier Billing (DCB)
 **Pattern Type**: Telecommunications-based mobile payments
@@ -40,13 +44,13 @@ Most connectors in the Grace-UCS codebase currently return `NotImplemented` for 
 ### Direct Carrier Billing Data Structure
 
 ```rust
-// From backend/domain_types/src/payment_method_data.rs
+// From connector-service/backend/domain_types/src/payment_method_data.rs
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MobilePaymentData {
     DirectCarrierBilling {
         /// The phone number of the user (MSISDN format)
-        msisdn: String,
+        msisdn: Secret<String>,  // H-13: Must be wrapped in Secret<> — PII
         /// Unique user identifier (optional)
         client_uid: Option<String>,
     },
@@ -101,7 +105,7 @@ pub enum PaymentMethodData<T: PaymentMethodDataTypes> {
 // MobilePaymentData enum
 pub enum MobilePaymentData {
     DirectCarrierBilling {
-        msisdn: String,              // Phone number in international format
+        msisdn: Secret<String>,          // H-13: PII — must be Secret<String>
         client_uid: Option<String>,  // Optional client identifier
     },
 }
@@ -334,16 +338,18 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
 }
 
 // Helper function to validate MSISDN format
-fn validate_msisdn(msisdn: &str) -> Result<(), ConnectorError> {
+fn validate_msisdn(msisdn: &Secret<String>) -> Result<(), ConnectorError> {
+    let msisdn_val = msisdn.peek();
     // Basic validation: starts with + and contains only digits after
-    if !msisdn.starts_with('+') || !msisdn[1..].chars().all(|c| c.is_ascii_digit()) {
+    if !msisdn_val.starts_with('+') || !msisdn_val[1..].chars().all(|c| c.is_ascii_digit()) {
+        // H-14: Do NOT include the actual phone number in the error message — PII leak
         return Err(ConnectorError::InvalidRequestData {
-            message: format!("Invalid MSISDN format: {}. Must start with + followed by digits", msisdn),
+            message: "Invalid MSISDN format. Must start with + followed by digits".to_string(),
         });
     }
 
     // Minimum length check (e.g., +1XXXXXXXXXX = 12 chars minimum)
-    if msisdn.len() < 7 {
+    if msisdn_val.len() < 7 {
         return Err(ConnectorError::InvalidRequestData {
             message: "MSISDN too short".to_string(),
         });
@@ -369,7 +375,7 @@ impl From<{ConnectorName}MobilePaymentStatus> for common_enums::AttemptStatus {
             {ConnectorName}MobilePaymentStatus::Completed => Self::Charged,
             {ConnectorName}MobilePaymentStatus::Rejected => Self::Failure,
             {ConnectorName}MobilePaymentStatus::Failed => Self::Failure,
-            {ConnectorName}MobilePaymentStatus::Refunded => Self::RefundApplied,
+            {ConnectorName}MobilePaymentStatus::Refunded => Self::RefundApplied, // M-17: RefundApplied should not appear in authorize responses — this mapping is only relevant for refund/psync flows
         }
     }
 }
@@ -576,15 +582,16 @@ macros::macro_connector_implementation!(
 
 **Solution**:
 ```rust
-fn validate_msisdn(msisdn: &str) -> Result<(), ConnectorError> {
+fn validate_msisdn(msisdn: &Secret<String>) -> Result<(), ConnectorError> {
+    let msisdn_val = msisdn.peek();
     // E.164 format: +[country code][national number]
-    if !msisdn.starts_with('+') {
+    if !msisdn_val.starts_with('+') {
         return Err(ConnectorError::InvalidRequestData {
             message: "MSISDN must start with +".to_string(),
         });
     }
 
-    let digits_only = &msisdn[1..];
+    let digits_only = &msisdn_val[1..];
     if !digits_only.chars().all(|c| c.is_ascii_digit()) {
         return Err(ConnectorError::InvalidRequestData {
             message: "MSISDN must contain only digits after +".to_string(),
@@ -626,10 +633,10 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
 **Solution**:
 ```rust
 fn validate_dcb_amount(amount: MinorUnit, currency: Currency) -> Result<(), ConnectorError> {
-    let amount_in_usd = convert_to_usd(amount, currency)?;
+    // M-18: Use MinorUnit comparison instead of floating-point to avoid precision issues
+    let max_amount_minor = MinorUnit::new(5000); // e.g., $50.00 in minor units (cents)
 
-    // Typical DCB limits: $10-50 per transaction
-    if amount_in_usd > 50.0 {
+    if amount > max_amount_minor {
         return Err(ConnectorError::InvalidRequestData {
             message: "Direct Carrier Billing amount exceeds maximum limit".to_string(),
         });
@@ -768,10 +775,10 @@ mod integration_tests {
 
 ## Related Patterns
 
-- [Pattern: Authorize Flow - Base Pattern](./pattern_authorize.md)
-- [Pattern: Async Payment Handling](./pattern_async_payments.md)
-- [Pattern: Webhook Handling](./pattern_webhooks.md)
-- [Pattern: PSync Flow](./pattern_psync.md)
+- [Pattern: Authorize Flow - Base Pattern](../../pattern_authorize.md)
+- <!-- TODO: async payments pattern not yet created -->
+- [Pattern: Webhook Handling](../../pattern_IncomingWebhook_flow.md)
+- [Pattern: PSync Flow](../../pattern_psync.md)
 
 ---
 

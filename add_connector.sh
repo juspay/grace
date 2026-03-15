@@ -22,12 +22,17 @@ set -euo pipefail  # Strict error handling
 # All configurable values are centralized here for easy maintenance
 
 # Script metadata
-readonly SCRIPT_VERSION="2.0.0"
+readonly SCRIPT_VERSION="2.1.0"
 readonly SCRIPT_NAME="Hyperswitch Connector Generator"
 
 # Paths configuration
-readonly ROOT_DIR="$(pwd)"
-readonly TEMPLATE_DIR="$ROOT_DIR/grace/template-generation"
+# Use the script's location to derive paths reliably, regardless of the
+# directory the user invokes the script from. BASH_SOURCE is preferred;
+# $0 is used as a fallback (e.g., when sourced).
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# ROOT_DIR is the Hyperswitch repo root (parent of the grace/ directory).
+readonly ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+readonly TEMPLATE_DIR="$SCRIPT_DIR/template-generation"
 readonly BACKEND_DIR="$ROOT_DIR/backend"
 readonly CONFIG_DIR="$ROOT_DIR/config"
 
@@ -77,7 +82,7 @@ detect_flows_from_connector_service_trait() {
                     grep -E "^[[:space:]]*\+[[:space:]]*[A-Z][A-Za-z0-9]*" | \
                     sed -E 's/^[[:space:]]*\+[[:space:]]*([A-Z][A-Za-z0-9]*).*/\1/' | \
                     grep -v "ConnectorCommon" | \
-                    sort -u)
+                    sort -u) || true
 
     if [[ -z "$detected_flows" ]]; then
         fatal_error "No flows detected from ConnectorServiceTrait"
@@ -421,8 +426,6 @@ CONNECTOR_NAME=""
 BASE_URL=""
 FORCE_MODE=false
 YES_MODE=false
-ADD_FLOW_MODE=false
-ADD_FLOW_NAMES=()   # Array of flow names to add (used in --add-flow mode)
 
 # Auto-detected flows (populated by detect_flows_from_connector_service_trait)
 SELECTED_FLOWS=()
@@ -507,24 +510,13 @@ to_upper_case() {
     echo "$1" | tr '[:lower:]' '[:upper:]'
 }
 
-# =============================================================================
-# FLOW CONFIG LOOKUP (for --add-flow mode)
-# =============================================================================
-# Returns pipe-delimited metadata for the 6 core flows.
-# Format: flow_name|resource_data|request_data|response_data|http_method|has_request_body|base_url_fn_suffix
-#
-# All values are derived from grace templates (zero dependency on connector-service code).
-
-get_flow_config() {
-    case "$1" in
-        "Authorize") echo "Authorize|PaymentFlowData|PaymentsAuthorizeData<T>|PaymentsResponseData|Post|true|payments" ;;
-        "PSync")     echo "PSync|PaymentFlowData|PaymentsSyncData|PaymentsResponseData|Get|false|payments" ;;
-        "Capture")   echo "Capture|PaymentFlowData|PaymentsCaptureData|PaymentsResponseData|Post|true|payments" ;;
-        "Void")      echo "Void|PaymentFlowData|PaymentVoidData|PaymentsResponseData|Post|true|payments" ;;
-        "Refund")    echo "Refund|RefundFlowData|RefundsData|RefundsResponseData|Post|true|refunds" ;;
-        "RSync")     echo "RSync|RefundFlowData|RefundSyncData|RefundsResponseData|Get|false|refunds" ;;
-        *) return 1 ;;
-    esac
+# Portable sed -i wrapper (macOS sed requires '' after -i, GNU does not)
+sed_i() {
+    if sed --version 2>/dev/null | grep -q "GNU"; then
+        sed -i "$@"
+    else
+        sed -i '' "$@"
+    fi
 }
 
 # =============================================================================
@@ -540,16 +532,13 @@ show_help() {
 $SCRIPT_NAME v$SCRIPT_VERSION
 
 USAGE:
-    $0 <connector_name> <base_url> [OPTIONS]       # Full scaffold
-    $0 <connector_name> --add-flow <flows> [OPTIONS]  # Add flow(s) to existing connector
+    $0 <connector_name> <base_url> [OPTIONS]
 
 ARGUMENTS:
     connector_name    Name of the connector (snake_case, e.g., 'my_connector')
-    base_url         Base URL for the connector API (required for full scaffold only)
+    base_url         Base URL for the connector API
 
 OPTIONS:
-    --add-flow <f>   Add flow(s) to an existing connector (comma-separated)
-                     Supported flows: Authorize, PSync, Capture, Void, Refund, RSync
     --list-flows     Show auto-detected flows from codebase
     --force          Ignore git status and force creation
     -y, --yes        Skip confirmation prompts
@@ -564,26 +553,10 @@ EXAMPLES:
     # Full scaffold with auto-confirmation
     $0 example https://api.example.com --force -y
 
-    # Add a single flow to an existing connector
-    $0 stripe --add-flow Capture
-
-    # Add multiple flows at once
-    $0 stripe --add-flow Capture,Refund,RSync -y
-
     # List auto-detected flows
     $0 --list-flows
 
-MODES:
-    Full scaffold    Creates a new connector with all 6 core flows, empty impls for
-                     all other flows, and registers ConnectorSpecificConfig.
-    --add-flow       Adds specified flow(s) to an existing connector:
-                     • Inserts flow entry into create_all_prerequisites! api array
-                     • Removes the empty ConnectorIntegrationV2 impl (if present)
-                     • Appends macro_connector_implementation! block
-                     • Adds transformer import(s) to connector.rs
-                     • Appends stub request/response types and TryFrom impls to transformers.rs
-
-WORKFLOW (full scaffold):
+WORKFLOW:
     1. Auto-detects flows from connector_types.rs
     2. Validates environment and inputs
     3. Generates connector boilerplate with all flows
@@ -657,15 +630,6 @@ parse_arguments() {
     local remaining_positional=()
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --add-flow)
-                ADD_FLOW_MODE=true
-                shift
-                if [[ $# -eq 0 ]] || [[ "$1" == -* ]]; then
-                    fatal_error "--add-flow requires a comma-separated list of flows (e.g., Capture,Refund,RSync)"
-                fi
-                IFS=',' read -ra ADD_FLOW_NAMES <<< "$1"
-                shift
-                ;;
             --force)
                 FORCE_MODE=true
                 shift
@@ -700,18 +664,13 @@ parse_arguments() {
         esac
     done
 
-    if [[ "$ADD_FLOW_MODE" == "true" ]]; then
-        # In add-flow mode, BASE_URL is not required
-        log_debug "Add-flow mode: flows=${ADD_FLOW_NAMES[*]}"
-    else
-        # In full scaffold mode, BASE_URL is required
-        if [[ ${#remaining_positional[@]} -lt 1 ]]; then
-            log_error "Missing required argument: base_url"
-            show_help
-            exit 1
-        fi
-        BASE_URL="${remaining_positional[0]}"
+    # BASE_URL is required
+    if [[ ${#remaining_positional[@]} -lt 1 ]]; then
+        log_error "Missing required argument: base_url"
+        show_help
+        exit 1
     fi
+    BASE_URL="${remaining_positional[0]}"
 
     log_debug "Arguments parsed successfully"
 }
@@ -760,6 +719,12 @@ validate_inputs() {
     # Validate base URL
     if [[ ! "$BASE_URL" =~ ^https?://.+ ]]; then
         fatal_error "Base URL must be a valid HTTP/HTTPS URL"
+    fi
+
+    # Reject URLs containing characters that could cause sed injection or
+    # shell expansion issues. Only allow URL-safe characters.
+    if [[ "$BASE_URL" =~ [^a-zA-Z0-9/:._~%?#@!\$\&\'*+,\;=\[\]-] ]]; then
+        fatal_error "Base URL contains invalid characters. Only standard URL characters are allowed."
     fi
 
     # Generate name variants
@@ -825,7 +790,7 @@ get_next_enum_ordinal() {
                      grep -o '= [0-9]\+;' | \
                      grep -o '[0-9]\+' | \
                      sort -n | \
-                     tail -1)
+                     tail -1) || true
 
         if [[ -n "$max_ordinal" ]]; then
             ENUM_ORDINAL=$((max_ordinal + 1))
@@ -842,7 +807,7 @@ get_next_enum_ordinal() {
 create_backup() {
     log_step "Creating backup"
 
-    BACKUP_DIR="$ROOT_DIR/.connector_backup_$(date +%s)"
+    BACKUP_DIR="$ROOT_DIR/.connector_backup_$(date +%s)_$$"
     mkdir -p "$BACKUP_DIR"
 
     local files_to_backup=(
@@ -855,6 +820,8 @@ create_backup() {
         "$CONFIG_FILE"
         "$SANDBOX_CONFIG_FILE"
         "$PRODUCTION_CONFIG_FILE"
+        "$ROUTER_DATA_FILE"
+        "$FIELD_PROBE_FILE"
     )
 
     local file
@@ -947,8 +914,7 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
 EOF
     
     # Substitute connector name in the header
-    sed -i.tmp "s/{{CONNECTOR_NAME_PASCAL}}/$NAME_PASCAL/g" "$temp_file"
-    rm -f "${temp_file}.tmp"
+    sed "s/{{CONNECTOR_NAME_PASCAL}}/$NAME_PASCAL/g" "$temp_file" > "${temp_file}.out" && mv "${temp_file}.out" "$temp_file"
     
     # Generate trait implementations for each flow
     local flow
@@ -1072,6 +1038,12 @@ update_domain_types() {
 update_domain_types_file() {
     log_step "Updating domain types types.rs file"
 
+    # Idempotency check
+    if grep -q "pub ${NAME_SNAKE}: ConnectorParams," "$DOMAIN_TYPES_TYPES_FILE" 2>/dev/null; then
+        log_warning "$NAME_SNAKE already in Connectors struct, skipping"
+        return 0
+    fi
+
     # Add connector field to Connectors struct
     # Insert before the closing brace of the struct
     local tmp_file="${DOMAIN_TYPES_TYPES_FILE}.tmp"
@@ -1188,6 +1160,12 @@ update_router_data_grpc_auth() {
 update_connectors_module() {
     log_step "Updating connectors module"
 
+    # Idempotency check: skip if already declared
+    if grep -q "pub mod $NAME_SNAKE;" "$CONNECTORS_MODULE_FILE" 2>/dev/null; then
+        log_warning "Module '$NAME_SNAKE' already declared in connectors.rs, skipping"
+        return 0
+    fi
+
     # Add module declaration and use statement
     cat >> "$CONNECTORS_MODULE_FILE" << EOF
 
@@ -1200,6 +1178,12 @@ EOF
 
 update_integration_types() {
     log_step "Updating integration types"
+
+    # Idempotency check
+    if grep -q "ConnectorEnum::${NAME_PASCAL} =>" "$INTEGRATION_TYPES_FILE" 2>/dev/null; then
+        log_warning "Integration type mapping for $NAME_PASCAL already exists, skipping"
+        return 0
+    fi
 
     # Add enum mapping to the convert_connector match statement
     # Insert after the last existing ConnectorEnum:: mapping
@@ -1227,6 +1211,12 @@ update_config_file() {
     local config_name="$2"
 
     if [[ -f "$config_file" ]]; then
+        # Idempotency check: skip if already configured
+        if grep -q "^${NAME_SNAKE}\.base_url" "$config_file" 2>/dev/null; then
+            log_warning "$NAME_SNAKE already configured in $config_name, skipping"
+            return 0
+        fi
+
         # Check if [connectors] section exists
         if grep -q "^\[connectors\]" "$config_file"; then
             # Insert after [connectors] section header using awk
@@ -1352,6 +1342,12 @@ emergency_rollback() {
                     "production.toml")
                         cp "$backup_file" "$PRODUCTION_CONFIG_FILE"
                         ;;
+                    "router_data.rs")
+                        cp "$backup_file" "$ROUTER_DATA_FILE"
+                        ;;
+                    "main.rs")
+                        cp "$backup_file" "$FIELD_PROBE_FILE"
+                        ;;
                 esac
             fi
         done
@@ -1431,418 +1427,6 @@ show_next_steps() {
 }
 
 # =============================================================================
-# ADD-FLOW MODE FUNCTIONS
-# =============================================================================
-# These functions add specific flow(s) to an existing connector.
-# All patterns are derived from grace templates (zero dependency on connector code).
-
-validate_add_flow_inputs() {
-    log_step "Validating add-flow inputs"
-
-    # Validate connector name format
-    if [[ ! "$CONNECTOR_NAME" =~ ^[a-z][a-z0-9_]*$ ]]; then
-        fatal_error "Connector name must be snake_case (lowercase letters, numbers, underscores)"
-    fi
-
-    # Generate name variants
-    NAME_SNAKE="$CONNECTOR_NAME"
-    NAME_PASCAL=$(to_pascal_case "$CONNECTOR_NAME")
-    NAME_UPPER=$(to_upper_case "$CONNECTOR_NAME")
-
-    local connector_file="$BACKEND_DIR/connector-integration/src/connectors/${NAME_SNAKE}.rs"
-    local transformers_file="$BACKEND_DIR/connector-integration/src/connectors/${NAME_SNAKE}/transformers.rs"
-
-    # Check connector files exist
-    if [[ ! -f "$connector_file" ]]; then
-        fatal_error "Connector file not found: $connector_file. Run full scaffold first."
-    fi
-    if [[ ! -f "$transformers_file" ]]; then
-        fatal_error "Transformers file not found: $transformers_file. Run full scaffold first."
-    fi
-
-    # Validate each flow name
-    for flow in "${ADD_FLOW_NAMES[@]}"; do
-        flow=$(echo "$flow" | tr -d '[:space:]')
-        if ! get_flow_config "$flow" > /dev/null 2>&1; then
-            fatal_error "Unknown flow: '$flow'. Supported: Authorize, PSync, Capture, Void, Refund, RSync"
-        fi
-        # Check if flow already exists in create_all_prerequisites! api array
-        if grep -q "            flow: ${flow}," "$connector_file" 2>/dev/null; then
-            fatal_error "Flow '$flow' already exists in $connector_file"
-        fi
-    done
-
-    log_success "Validated: adding ${ADD_FLOW_NAMES[*]} to $NAME_PASCAL"
-}
-
-# --- Sub-function: Insert flow entry into create_all_prerequisites! api array ---
-
-add_flow_to_prerequisites() {
-    local flow_name="$1"
-    local connector_file="$2"
-    local config
-    config=$(get_flow_config "$flow_name")
-    IFS='|' read -r fname resource_data request_data response_data http_method has_request_body base_url_suffix <<< "$config"
-
-    log_debug "Adding $fname to create_all_prerequisites! api array"
-
-    # Build the new api entry in a temp file
-    local entry_file
-    entry_file=$(mktemp)
-    {
-        echo "        ("
-        echo "            flow: ${fname},"
-        if [[ "$has_request_body" == "true" ]]; then
-            echo "            request_body: ${NAME_PASCAL}${fname}Request,"
-        fi
-        echo "            response_body: ${NAME_PASCAL}${fname}Response,"
-        echo "            router_data: RouterDataV2<${fname}, ${resource_data}, ${request_data}, ${response_data}>,"
-        echo "        )"
-    } > "$entry_file"
-
-    # Find the api array boundaries
-    local api_start_line api_end_line last_paren_line
-    api_start_line=$(grep -n '    api: \[' "$connector_file" | head -1 | cut -d: -f1)
-    if [[ -z "$api_start_line" ]]; then
-        rm -f "$entry_file"
-        fatal_error "Could not find 'api: [' in $connector_file"
-    fi
-
-    api_end_line=$(awk -v start="$api_start_line" 'NR > start && /^    \],$/ { print NR; exit }' "$connector_file")
-    if [[ -z "$api_end_line" ]]; then
-        rm -f "$entry_file"
-        fatal_error "Could not find closing '], of api array in $connector_file"
-    fi
-
-    # Find the last ) before api_end_line (closing of last flow entry)
-    last_paren_line=$(awk -v end="$api_end_line" 'NR < end && /^        \)/ { line = NR } END { print line }' "$connector_file")
-
-    # Add comma after last entry's ) if missing, and insert new entry before ],
-    awk -v last_paren="$last_paren_line" -v api_end="$api_end_line" -v efile="$entry_file" '
-        NR == last_paren && /\)$/ && !/\),$/ { sub(/\)$/, "),") }
-        NR == api_end {
-            while ((getline line < efile) > 0) {
-                print line
-            }
-            close(efile)
-        }
-        { print }
-    ' "$connector_file" > "${connector_file}.tmp"
-    mv "${connector_file}.tmp" "$connector_file"
-
-    rm -f "$entry_file"
-    log_debug "Added $fname to api array"
-
-    # Ensure connector_flow::{FlowName} import exists in connector.rs
-    # Only check the grouped import line (with {}), not individual connector_flow::X references
-    if ! grep "connector_flow::{" "$connector_file" | grep -qw "${fname}"; then
-        log_debug "Adding missing connector_flow::${fname} import to connector.rs"
-        awk -v flow="$fname" '
-            /connector_flow::\{/ && $0 !~ flow {
-                sub(/\}/, ", " flow "}")
-            }
-            { print }
-        ' "$connector_file" > "${connector_file}.tmp"
-        mv "${connector_file}.tmp" "$connector_file"
-    fi
-}
-
-# --- Sub-function: Remove empty ConnectorIntegrationV2 impl ---
-
-remove_empty_integration_impl() {
-    local flow_name="$1"
-    local connector_file="$2"
-
-    # After rustfmt, the empty impl block is formatted as:
-    # Line N:   impl<T: PaymentMethodDataTypes ...>
-    # Line N+1:     ConnectorIntegrationV2<
-    # Line N+2:         connector_flow::FlowName,
-    # Line N+3:         ResourceData,
-    # Line N+4:         RequestData,
-    # Line N+5:         ResponseData,
-    # Line N+6:     > for ConnectorPascal<T>
-    # Line N+7: {
-    # Line N+8: }
-
-    # Find the line with connector_flow::FlowName inside a ConnectorIntegrationV2 block
-    local flow_line
-    flow_line=$(grep -n "connector_flow::${flow_name}," "$connector_file" | head -1 | cut -d: -f1)
-
-    if [[ -z "$flow_line" ]]; then
-        log_debug "No empty ConnectorIntegrationV2 impl for $flow_name, skipping removal"
-        return 0
-    fi
-
-    # Verify this is inside a ConnectorIntegrationV2 block (check line before)
-    local prev_line
-    prev_line=$(awk -v line="$((flow_line - 1))" 'NR == line { print }' "$connector_file")
-    if ! echo "$prev_line" | grep -q "ConnectorIntegrationV2<"; then
-        log_debug "connector_flow::${flow_name} found but not in ConnectorIntegrationV2 block, skipping"
-        return 0
-    fi
-
-    log_debug "Removing empty ConnectorIntegrationV2 impl for $flow_name"
-
-    # The block starts 2 lines before the flow_line (impl<T: ...>) and ends at }
-    # Find the closing } after flow_line
-    local start_line=$((flow_line - 2))
-    local end_line
-    end_line=$(awk -v start="$flow_line" 'NR > start && /^\}$/ { print NR; exit }' "$connector_file")
-
-    if [[ -z "$end_line" ]]; then
-        log_warning "Could not find closing } for ConnectorIntegrationV2<${flow_name}>, skipping"
-        return 0
-    fi
-
-    # Also remove trailing blank line if present
-    local after_line
-    after_line=$(awk -v line="$((end_line + 1))" 'NR == line { print }' "$connector_file")
-    if [[ -z "$after_line" ]]; then
-        end_line=$((end_line + 1))
-    fi
-
-    awk -v start="$start_line" -v end="$end_line" '
-        NR < start || NR > end { print }
-    ' "$connector_file" > "${connector_file}.tmp"
-    mv "${connector_file}.tmp" "$connector_file"
-
-    log_debug "Removed empty impl for $flow_name (lines $start_line-$end_line)"
-}
-
-# --- Sub-function: Append macro_connector_implementation! block ---
-
-add_macro_implementation() {
-    local flow_name="$1"
-    local connector_file="$2"
-    local config
-    config=$(get_flow_config "$flow_name")
-    IFS='|' read -r fname resource_data request_data response_data http_method has_request_body base_url_suffix <<< "$config"
-
-    log_debug "Appending macro_connector_implementation! for $fname"
-
-    {
-        echo ""
-        echo "macros::macro_connector_implementation!("
-        echo "    connector_default_implementations: [get_content_type, get_error_response_v2],"
-        echo "    connector: ${NAME_PASCAL},"
-        if [[ "$has_request_body" == "true" ]]; then
-            echo "    curl_request: Json(${NAME_PASCAL}${fname}Request),"
-        fi
-        echo "    curl_response: ${NAME_PASCAL}${fname}Response,"
-        echo "    flow_name: ${fname},"
-        echo "    resource_common_data: ${resource_data},"
-        echo "    flow_request: ${request_data},"
-        echo "    flow_response: ${response_data},"
-        echo "    http_method: ${http_method},"
-        echo "    generic_type: T,"
-        echo "    [PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize],"
-        echo "    other_functions: {"
-        echo "        fn get_headers("
-        echo "            &self,"
-        echo "            req: &RouterDataV2<${fname}, ${resource_data}, ${request_data}, ${response_data}>,"
-        echo "        ) -> CustomResult<Vec<(String, Maskable<String>)>, errors::ConnectorError> {"
-        echo "            self.build_headers(req)"
-        echo "        }"
-        echo ""
-        echo "        fn get_url("
-        echo "            &self,"
-        echo "            req: &RouterDataV2<${fname}, ${resource_data}, ${request_data}, ${response_data}>,"
-        echo "        ) -> CustomResult<String, errors::ConnectorError> {"
-        echo "            // TODO: Update with connector's ${fname} endpoint"
-        echo "            Ok(format!(\"{}/TODO_ENDPOINT\", self.connector_base_url_${base_url_suffix}(req)))"
-        echo "        }"
-        echo "    }"
-        echo ");"
-    } >> "$connector_file"
-
-    log_debug "Appended macro_connector_implementation! for $fname"
-}
-
-# --- Sub-function: Add import(s) to use transformers::{...} block ---
-
-add_transformer_imports() {
-    local flow_name="$1"
-    local connector_file="$2"
-    local config
-    config=$(get_flow_config "$flow_name")
-    IFS='|' read -r fname _ _ _ _ has_request_body _ <<< "$config"
-
-    log_debug "Adding transformer imports for $fname"
-
-    # Build import lines in a temp file
-    local import_file
-    import_file=$(mktemp)
-    if [[ "$has_request_body" == "true" ]]; then
-        echo "    ${NAME_PASCAL}${fname}Request," >> "$import_file"
-    fi
-    echo "    ${NAME_PASCAL}${fname}Response," >> "$import_file"
-
-    # Find the closing }; of the use transformers::{...}; block
-    local use_start use_end
-    use_start=$(grep -n 'use transformers::' "$connector_file" | head -1 | cut -d: -f1)
-    if [[ -z "$use_start" ]]; then
-        rm -f "$import_file"
-        log_warning "Could not find 'use transformers::' in $connector_file, skipping import insertion"
-        return 0
-    fi
-
-    use_end=$(awk -v start="$use_start" 'NR > start && /^};$/ { print NR; exit }' "$connector_file")
-    if [[ -z "$use_end" ]]; then
-        rm -f "$import_file"
-        log_warning "Could not find closing '}; of transformers block, skipping import insertion"
-        return 0
-    fi
-
-    # Insert imports before the closing };
-    awk -v end_line="$use_end" -v ifile="$import_file" '
-        NR == end_line {
-            while ((getline line < ifile) > 0) {
-                print line
-            }
-            close(ifile)
-        }
-        { print }
-    ' "$connector_file" > "${connector_file}.tmp"
-    mv "${connector_file}.tmp" "$connector_file"
-
-    rm -f "$import_file"
-    log_debug "Added transformer imports for $fname"
-}
-
-# --- Sub-function: Append stub types and TryFrom impls to transformers.rs ---
-
-add_transformer_stubs() {
-    local flow_name="$1"
-    local transformers_file="$2"
-    local config
-    config=$(get_flow_config "$flow_name")
-    IFS='|' read -r fname resource_data request_data response_data http_method has_request_body base_url_suffix <<< "$config"
-
-    log_debug "Appending transformer stubs for $fname"
-
-    # Ensure connector_flow::{FlowName} import exists
-    if ! grep "connector_flow::{" "$transformers_file" | grep -qw "${fname}"; then
-        log_debug "Adding missing connector_flow::${fname} import"
-        awk -v flow="$fname" '
-            /connector_flow::\{/ && $0 !~ flow {
-                sub(/\}/, ", " flow "}")
-            }
-            { print }
-        ' "$transformers_file" > "${transformers_file}.tmp"
-        mv "${transformers_file}.tmp" "$transformers_file"
-    fi
-
-    # Ensure connector_types request_data import exists (e.g., PaymentsCaptureData)
-    # Strip generic <T> for the import check
-    local request_data_bare
-    request_data_bare="${request_data%%<*}"
-    if ! grep -qw "${request_data_bare}" "$transformers_file"; then
-        log_debug "Adding missing ${request_data_bare} import to connector_types"
-        # Find the connector_types::{...} block and add the import before the closing }
-        awk -v import="$request_data_bare" '
-            /connector_types::\{/ || in_block {
-                in_block = 1
-                if (/\}/) {
-                    sub(/\}/, import ", }")
-                    in_block = 0
-                }
-            }
-            { print }
-        ' "$transformers_file" > "${transformers_file}.tmp"
-        mv "${transformers_file}.tmp" "$transformers_file"
-    fi
-
-    # Append stubs to end of file
-    local flow_upper
-    flow_upper=$(echo "$fname" | tr '[:lower:]' '[:upper:]')
-    {
-        echo ""
-        echo "// ============================================================================="
-        echo "// ${flow_upper} FLOW TYPES"
-        echo "// ============================================================================="
-
-        if [[ "$has_request_body" == "true" ]]; then
-            echo ""
-            echo "// TODO: Update fields to match connector's ${fname} request body."
-            echo "#[derive(Debug, Serialize)]"
-            echo "pub struct ${NAME_PASCAL}${fname}Request {"
-            echo "    // TODO: Add request fields from tech spec"
-            echo "}"
-            echo ""
-            echo "impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>"
-            echo "    TryFrom<"
-            echo "        super::${NAME_PASCAL}RouterData<"
-            echo "            RouterDataV2<${fname}, ${resource_data}, ${request_data}, ${response_data}>,"
-            echo "            T,"
-            echo "        >,"
-            echo "    > for ${NAME_PASCAL}${fname}Request"
-            echo "{"
-            echo "    type Error = error_stack::Report<errors::ConnectorError>;"
-            echo "    fn try_from("
-            echo "        item: super::${NAME_PASCAL}RouterData<"
-            echo "            RouterDataV2<${fname}, ${resource_data}, ${request_data}, ${response_data}>,"
-            echo "            T,"
-            echo "        >,"
-            echo "    ) -> Result<Self, Self::Error> {"
-            echo "        // TODO: Build request from item.router_data fields"
-            echo "        todo!()"
-            echo "    }"
-            echo "}"
-        fi
-
-        echo ""
-        echo "// TODO: Update fields to match connector's ${fname} response body."
-        echo "#[derive(Debug, Deserialize, Serialize)]"
-        echo "pub struct ${NAME_PASCAL}${fname}Response {"
-        echo "    // TODO: Add response fields from tech spec"
-        echo "    pub id: String,"
-        echo "}"
-        echo ""
-
-        # Response TryFrom - Authorize gets <T>, others don't
-        if [[ "$fname" == "Authorize" ]]; then
-            echo "impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>"
-            echo "    TryFrom<ResponseRouterData<${NAME_PASCAL}${fname}Response, Self>>"
-            echo "    for RouterDataV2<${fname}, ${resource_data}, ${request_data}, ${response_data}>"
-        else
-            echo "impl TryFrom<ResponseRouterData<${NAME_PASCAL}${fname}Response, Self>>"
-            echo "    for RouterDataV2<${fname}, ${resource_data}, ${request_data}, ${response_data}>"
-        fi
-        echo "{"
-        echo "    type Error = error_stack::Report<errors::ConnectorError>;"
-        echo "    fn try_from("
-        echo "        item: ResponseRouterData<${NAME_PASCAL}${fname}Response, Self>,"
-        echo "    ) -> Result<Self, Self::Error> {"
-        echo "        // TODO: Map connector response to RouterDataV2"
-        echo "        todo!()"
-        echo "    }"
-        echo "}"
-    } >> "$transformers_file"
-
-    log_debug "Appended transformer stubs for $fname"
-}
-
-# --- Orchestrator: run all sub-functions for each flow ---
-
-add_flow_to_connector() {
-    local connector_file="$BACKEND_DIR/connector-integration/src/connectors/${NAME_SNAKE}.rs"
-    local transformers_file="$BACKEND_DIR/connector-integration/src/connectors/${NAME_SNAKE}/transformers.rs"
-
-    for flow in "${ADD_FLOW_NAMES[@]}"; do
-        flow=$(echo "$flow" | tr -d '[:space:]')
-        log_step "Adding flow: $flow"
-
-        add_flow_to_prerequisites "$flow" "$connector_file"
-        remove_empty_integration_impl "$flow" "$connector_file"
-        add_macro_implementation "$flow" "$connector_file"
-        add_transformer_imports "$flow" "$connector_file"
-        add_transformer_stubs "$flow" "$transformers_file"
-
-        log_success "Flow $flow added to $NAME_PASCAL"
-    done
-}
-
-# =============================================================================
 # MAIN EXECUTION FLOW
 # =============================================================================
 
@@ -1852,74 +1436,49 @@ main() {
     echo "======================================="
     echo
 
-    # Set up error handling
-    trap 'emergency_rollback; exit 1' ERR
-
-    # Core execution flow
+    # Core execution flow (no ERR trap yet — backup doesn't exist)
     parse_arguments "$@"
 
-    if [[ "$ADD_FLOW_MODE" == "true" ]]; then
-        # --- Add-flow mode ---
-        validate_add_flow_inputs
+    # Full scaffold mode
+    validate_environment
+    validate_inputs
+    check_naming_conflicts
+    get_next_enum_ordinal
 
-        if [[ "$YES_MODE" != "true" ]]; then
-            echo ""
-            log_info "Will add flows: ${ADD_FLOW_NAMES[*]} to connector '$NAME_PASCAL'"
-            echo ""
-            read -p "Continue? [y/N] " confirm
-            if [[ "$confirm" != [yY] ]]; then
-                echo "Aborted."
-                exit 0
-            fi
-        fi
+    # Extract flow metadata for dynamic generation
+    extract_all_flow_metadata
 
-        add_flow_to_connector
-        format_code
+    # Show implementation plan and get confirmation
+    show_implementation_plan
 
-        if ! validate_compilation; then
-            log_warning "Compilation check failed. Review generated stubs and fix manually."
-            log_warning "Stubs use todo!() which compiles but panics at runtime."
-        else
-            log_success "All flows added successfully! Fill in TODO stubs to complete implementation."
-        fi
+    # Create backup for safety
+    create_backup
+
+    # NOW set up the ERR trap — backup exists so rollback is safe
+    trap 'emergency_rollback; exit 1' ERR
+
+    # Execute main operations
+    create_connector_files
+    update_protobuf
+    update_domain_types
+    update_domain_types_file
+    update_connectors_module
+    update_integration_types
+    update_config
+    register_connector_specific_config
+
+    # Validate and finalize
+    format_code
+    if ! validate_compilation; then
+        log_warning "Compilation check failed. ConnectorSpecificConfig registration may need manual fixes."
+        log_warning "See integrate_connector.md Step 3.5 for manual registration instructions."
+        log_warning "Files have NOT been rolled back. Review and fix manually."
+        log_warning "Backup preserved at: $BACKUP_DIR"
     else
-        # --- Full scaffold mode ---
-        validate_environment
-        validate_inputs
-        check_naming_conflicts
-        get_next_enum_ordinal
-
-        # Extract flow metadata for dynamic generation
-        extract_all_flow_metadata
-
-        # Show implementation plan and get confirmation
-        show_implementation_plan
-
-        # Create backup for safety
-        create_backup
-
-        # Execute main operations
-        create_connector_files
-        update_protobuf
-        update_domain_types
-        update_domain_types_file
-        update_connectors_module
-        update_integration_types
-        update_config
-        register_connector_specific_config
-
-        # Validate and finalize
-        format_code
-        if ! validate_compilation; then
-            log_warning "Compilation check failed. ConnectorSpecificConfig registration may need manual fixes."
-            log_warning "See integrate_connector.md Step 3.5 for manual registration instructions."
-            log_warning "Files have NOT been rolled back. Review and fix manually."
-        fi
-
-        # Success cleanup and guidance
+        # Only clean up backup on successful compilation
         cleanup_backup
-        show_next_steps
     fi
+    show_next_steps
 }
 
 # Execute main function with all arguments

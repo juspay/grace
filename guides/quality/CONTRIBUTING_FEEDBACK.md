@@ -50,11 +50,11 @@ Every feedback entry must follow this structure:
 **Template:**
 
 ```markdown
-### FB-[ID]: [Brief Descriptive Title]
+### [PREFIX]-[ID]: [Brief Descriptive Title]
 
 **Metadata:**
 ```yaml
-id: FB-XXX
+id: [PREFIX]-[NNN]
 category: [CATEGORY]
 severity: CRITICAL | WARNING | SUGGESTION | INFO
 connector: [name] | general
@@ -256,7 +256,7 @@ CONFIDENCE: Medium
 ```markdown
 **Related Patterns:**
 - See: guides/patterns/pattern_authorize.md#status-mapping
-- See: FB-025 (similar issue for refund status)
+- See: UCS-004 (similar issue for refund status)
 - Reference: https://docs.rs/serde/latest/serde/
 ```
 
@@ -513,7 +513,7 @@ The old FB-XXX numbering system (FB-001 to FB-999) has been replaced by semantic
 - Refactoring opportunity
 - Minor optimization
 
-**Impact:** -1 point per issue
+**Impact:** -0.5 per issue (max 10 counted)
 
 **Examples:**
 - Better variable names
@@ -647,11 +647,11 @@ Good: "Use enum instead of String for type safety and compile-time validation"
 **Complete Example:**
 
 ```markdown
-### FB-002: Use ConnectorIntegrationV2, Not ConnectorIntegration
+### UCS-005: Use ConnectorIntegrationV2, Not ConnectorIntegration
 
 **Metadata:**
 ```yaml
-id: FB-002
+id: UCS-005
 category: UCS_PATTERN_VIOLATION
 severity: CRITICAL
 connector: general
@@ -717,7 +717,7 @@ CONFIDENCE: High
 
 **Related Patterns:**
 - See: guides/patterns/README.md#ucs-architecture
-- See: FB-001 (RouterDataV2)
+- See: UCS-001 (RouterDataV2)
 - See: guides/connector_integration_guide.md#trait-implementation
 
 **Lessons Learned:**
@@ -737,11 +737,11 @@ Always start with UCS templates which have correct trait implementations. Refere
 **Complete Example:**
 
 ```markdown
-### FB-501: Reusable Amount Conversion Utility
+### ANTI-012: Reusable Amount Conversion Utility
 
 **Metadata:**
 ```yaml
-id: FB-501
+id: ANTI-012
 category: SUCCESS_PATTERN
 severity: INFO
 connector: stripe
@@ -805,11 +805,11 @@ Review common_utils and domain_types modules before implementing transformers to
 **Complete Example:**
 
 ```markdown
-### FB-701: Avoid String Allocations in Hot Path
+### PERF-001: Avoid String Allocations in Hot Path
 
 **Metadata:**
 ```yaml
-id: FB-701
+id: PERF-001
 category: PERFORMANCE
 severity: WARNING
 connector: general
@@ -866,7 +866,7 @@ fn transform_request(data: &RouterData) -> ConnectorRequest {
 
 **Related Patterns:**
 - See: Rust performance book on string handling
-- See: FB-602 (unnecessary clones in general)
+- See: PERF-002 (unnecessary clones in general)
 
 **Lessons Learned:**
 Profile transformers to identify allocation hotspots. Small optimizations in hot paths compound significantly.
@@ -937,11 +937,11 @@ When feedback becomes irrelevant:
 **Example Format:**
 
 ```markdown
-### FB-042: [Archived] Old Pattern Name
+### UCS-042: [Archived] Old Pattern Name
 
 **Archived:** 2024-03-01
 **Reason:** UCS architecture change made this pattern obsolete
-**Replacement:** See FB-150 for new pattern
+**Replacement:** See UCS-050 for new pattern
 
 [Original content...]
 ```

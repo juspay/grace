@@ -50,8 +50,10 @@ Based on `backend/domain_types/src/payment_method_data.rs`:
 
 ```rust
 // From backend/domain_types/src/payment_method_data.rs
-pub struct Card<CD: PCIHolder> {
-    pub card_number: CD::CardNumberType,
+// NOTE: The actual trait bound is `T: PaymentMethodDataTypes`, not `PCIHolder`.
+// The card number type is `RawCardNumber<T>` (an associated type from that trait).
+pub struct Card<T: PaymentMethodDataTypes> {
+    pub card_number: RawCardNumber<T>,
     pub card_exp_month: Secret<String>,
     pub card_exp_year: Secret<String>,
     pub card_cvc: Secret<String>,
@@ -61,6 +63,9 @@ pub struct Card<CD: PCIHolder> {
     pub card_issuing_country: Option<String>,
     pub bank_code: Option<Secret<String>>,
     pub nick_name: Option<Secret<String>>,
+    // TODO: Missing fields — add when available in your version:
+    //   pub card_holder_name: Option<Secret<String>>,
+    //   pub co_badged_card_data: Option<CoBadgedCardData>,
 }
 ```
 
@@ -149,6 +154,9 @@ pub struct CardDetails<T: PaymentMethodDataTypes> {
     pub card_holder_name: Option<Secret<String>>,
 }
 
+// NOTE: ConnectorRouterData is a pattern name — your actual wrapper struct should be named
+// {ConnectorName}RouterData<T> with the appropriate generic parameters.
+// See template-generation/transformers.rs.template for the correct pattern.
 impl<T: PaymentMethodDataTypes> TryFrom<ConnectorRouterData<Authorize, PaymentsAuthorizeData<T>>>
     for CardPaymentRequest<T>
 {
@@ -164,7 +172,9 @@ impl<T: PaymentMethodDataTypes> TryFrom<ConnectorRouterData<Authorize, PaymentsA
                     expiration_month: card.card_exp_month.clone(),
                     expiration_year: card.card_exp_year.clone(),
                     security_code: card.card_cvc.clone(),
-                    card_holder_name: router_data.request.get_billing_full_name(),
+                    // TODO: get_billing_full_name() lives on resource_common_data, not request.
+                    // Use: router_data.resource_common_data.get_billing_full_name()
+                    card_holder_name: router_data.resource_common_data.get_billing_full_name(),
                 };
 
                 Ok(Self {
@@ -249,16 +259,18 @@ impl<T: PaymentMethodDataTypes> TryFrom<NuveiRouterData<RouterDataV2<Authorize, 
 #### Implementation Template
 
 ```rust
+use hyperswitch_masking::Secret;
+
 #[derive(Debug, Serialize)]
 pub struct FormEncodedCardRequest {
     #[serde(rename = "card[number]")]
-    pub card_number: String,
+    pub card_number: Secret<String>,  // PCI-DSS: Card number MUST be wrapped in Secret<>
     #[serde(rename = "card[exp_month]")]
-    pub exp_month: String,
+    pub exp_month: Secret<String>,
     #[serde(rename = "card[exp_year]")]
-    pub exp_year: String,
+    pub exp_year: Secret<String>,
     #[serde(rename = "card[cvc]")]
-    pub cvc: String,
+    pub cvc: Secret<String>,  // PCI-DSS: CVV MUST be wrapped in Secret<>
     #[serde(rename = "amount")]
     pub amount: MinorUnit,
     #[serde(rename = "currency")]
@@ -312,19 +324,11 @@ impl<T: PaymentMethodDataTypes> ConnectorCommon for Stripe<T> {
 #[serde(rename = "Card")]
 pub struct XmlCardData {
     #[serde(rename = "Number")]
-    pub number: String,
+    pub number: Secret<String>,  // PCI-DSS: Card number MUST be wrapped in Secret<>
     #[serde(rename = "ExpiryDate")]
     pub expiry_date: String,
     #[serde(rename = "CVV")]
-    pub cvv: String,
-}
-
-// For SOAP envelopes
-#[derive(Debug, Serialize)]
-#[serde(rename = "soap:Envelope")]
-pub struct SoapRequest<T> {
-    #[serde(rename = "soap:Body")]
-    pub body: T,
+    pub cvv: Secret<String>,  // PCI-DSS: CVV MUST be wrapped in Secret<>
 }
 ```
 
@@ -406,6 +410,7 @@ fn build_redirect_response(
         network_txn_id: None,
         connector_response_reference_id: None,
         incremental_authorization_allowed: None,
+        // TODO: Use item.http_code instead of hardcoded 200
         status_code: 200,
     })
 }
@@ -499,6 +504,8 @@ pub enum TransactionStatus {
 
 #### Connector Example: Adyen
 
+<!-- NOTE: AdyenThreeDSData and ThreeDS2RequestData are illustrative examples.
+     Actual Adyen 3DS types differ — consult the connector's source code. -->
 ```rust
 // From backend/connector-integration/src/connectors/adyen/transformers.rs
 
@@ -620,6 +627,9 @@ fn map_connector_status(
 
 ```rust
 // Standard response construction pattern
+// NOTE: ResponseRouterData wraps the connector's HTTP response alongside the original RouterDataV2.
+// Full type signature: ResponseRouterData<ConnectorResponse, RouterDataV2<Flow, FlowCommonData, Request, Response>>
+// where ConnectorResponse is the deserialized connector-specific response type.
 impl TryFrom<ResponseRouterData<ConnectorAuthorizeResponse, Self>>
     for RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>
 {
@@ -891,11 +901,11 @@ let expiry = format!("{}-{}",
 ```rust
 #[derive(Debug, Serialize)]
 pub struct CardDetails {
-    pub number: String,
-    pub exp_month: String,
-    pub exp_year: String,
+    pub number: Secret<String>,      // PCI-DSS: Card number MUST be wrapped in Secret<>
+    pub exp_month: Secret<String>,   // PCI-DSS: Expiry MUST be wrapped in Secret<>
+    pub exp_year: Secret<String>,    // PCI-DSS: Expiry MUST be wrapped in Secret<>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cvc: Option<String>,  // Optional for tokenized cards
+    pub cvc: Option<Secret<String>>,  // PCI-DSS: CVV MUST be wrapped in Secret<>; Optional for tokenized cards
 }
 ```
 
@@ -961,11 +971,25 @@ mod tests {
 
 ## Cross-References
 
-- [pattern_authorize.md](./pattern_authorize.md) - General authorize flow patterns
-- [Authorize Flow Documentation](../../flows/authorize.md) - Authorize flow implementation guide
-- [3DS Flow Documentation](../../flows/threeds.md) - 3D Secure implementation guide
-- [Capture Flow Documentation](../../flows/capture.md) - Capture flow for manual capture
-- [Refund Flow Documentation](../../flows/refund.md) - Refund implementation patterns
+- [pattern_authorize.md](../../pattern_authorize.md) - General authorize flow patterns
+- [Authorize Flow Documentation](../../pattern_authorize.md) - Authorize flow implementation guide
+- <!-- TODO: 3DS dedicated pattern file not yet created. 3DS handling for card authorize
+     is covered in [5. 3D Secure Pattern](#5-3d-secure-pattern) above.
+     See also: pattern_authorize.md for general authorize flow context. -->
+- [Capture Flow Documentation](../../pattern_capture.md) - Capture flow for manual capture
+- [Refund Flow Documentation](../../pattern_refund.md) - Refund implementation patterns
+
+---
+
+### Mandate and Recurring Payment Setup
+
+When the card payment includes `setup_future_usage`, you MUST:
+1. Extract `MandateReference` from the authorize response
+2. Store `network_txn_id` for MIT (Merchant Initiated Transaction) flows
+3. Pass `setup_mandate_details` in the authorize request if present
+4. See `pattern_setup_mandate.md` for complete mandate implementation
+
+<!-- TODO: Add CIT/MIT flow distinction guidance -->
 
 ---
 

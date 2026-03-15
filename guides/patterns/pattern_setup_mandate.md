@@ -460,7 +460,7 @@ pub struct {ConnectorName}SetupMandateRequestAlternative<
 > {
     pub amount: {AmountType},  // Usually MinorUnit::new(0) for zero-auth
     pub currency: String,
-    pub payment_method: {ConnectorName}PaymentMethod<T>,
+    pub payment_method: {ConnectorName}PaymentMethodData<T>,
     pub reference: String,
     // Recurring-specific fields
     pub shopper_interaction: Option<{ConnectorName}ShopperInteraction>,
@@ -497,7 +497,7 @@ pub struct {ConnectorName}SetupMandateSubscription<
     pub api_operation: {ConnectorName}ApiOperation,
     pub order: {ConnectorName}Order,
     pub configuration: {ConnectorName}Configuration,
-    pub payment_data: {ConnectorName}PaymentData<T>,
+    pub payment_data: {ConnectorName}PaymentMethodData<T>,
     pub subscription: Option<{ConnectorName}SubscriptionData>,  // Mandate-specific
 }
 
@@ -523,10 +523,24 @@ pub struct {ConnectorName}Configuration {
     pub return_url: Option<String>,
 }
 
+// NOTE: Use {ConnectorName}PaymentMethodData consistently throughout.
+// Do NOT use PaymentData or PaymentMethod as aliases.
+// Both {ConnectorName}PaymentMethod (used in Pattern 2) and {ConnectorName}PaymentData
+// (used in Pattern 3) are aliases for this same concept. Standardize on
+// {ConnectorName}PaymentMethodData in your implementation.
+
+// TODO: Define {ConnectorName}PaymentMethodType enum based on the connector's API.
+// Example:
+// enum {ConnectorName}PaymentMethodType {
+//     Card,
+//     BankTransfer,
+//     Wallet,
+// }
+
 // Payment Method Structure (Common across all patterns)
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum {ConnectorName}PaymentMethod<
+pub enum {ConnectorName}PaymentMethodData<
     T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::marker::Send + 'static + Serialize,
 > {
     Card({ConnectorName}Card<T>),
@@ -639,7 +653,7 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::mark
 
         let payment_method = match &router_data.request.payment_method_data {
             PaymentMethodData::Card(card_data) => {
-                {ConnectorName}PaymentMethod::Card({ConnectorName}Card {
+                {ConnectorName}PaymentMethodData::Card({ConnectorName}Card {
                     number: card_data.card_number.clone(),
                     exp_month: card_data.card_exp_month.clone(),
                     exp_year: card_data.card_exp_year.clone(),
@@ -699,7 +713,7 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::mark
 
         let payment_data = match &router_data.request.payment_method_data {
             PaymentMethodData::Card(card_data) => {
-                {ConnectorName}PaymentData::Card({ConnectorName}Card {
+                {ConnectorName}PaymentMethodData::Card({ConnectorName}Card {
                     number: card_data.card_number.clone(),
                     exp_month: card_data.card_exp_month.clone(),
                     exp_year: card_data.card_exp_year.clone(),
@@ -774,7 +788,10 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::mark
             {ConnectorName}MandateStatus::RequiresPaymentMethod => common_enums::AttemptStatus::PaymentMethodAwaited,
             {ConnectorName}MandateStatus::Processing => common_enums::AttemptStatus::Pending,
             {ConnectorName}MandateStatus::Failed => common_enums::AttemptStatus::Failure,
-            {ConnectorName}MandateStatus::Canceled => common_enums::AttemptStatus::Voided,
+            // Canceled in mandate setup context maps to Failure, not Voided.
+            // A canceled mandate setup is a failed attempt — Voided is reserved
+            // for successfully authorized payments that are later voided.
+            {ConnectorName}MandateStatus::Canceled => common_enums::AttemptStatus::Failure,
         };
 
         // Extract mandate reference based on connector pattern
@@ -806,6 +823,10 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::mark
             redirection_data: None,  // Add if connector requires 3DS for mandate setup
             mandate_reference,
             connector_metadata: None,
+            // CRITICAL: For recurring/mandate flows, network_txn_id MUST be extracted
+            // from the connector's authorize response. Setting it to None will break
+            // MIT (Merchant Initiated Transaction) flows.
+            // TODO: Extract network_txn_id from the connector's response and pass it here.
             network_txn_id: None,
             connector_response_reference_id: Some(response.id.clone()),
             incremental_authorization_allowed: None,
@@ -971,6 +992,10 @@ fn map_mandate_status(status: ConnectorMandateStatus) -> common_enums::AttemptSt
             common_enums::AttemptStatus::Pending
         },
         ConnectorMandateStatus::Failed | ConnectorMandateStatus::Canceled => {
+            // Canceled maps to Failure in mandate context because a canceled
+            // mandate setup is a failed attempt, not a voided payment.
+            // This is consistent with the status mapping in the response
+            // transformation implementation above.
             common_enums::AttemptStatus::Failure
         },
     }
@@ -1181,6 +1206,10 @@ mod tests {
         let router_data = create_test_setup_mandate_router_data();
 
         let connector_req = {ConnectorName}SetupMandateRequest::try_from(&router_data);
+        // TODO: The TryFrom impl expects a {ConnectorName}RouterData wrapper, not
+        // a bare &RouterDataV2. Wrap router_data:
+        //   let wrapper = {ConnectorName}RouterData::try_from((amount, router_data, connector))?;
+        //   let connector_req = {ConnectorName}SetupMandateRequest::try_from(wrapper);
 
         assert!(connector_req.is_ok());
         let req = connector_req.unwrap();
@@ -1200,12 +1229,17 @@ mod tests {
             status: {ConnectorName}MandateStatus::Succeeded,
             customer: Some("cust_123".to_string()),
             client_secret: Some(Secret::new("secret_123".to_string())),
+            // TODO: Add missing fields from the response struct definition:
+            //   subscription: None,
+            //   token: None,
         };
 
         let router_data = create_test_setup_mandate_router_data();
         let response_router_data = ResponseRouterData {
             response,
-            data: router_data,
+            // TODO: Verify field name — use `router_data` (not `data`) to match
+            // the ResponseRouterData struct definition used in production code.
+            router_data,
             http_code: 200,
         };
 
@@ -1240,8 +1274,14 @@ mod tests {
         assert_eq!(req.configuration.tokenize_c_c, Some(true));
     }
 
-    fn create_test_setup_mandate_router_data() -> RouterDataV2<SetupMandate, PaymentFlowData, SetupMandateRequestData, PaymentsResponseData> {
-        // Create test router data structure with mandate setup details
+    fn create_test_setup_mandate_router_data() -> RouterDataV2<SetupMandate, PaymentFlowData, SetupMandateRequestData<T>, PaymentsResponseData> {
+        // TODO: Add generic type parameter <T> — this function must be generic
+        // or use a concrete type that implements PaymentMethodDataTypes.
+        // TODO: Populate all required struct fields:
+        //   - resource_common_data: PaymentFlowData { status, connectors, ... }
+        //   - request: SetupMandateRequestData { payment_method_data, currency, ... }
+        //   - response: initial response value
+        //   - connector_config: ConnectorSpecificConfig
         // ... implementation
     }
 }

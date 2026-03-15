@@ -60,6 +60,10 @@ macros::create_all_prerequisites!(
             let mut headers = vec![
                 (
                     headers::CONTENT_TYPE.to_string(),
+                    // NOTE: "application/json" is hardcoded here because member functions
+                    // defined inside create_all_prerequisites! operate on the generated
+                    // generic struct, not the ConnectorCommon impl — so
+                    // self.common_get_content_type() is not accessible in this context.
                     "application/json".to_string().into(),
                 )
             ];
@@ -87,6 +91,10 @@ macros::create_all_prerequisites!(
 macros::macro_connector_implementation!(
     connector_default_implementations: [get_content_type, get_error_response_v2],
     connector: {{CONNECTOR_NAME_PASCAL}},
+    // NOTE: For non-JSON connectors, change Json(...) to:
+    //   FormUrlEncoded(...) — for application/x-www-form-urlencoded
+    //   FormData — for multipart/form-data
+    // For XML/SOAP, use other_functions to implement custom get_request_body.
     curl_request: Json({{CONNECTOR_NAME_PASCAL}}AuthorizeRequest),
     curl_response: {{CONNECTOR_NAME_PASCAL}}AuthorizeResponse,
     flow_name: Authorize,
@@ -130,6 +138,9 @@ macros::macro_connector_implementation!(
             &self,
             req: &RouterDataV2<PSync, PaymentFlowData, PaymentsSyncData, PaymentsResponseData>,
         ) -> CustomResult<Vec<(String, Maskable<String>)>, errors::ConnectorError> {
+            // TODO: Consider removing Content-Type header for GET requests.
+            // build_headers() includes Content-Type: application/json, which is
+            // unnecessary for GET requests with no body. Some APIs may reject it.
             self.build_headers(req)
         }
 
@@ -200,6 +211,8 @@ macros::macro_connector_implementation!(
             req: &RouterDataV2<Void, PaymentFlowData, PaymentVoidData, PaymentsResponseData>,
         ) -> CustomResult<String, errors::ConnectorError> {
             let connector_transaction_id = req.request.connector_transaction_id.clone();
+            // TODO: Consider using get_connector_transaction_id()? instead of direct field access
+            // for consistent error handling when the ID is missing.
             // TODO: Update with connector's void/cancel endpoint
             Ok(format!("{}/payments/{}/cancel", self.connector_base_url_payments(req), connector_transaction_id))
         }
@@ -231,6 +244,8 @@ macros::macro_connector_implementation!(
             req: &RouterDataV2<Refund, RefundFlowData, RefundsData, RefundsResponseData>,
         ) -> CustomResult<String, errors::ConnectorError> {
             let connector_transaction_id = req.request.connector_transaction_id.clone();
+            // TODO: Consider using get_connector_transaction_id()? instead of direct field access
+            // for consistent error handling when the ID is missing.
             // TODO: Update with connector's refund endpoint
             Ok(format!("{}/payments/{}/refund", self.connector_base_url_refunds(req), connector_transaction_id))
         }
@@ -253,6 +268,9 @@ macros::macro_connector_implementation!(
             &self,
             req: &RouterDataV2<RSync, RefundFlowData, RefundSyncData, RefundsResponseData>,
         ) -> CustomResult<Vec<(String, Maskable<String>)>, errors::ConnectorError> {
+            // TODO: Consider removing Content-Type header for GET requests.
+            // build_headers() includes Content-Type: application/json, which is
+            // unnecessary for GET requests with no body. Some APIs may reject it.
             self.build_headers(req)
         }
 
@@ -261,6 +279,9 @@ macros::macro_connector_implementation!(
             req: &RouterDataV2<RSync, RefundFlowData, RefundSyncData, RefundsResponseData>,
         ) -> CustomResult<String, errors::ConnectorError> {
             let connector_refund_id = req.request.connector_refund_id.clone();
+            // TODO: connector_refund_id is an Option<String>. Handle the None case
+            // with a proper error instead of letting .clone() propagate None silently.
+            // Example: let connector_refund_id = req.request.get_connector_refund_id()?;
             // TODO: Update with connector's refund status inquiry endpoint
             Ok(format!("{}/refunds/{}", self.connector_base_url_refunds(req), connector_refund_id))
         }

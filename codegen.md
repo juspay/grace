@@ -23,8 +23,8 @@ You are a **workflow controller**, not a code implementer. This is a strict sepa
 
 | Tool | Usage |
 |------|-------|
-| `Task` | Delegate work to subagents |
-| `TaskOutput` | Retrieve results from background subagents |
+| `Task` | Delegate work to subagents (results returned inline) |
+| `TaskOutput` | Retrieve results from background subagents (if supported by your platform -- otherwise Task returns results directly) |
 
 ### Forbidden Tools (Use via Subagent Only)
 
@@ -163,7 +163,7 @@ When you receive a generic prompt like "Integrate {connector}" without explicit 
 
 ```
 Is there a tech spec at references/{connector}/technical_specification.md?
-├── YES → Skip to integrate_connector.md (Step 3 onward)
+├── YES → Skip to integrate_connector.md (Phase 3 onward)
 ├── NO
 │   Are there scraped docs in references/{connector}/?
 │   ├── YES → Skip to techspec.md to generate tech spec, then integrate
@@ -187,30 +187,40 @@ Use these exact prompts to trigger specific workflows:
 
 ### Script Usage
 
-The `add_connector.sh` script supports two modes:
+The `add_connector.sh` script scaffolds a new connector:
 
 | Mode | Command | What it does |
 |------|---------|--------------|
-| Full scaffold | `./grace/add_connector.sh {name} {base_url}` | Creates connector with all 6 core flows, registers ConnectorSpecificConfig |
-| Add flow(s) | `./grace/add_connector.sh {name} --add-flow {Flow1},{Flow2}` | Adds specified flows to existing connector (api array + macro + stubs) |
+| Full scaffold | `./grace/add_connector.sh {name} {base_url}` | Scaffolds connector skeleton with all 6 core flows and registers ConnectorSpecificConfig (does not implement flow logic) |
 
 ### Pipeline Diagram
 
 ```
 Full Integration (integrate_connector.md):
 
-  ┌──────────┐   ┌──────────┐   ┌─────────────┐   ┌────────────┐   ┌───────────┐
-  │  Scrape  │──>│ TechSpec │──>│  Scaffold   │──>│ Implement  │──>│ Validate  │
-  │  (MCP)   │   │  (AI)    │   │  (script)   │   │   (AI)     │   │  (cargo)  │
-  └──────────┘   └──────────┘   └─────────────┘   └────────────┘   └───────────┘
+  ┌──────────┐   ┌──────────┐   ┌─────────────┐   ┌────────────┐   ┌────────────────┐   ┌───────────┐
+  │  Scrape  │──>│ TechSpec │──>│  Scaffold   │──>│ Implement  │──>│ Quality Review │──>│ Validate  │
+  │  (MCP)   │   │  (AI)    │   │  (script)   │   │   (AI)     │   │    (AI)        │   │  (cargo)  │
+  └──────────┘   └──────────┘   └─────────────┘   └────────────┘   └────────────────┘   └───────────┘
 
 Add Flow (add_flow.md):
 
-  ┌──────────┐   ┌─────────────┐   ┌────────────┐   ┌───────────┐
-  │ TechSpec │──>│  Scaffold   │──>│ Implement  │──>│ Validate  │
-  │  (read)  │   │ (--add-flow)│   │   (AI)     │   │  (cargo)  │
-  └──────────┘   └─────────────┘   └────────────┘   └───────────┘
+  ┌──────────┐   ┌─────────────┐   ┌────────────┐   ┌────────────────┐   ┌───────────┐
+  │ TechSpec │──>│  Scaffold   │──>│ Implement  │──>│ Quality Review │──>│ Validate  │
+  │  (read)  │   │  (manual)   │   │   (AI)     │   │    (AI)        │   │  (cargo)  │
+  └──────────┘   └─────────────┘   └────────────┘   └────────────────┘   └───────────┘
 ```
+
+---
+
+### Security Requirements
+
+All generated connectors MUST adhere to the following security baseline:
+
+- **Webhook signature verification** — every connector that handles webhooks must verify the HMAC/signature before processing the payload (see `SEC-003` in `guides/feedback.md`).
+- **No secrets in code** — API keys, merchant secrets, and other credentials must come from configuration / environment only.
+- **TLS enforcement** — all outbound HTTP calls must use HTTPS; plain HTTP endpoints are not permitted.
+- Refer to `guides/feedback.md` Section 8 (Security Guidelines) for the full checklist.
 
 ---
 
@@ -226,7 +236,7 @@ Add Flow (add_flow.md):
 | `link_fetcher.md` | Scrape API documentation URLs using Playwright MCP |
 | `field_analysis.md` | API field dependency analysis across flows |
 | `connector_checklist.md` | Post-implementation validation checklist |
-| `add_connector.sh` | Shell script to scaffold a new connector (foundation setup) or add flows to existing connectors (`--add-flow`) |
+| `add_connector.sh` | Shell script to scaffold a new connector (full scaffold with all core flows) |
 
 ### Guides and References
 
@@ -237,7 +247,7 @@ Add Flow (add_flow.md):
 | `guides/types/` | UCS type system documentation |
 | `guides/learnings/` | Lessons from previous integrations |
 | `guides/quality/` | Quality review templates and processes |
-| `guides/reference/` | Reference connector implementations |
+| `guides/reference/` | Reference connector implementations <!-- TODO: populate with at least one reference connector --> |
 | `connector_integration/template/` | Planner steps template |
 | `template-generation/` | Rust code templates (connector.rs, transformers.rs, test.rs) |
 | `references/` | Connector-specific tech specs and scraped documentation |

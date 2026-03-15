@@ -13,5 +13,22 @@ logs/
 **/references/**
 !**/references/README.md
 
-# External repos (reference only, not part of grace)
+# Local clone of the UCS connector-service repository (not part of Grace)
 connector-service/
+
+# Security: never commit key material, credentials, or secrets
+*.key
+*.pem
+*.p12
+*.cert
+*.pfx
+credentials.json
+secrets.yaml
+secrets.yml
+
+# Temporary and backup files
+*.tmp
+*.bak
+
+# Backup directories created by add_connector.sh
+.connector_backup_*

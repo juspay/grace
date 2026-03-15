@@ -1,3 +1,9 @@
+> **Placeholder Convention Note:** This file uses `{{CONNECTOR_NAME}}` for PascalCase and
+> `{{connector_name}}` / `{{CONNECTOR_NAME_LOWER}}` for snake_case/lowercase. These are
+> conceptual placeholders for use in guide context. The actual `.template` files
+> (e.g., `connector.rs.template`) use the more explicit `{{CONNECTOR_NAME_PASCAL}}` and
+> `{{CONNECTOR_NAME_SNAKE}}` conventions. Both refer to the same values.
+
 # Grace UCS Macro-Based Code Generation Templates
 
 This file contains templates for generating UCS connector code using the macro-based pattern.
@@ -156,10 +162,10 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize> Conn
         auth_type: &ConnectorSpecificConfig,
     ) -> CustomResult<Vec<(String, Maskable<String>)>, errors::ConnectorError> {
         let auth = {{connector_name}}::{{CONNECTOR_NAME}}AuthType::try_from(auth_type)
-            .map_err(|_| errors::ConnectorError::FailedToObtainAuthType)?;
+            .change_context(errors::ConnectorError::FailedToObtainAuthType)?;
         Ok(vec![(
             headers::AUTHORIZATION.to_string(),
-            format!("Bearer {}", auth.api_key.peek()).into_masked(),
+            format!("Bearer {}", auth.api_key.expose()).into(),  // Use .expose() to access Secret values
         )])
     }
 
@@ -175,17 +181,17 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize> Conn
         let response: {{connector_name}}::{{CONNECTOR_NAME}}ErrorResponse = res
             .response
             .parse_struct("ErrorResponse")
-            .map_err(|_| errors::ConnectorError::ResponseDeserializationFailed)?;
+            .change_context(errors::ConnectorError::ResponseDeserializationFailed)?;
 
         with_error_response_body!(event_builder, response);
 
         Ok(ErrorResponse {
             status_code: res.status_code,
-            code: response.error_code.clone(),
-            message: response.message.clone(),
-            reason: Some(response.message),
+            code: response.code.unwrap_or_default(),
+            message: response.message.clone().unwrap_or_default(),
+            reason: response.message,
             attempt_status: None,
-            connector_transaction_id: response.transaction_id,
+            connector_transaction_id: None,
             network_decline_code: None,
             network_advice_code: None,
             network_error_message: None,
@@ -296,7 +302,7 @@ FLOW_REQUEST_DATA: PaymentsAuthorizeData<T>
 FLOW_RESPONSE_DATA: PaymentsResponseData
 HTTP_METHOD: Post
 CONTENT_TYPE: Json
-REQUEST_TYPE: {{CONNECTOR_NAME}}PaymentRequest<T>
+REQUEST_TYPE: {{CONNECTOR_NAME}}AuthorizeRequest
 RESPONSE_TYPE: {{CONNECTOR_NAME}}PaymentResponse
 URL_CONSTRUCTION: Ok(format!("{}/v1/payments", self.connector_base_url_payments(req)))
 ```
@@ -430,7 +436,7 @@ macros::create_all_prerequisites!(
     api: [
         (
             flow: Authorize,
-            request_body: ExamplePayPaymentRequest<T>,
+            request_body: ExamplePayAuthorizeRequest,
             response_body: ExamplePayPaymentResponse,
             router_data: RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>,
         ),
@@ -482,10 +488,15 @@ macros::create_all_prerequisites!(
 
 // ... ConnectorCommon implementation ...
 
+// NOTE: This example only shows 3 flows (Authorize, Capture, Refund).
+// A complete connector MUST also generate PSync and RSync flow implementations
+// for payment status synchronization and refund status synchronization respectively.
+// See the "PSync Flow" and "RSync Flow" sections above for their configuration.
+
 macros::macro_connector_implementation!(
     connector_default_implementations: [get_content_type, get_error_response_v2],
     connector: ExamplePay,
-    curl_request: Json(ExamplePayPaymentRequest),
+    curl_request: Json(ExamplePayAuthorizeRequest),
     curl_response: ExamplePayPaymentResponse,
     flow_name: Authorize,
     resource_common_data: PaymentFlowData,
@@ -583,3 +594,5 @@ After generating code, validate:
 - [ ] Trait implementations added for all flows
 - [ ] `ConnectorCommon` implementation complete
 - [ ] Error response parsing implemented
+- [ ] Marker trait implementations present for all ConnectorServiceTrait supertraits
+- [ ] Empty ConnectorIntegrationV2 impls for unsupported flows

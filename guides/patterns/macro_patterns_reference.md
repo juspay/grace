@@ -1,3 +1,8 @@
+> **Placeholder Convention Note:** This reference uses `{{ConnectorName}}` (PascalCase),
+> `{{connector_name}}` (snake_case), and `{{connector_name_lower}}` (lowercase) as conceptual
+> placeholders. The actual `.template` files use `{{CONNECTOR_NAME_PASCAL}}` and
+> `{{CONNECTOR_NAME_SNAKE}}`. All conventions refer to the same substitution values.
+
 # UCS Macro-Based Implementation Pattern Reference
 
 ## Overview
@@ -175,7 +180,9 @@ macros::macro_connector_implementation!(
 - `Json(Type)` - For JSON requests
 - `FormData(Type)` - For multipart form data
 - `FormUrlEncoded(Type)` - For URL-encoded forms
-- `RawData(Type)` - For raw data
+- `SoapXml(Type)` - For SOAP XML requests
+- `Xml(Type)` - For XML requests
+- `Dynamic(Type)` - For dynamic content type selection
 
 **Example (With Request Body):**
 ```rust
@@ -203,7 +210,10 @@ macros::macro_connector_implementation!(
             &self,
             req: &RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>,
         ) -> CustomResult<String, errors::ConnectorError> {
-            Ok(format!("{}/v1/payment_intents", self.connector_base_url(req)))
+            Ok(format!("{}/v1/payment_intents", self.connector_base_url_payments(req)))
+            // NOTE: Use the flow-specific method:
+            // connector_base_url_payments(req) — for payment flows
+            // connector_base_url_refunds(req) — for refund flows
         }
     }
 );
@@ -235,7 +245,10 @@ macros::macro_connector_implementation!(
             req: &RouterDataV2<PSync, PaymentFlowData, PaymentsSyncData, PaymentsResponseData>,
         ) -> CustomResult<String, errors::ConnectorError> {
             let id = req.request.connector_transaction_id.clone();
-            Ok(format!("{}/v1/payment_intents/{}", self.connector_base_url(req), id))
+            Ok(format!("{}/v1/payment_intents/{}", self.connector_base_url_payments(req), id))
+            // NOTE: Use the flow-specific method:
+            // connector_base_url_payments(req) — for payment flows
+            // connector_base_url_refunds(req) — for refund flows
         }
     }
 );
@@ -244,7 +257,7 @@ macros::macro_connector_implementation!(
 ## Flow-Specific Data Types
 
 ### Resource Common Data Types
-- **PaymentFlowData** - Used for: Authorize, PSync, Capture, Void, VoidPC, SetupMandate
+- **PaymentFlowData** - Used for: Authorize, PSync, Capture, Void, VoidPC, SetupMandate, RepeatPayment, PaymentMethodToken, CreateConnectorCustomer, IncrementalAuthorization, CreateOrder, CreateSessionToken, MandateRevoke, Dsync, CreateAccessToken
 - **RefundFlowData** - Used for: Refund, RSync
 - **DisputeFlowData** - Used for: Accept, SubmitEvidence, DefendDispute
 
@@ -257,6 +270,15 @@ macros::macro_connector_implementation!(
 - **RefundsData** - For Refund flow
 - **RefundSyncData** - For RSync flow
 - **SetupMandateRequestData\<T\>** - For SetupMandate flow
+- **RepeatPaymentData\<T\>** - For RepeatPayment flow
+- **PaymentMethodTokenizationData\<T\>** - For PaymentMethodToken flow
+- **CreateConnectorCustomerData** - For CreateConnectorCustomer flow
+- **PaymentsIncrementalAuthorizationData** - For IncrementalAuthorization flow
+- **PaymentOrderCreateData** - For CreateOrder flow
+- **PaymentSessionTokenData** - For CreateSessionToken flow
+- **MandateRevokeRequestData** - For MandateRevoke flow
+- **PaymentsSyncData** - For Dsync flow
+- **AccessTokenRequestData** - For CreateAccessToken flow
 - **AcceptDisputeData** - For Accept flow
 - **SubmitEvidenceData** - For SubmitEvidence flow
 - **DisputeDefendData** - For DefendDispute flow
@@ -421,7 +443,7 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize> Conn
         auth_type: &ConnectorSpecificConfig,
     ) -> CustomResult<Vec<(String, Maskable<String>)>, errors::ConnectorError> {
         let auth = {{connector_name_lower}}::{{ConnectorName}}AuthType::try_from(auth_type)
-            .map_err(|_| errors::ConnectorError::FailedToObtainAuthType)?;
+            .change_context(errors::ConnectorError::FailedToObtainAuthType)?;
         Ok(vec![(
             headers::AUTHORIZATION.to_string(),
             format!("Bearer {}", auth.api_key.peek()).into_masked(),
@@ -440,7 +462,7 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize> Conn
         let response: {{connector_name_lower}}::{{ConnectorName}}ErrorResponse = res
             .response
             .parse_struct("ErrorResponse")
-            .map_err(|_| errors::ConnectorError::ResponseDeserializationFailed)?;
+            .change_context(errors::ConnectorError::ResponseDeserializationFailed)?;
 
         with_error_response_body!(event_builder, response);
 
@@ -482,7 +504,10 @@ macros::macro_connector_implementation!(
             &self,
             req: &RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>,
         ) -> CustomResult<String, errors::ConnectorError> {
-            Ok(format!("{}/v1/payments", self.connector_base_url(req)))
+            Ok(format!("{}/v1/payments", self.connector_base_url_payments(req)))
+            // NOTE: Use the flow-specific method:
+            // connector_base_url_payments(req) — for payment flows
+            // connector_base_url_refunds(req) — for refund flows
         }
     }
 );

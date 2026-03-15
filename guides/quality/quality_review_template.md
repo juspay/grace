@@ -17,7 +17,7 @@
 
 ```
 Quality Score Calculation:
-= 100 - (Critical Issues × 20) - (Warning Issues × 5) - (Suggestion Issues × 1)
+= 100 - (Critical Issues × 20) - (Warning Issues × 5) - (min(Suggestion Issues, 10) × 0.5)
 
 Thresholds:
 - 95-100: Excellent ✨ - Auto-pass
@@ -37,7 +37,7 @@ Thresholds:
 |----------|-------|-----------------|
 | 🚨 Critical | [N] | -[N × 20] |
 | ⚠️ Warning | [N] | -[N × 5] |
-| 💡 Suggestion | [N] | -[N × 1] |
+| 💡 Suggestion | [N] | -[min(N, 10) × 0.5] |
 
 ---
 
@@ -45,7 +45,7 @@ Thresholds:
 
 #### CRITICAL-[N]: [Issue Title]
 
-**Feedback ID:** FB-XXX (if exists in database)
+**Feedback ID:** [Semantic ID, e.g., UCS-XXX, ANTI-XXX, SEC-XXX] (if exists in feedback.md)
 **Category:** UCS_PATTERN_VIOLATION | RUST_BEST_PRACTICE | SECURITY | etc.
 **Location:** `file_path:line_number`
 
@@ -71,7 +71,7 @@ Thresholds:
 
 **References:**
 - See: guides/patterns/pattern_[flow].md
-- See: feedback.md#FB-XXX
+- See: feedback.md (reference by semantic ID)
 - Related: [Other feedback entries]
 
 **Auto-Fix Available:** Yes | No
@@ -83,7 +83,7 @@ Thresholds:
 
 #### WARNING-[N]: [Issue Title]
 
-**Feedback ID:** FB-XXX (if exists in database)
+**Feedback ID:** [Semantic ID, e.g., UCS-XXX, ANTI-XXX, SEC-XXX] (if exists in feedback.md)
 **Category:** CODE_QUALITY | CONNECTOR_PATTERN | PERFORMANCE | etc.
 **Location:** `file_path:line_number`
 
@@ -197,8 +197,8 @@ Thresholds:
 ### 📝 Knowledge Base Updates
 
 **New Patterns Identified:**
-- [ ] Add to feedback.md: [Pattern description]
-- [ ] Update frequency for: FB-XXX
+- [ ] Add to feedback.md with semantic ID (e.g., UCS-XXX, ANTI-XXX): [Pattern description]
+- [ ] Update frequency for: [PREFIX]-XXX (e.g., UCS-XXX, ANTI-XXX)
 
 **Lessons Learned:**
 [Any new insights from this review]
@@ -265,7 +265,7 @@ warning_count = [count warning issues]
 suggestion_count = [count suggestion issues]
 
 # Calculate score
-quality_score = 100 - (critical_count × 20) - (warning_count × 5) - (suggestion_count × 1)
+quality_score = 100 - (critical_count × 20) - (warning_count × 5) - (min(suggestion_count, 10) × 0.5)
 
 # Determine status
 if quality_score < 60:
@@ -292,7 +292,7 @@ if new_pattern_discovered:
     Add new feedback entry to feedback.md
 
 if existing_pattern_observed:
-    Increment frequency count for FB-XXX
+    Increment frequency count for relevant semantic ID (e.g., UCS-XXX, ANTI-XXX)
 ```
 
 ### 6. Decision Making
@@ -387,8 +387,8 @@ if status == "PASS":
 |----------|--------------|---------------|--------------|
 | Critical | -20 points   | 2 issues      | -40 points   |
 | Warning  | -5 points    | 3 issues      | -15 points   |
-| Suggestion | -1 point   | 5 issues      | -5 points    |
-| **Total** | **-60 points** | **10 issues** | **Score: 40** |
+| Suggestion | -0.5 per issue (max 10 counted) | 5 issues      | -2.5 points  |
+| **Total** | **-57.5 points** | **10 issues** | **Score: 42.5** |
 
 ## Example Quality Reports
 
@@ -504,7 +504,7 @@ Excellent implementation! Proceed to PSync flow.
 
 #### CRITICAL-1: Using RouterData Instead of RouterDataV2
 
-**Feedback ID:** FB-001
+**Feedback ID:** UCS-001
 **Category:** UCS_PATTERN_VIOLATION
 **Location:** `example_connector.rs:25`
 

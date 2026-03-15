@@ -79,7 +79,7 @@ Crypto payments allow customers to pay for goods and services using cryptocurren
 ### Domain Type Definition
 
 ```rust
-// File: backend/domain_types/src/payment_method_data.rs
+// File: connector-service/backend/domain_types/src/payment_method_data.rs
 
 #[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -432,6 +432,8 @@ impl From<CryptoPaymentStatus> for common_enums::AttemptStatus {
 
             // Requires manual intervention or special handling
             CryptoPaymentStatus::Unresolved | CryptoPaymentStatus::Refunded => {
+                // TODO: Verify AttemptStatus::Unresolved exists in your codebase.
+                // If not, map to AttemptStatus::Pending or return an error.
                 Self::Unresolved
             }
         }
@@ -589,6 +591,9 @@ pub struct CryptoErrorResponse {
 fn build_error_response(
     &self,
     res: Response,
+    // NOTE: Use the correct event type for your codebase version.
+    // It may be ConnectorEvent, events::Event, or api_events::ConnectorEvent.
+    // Check imports in existing connector implementations.
     event_builder: Option<&mut events::Event>,
 ) -> CustomResult<ErrorResponse, errors::ConnectorError> {
     let response: CryptoErrorResponse = res
@@ -617,7 +622,7 @@ fn build_error_response(
 ### Complete Connector Implementation
 
 ```rust
-// File: backend/connector-integration/src/connectors/cryptopay.rs
+// File: connector-service/backend/connector-integration/src/connectors/cryptopay.rs
 
 pub mod transformers;
 
@@ -675,6 +680,9 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize> Conn
     }
 
     fn get_currency_unit(&self) -> CurrencyUnit {
+        // TODO: Verify CurrencyUnit::Base exists.
+        // Common variants: CurrencyUnit::Minor, CurrencyUnit::Base (Major)
+        // If Base doesn't exist, use the appropriate variant for your connector.
         CurrencyUnit::Base  // StringMajorUnit
     }
 
@@ -701,6 +709,9 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize> Conn
     fn build_error_response(
         &self,
         res: Response,
+        // NOTE: Use the correct event type for your codebase version.
+        // It may be ConnectorEvent, events::Event, or api_events::ConnectorEvent.
+        // Check imports in existing connector implementations.
         event_builder: Option<&mut events::Event>,
     ) -> CustomResult<ErrorResponse, errors::ConnectorError> {
         // Error handling implementation
@@ -1068,15 +1079,15 @@ mod integration_tests {
 
 ### Related Patterns
 
-- [pattern_authorize.md](./pattern_authorize.md) - Generic authorize flow patterns
-- [pattern_authorize_wallet.md](./pattern_authorize_wallet.md) - Wallet payment patterns (similar redirect flow)
-- [pattern_psync.md](./pattern_psync.md) - Payment sync patterns
-- [pattern_IncomingWebhook_flow.md](./pattern_IncomingWebhook_flow.md) - Webhook handling patterns
+- [pattern_authorize.md](../../pattern_authorize.md) - Generic authorize flow patterns
+- [pattern_authorize_wallet.md](../wallet/pattern_authorize_wallet.md) - Wallet payment patterns (similar redirect flow)
+- [pattern_psync.md](../../pattern_psync.md) - Payment sync patterns
+- [pattern_IncomingWebhook_flow.md](../../pattern_IncomingWebhook_flow.md) - Webhook handling patterns
 
 ### Cryptopay Reference Implementation
 
-- **Main File**: `backend/connector-integration/src/connectors/cryptopay.rs`
-- **Transformers**: `backend/connector-integration/src/connectors/cryptopay/transformers.rs`
+- **Main File**: `connector-service/backend/connector-integration/src/connectors/cryptopay.rs`
+- **Transformers**: `connector-service/backend/connector-integration/src/connectors/cryptopay/transformers.rs`
 - **Amount Converter**: Uses `StringMajorUnit` via `CryptopayAmountConvertor`
 - **Auth**: HMAC-SHA1 signature with API key and secret
 - **Endpoints**:

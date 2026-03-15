@@ -212,13 +212,25 @@ fn handle_response(
         _ => AttemptStatus::Pending,
     };
 
-    RouterDataV2 {
-        response: Ok(PaymentsResponseData {
-            status: Some(status),
-            connector_transaction_id: Some(response.id),
+    // FIXED: PaymentsResponseData is an enum — use TransactionResponse variant.
+    // FIXED: Wrap in Ok(...) since handle_response returns CustomResult.
+    Ok(RouterDataV2 {
+        response: Ok(PaymentsResponseData::TransactionResponse {
+            resource_id: ResponseId::ConnectorTransactionId(response.id),
+            redirection_data: None,
+            mandate_reference: None,
+            connector_metadata: None,
+            network_txn_id: None,
+            connector_response_reference_id: None,
+            incremental_authorization_allowed: None,
+            status_code: res.status_code,
         }),
+        resource_common_data: PaymentFlowData {
+            status,
+            ..data.resource_common_data.clone()
+        },
         ..data.clone()
-    }
+    })
 }
 ```
 
@@ -273,17 +285,18 @@ fn validate_incremental_auth_request(
 ) -> CustomResult<(), ConnectorError> {
     // Check amount is positive
     if data.minor_amount <= MinorUnit::zero() {
-        return Err(ConnectorError::InvalidRequestBody)?;
+        return Err(ConnectorError::InvalidRequestBody);
     }
 
     // Check connector_transaction_id exists
-    if data.connector_transaction_id.is_none() {
-        return Err(ConnectorError::MissingConnectorTransactionID)?;
+    // FIXED: ResponseId is an enum, not Option. Use pattern matching:
+    if matches!(data.connector_transaction_id, ResponseId::NoResponseId) {
+        return Err(ConnectorError::MissingConnectorTransactionID);
     }
 
     // Check payment state
     if original_payment.status != AttemptStatus::Authorized {
-        return Err(ConnectorError::PaymentNotAuthorized)?;
+        return Err(ConnectorError::PaymentNotAuthorized);
     }
 
     // Check amount limit (115% rule)
@@ -294,7 +307,7 @@ fn validate_incremental_auth_request(
     let new_total = original_payment.authorized_amount + data.minor_amount;
 
     if new_total > max_allowed {
-        return Err(ConnectorError::AmountTooLarge)?;
+        return Err(ConnectorError::AmountTooLarge);
     }
 
     Ok(())

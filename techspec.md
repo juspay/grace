@@ -78,6 +78,8 @@ The generated tech spec must follow this structure:
 | Feature | Supported | Implementation Notes |
 |---------|-----------|---------------------|
 | Card Payments | Y/N | All networks: Visa, MC, Amex |
+
+> **Note**: Use Y/N notation in generated tech specs for unambiguous plain-text compatibility.
 | Apple Pay | Y/N | Encrypted payment data |
 | Google Pay | Y/N | Token-based payments |
 | Bank Transfers | Y/N | ACH, SEPA, local methods |
@@ -229,8 +231,8 @@ Below is a trimmed example of what a generated tech spec looks like, based on th
 
 ### 1.2 UCS Authentication Method
 - **Type**: HTTP Basic Authentication
-- **Username**: API User ID (e.g., USsRhsHYZGBPnQw8CByJyEQW)
-- **Password**: Secret Key (e.g., 8a14c2f9-d94b-4c72-8f5c-a62908e5b30e)
+- **Username**: API User ID (e.g., US_EXAMPLE_USER_ID_12345)
+- **Password**: Secret Key (e.g., 00000000-0000-0000-0000-000000000000)
 - **Required Headers**: Content-Type: application/json, Finix-Version: 2022-02-01
 
 ## 2. UCS API Endpoints
@@ -251,8 +253,8 @@ Below is a trimmed example of what a generated tech spec looks like, based on th
 {
   "amount": 100,
   "currency": "USD",
-  "merchant": "MUsVtN9pH65nGw61H7Nv8Apo",
-  "source": "PIkxmtueemLD6dN9ZoWGHT44",
+  "merchant": "MU_EXAMPLE_MERCHANT_ID",
+  "source": "PI_EXAMPLE_INSTRUMENT_ID",
   "tags": { "order_number": "21DFASJSAKAS" }
 }
 

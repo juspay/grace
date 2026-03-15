@@ -125,7 +125,19 @@ pub enum PaymentMethodDetails {
     Bancontact,
     #[serde(rename = "p24")]
     Przelewy24 { bank: String },
+    // M-16: Add missing variants present in BankRedirectData
+    #[serde(rename = "blik")]
+    Blik { code: String },
+    #[serde(rename = "interac")]
+    Interac { email: Email },
 }
+
+// TODO(M-15): Define ConnectorRouterData wrapper — it is used but never defined in this pattern.
+// Typical definition:
+// pub struct ConnectorRouterData<T, U> {
+//     pub connector: &ConnectorName<U>,
+//     pub router_data: T,
+// }
 
 impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
     TryFrom<
@@ -191,7 +203,7 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
             },
             currency: item.router_data.request.currency,
             payment_method,
-            return_url: item.router_data.request.router_return_url.clone(),
+            return_url: item.router_data.request.router_return_url.clone(), // TODO(H-10): router_return_url is Option<String>, should handle None case
             description: Some(format!(
                 "Payment for order {}",
                 item.router_data.resource_common_data.connector_request_reference_id
@@ -943,34 +955,9 @@ let communication = CommunicationDetails {
 
 **Problem**: Bank redirect statuses are complex and can have multiple intermediate states.
 
-**Solution**: Create a comprehensive status mapping function:
+**Solution**: Use the `get_attempt_status` function defined in the [Async Status Mapping section](#pattern-2-async-status-mapping) above (H-11: not duplicated here).
 ```rust
-fn get_attempt_status(item: BankRedirectPaymentStatus) -> AttemptStatus {
-    match item {
-        BankRedirectPaymentStatus::Received | BankRedirectPaymentStatus::Settled => {
-            AttemptStatus::Charged
-        }
-        BankRedirectPaymentStatus::Completed
-        | BankRedirectPaymentStatus::DelayedAtBank
-        | BankRedirectPaymentStatus::AuthorisedByUser
-        | BankRedirectPaymentStatus::ApprovedByRisk => AttemptStatus::Pending,
-        BankRedirectPaymentStatus::NewPayment
-        | BankRedirectPaymentStatus::BankRedirect
-        | BankRedirectPaymentStatus::AwaitingCheckoutAuthorisation
-        | BankRedirectPaymentStatus::AdditionalAuthorizationRequired => {
-            AttemptStatus::AuthenticationPending
-        }
-        BankRedirectPaymentStatus::RefusedByBank
-        | BankRedirectPaymentStatus::RefusedByRisk
-        | BankRedirectPaymentStatus::NotReceived
-        | BankRedirectPaymentStatus::ErrorAtBank
-        | BankRedirectPaymentStatus::CancelledByUser
-        | BankRedirectPaymentStatus::AbandonedByUser
-        | BankRedirectPaymentStatus::Failed
-        | BankRedirectPaymentStatus::ProviderCommunicationError => AttemptStatus::Failure,
-        BankRedirectPaymentStatus::Unknown => AttemptStatus::Unspecified,
-    }
-}
+// See get_attempt_status() in the Async Status Mapping section above — same function.
 ```
 
 ## Testing Patterns
@@ -1058,9 +1045,9 @@ When implementing a new connector with Bank Redirect support:
 
 ## Cross-References
 
-- [pattern_authorize.md](./pattern_authorize.md) - General authorize flow patterns
-- [pattern_webhooks.md](./pattern_webhooks.md) - Webhook handling patterns
-- [pattern_psync.md](./pattern_psync.md) - Payment sync patterns for async payments
+- [pattern_authorize.md](../../pattern_authorize.md) - General authorize flow patterns
+- [pattern_IncomingWebhook_flow.md](../../pattern_IncomingWebhook_flow.md) - Webhook handling patterns
+- [pattern_psync.md](../../pattern_psync.md) - Payment sync patterns for async payments
 
 ---
 

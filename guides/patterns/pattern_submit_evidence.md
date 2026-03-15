@@ -856,6 +856,10 @@ mod tests {
             invoice_showing_distinct_transactions: None,
             invoice_showing_distinct_transactions_file_type: None,
             invoice_showing_distinct_transactions_provider_file_id: None,
+            // TODO: Additional fields that may be required:
+            // - recurring_transaction_agreement: Option<String>
+            // - uncategorized_file: Option<Vec<u8>>
+            // Verify complete field list against your codebase version.
         };
 
         // Return RouterDataV2 with test data

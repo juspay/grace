@@ -4,6 +4,11 @@
 
 This document provides comprehensive patterns for implementing the authorize flow for **Reward** payment methods in Grace-UCS connectors. Reward payments include cash-based payment methods like Classic Reward and Evoucher, which typically require customer redirection to complete the payment.
 
+> **Scope Note:** This "Reward" category covers cash-to-code voucher payment systems
+> (e.g., CashToCode, Evoucher), NOT loyalty points or rewards programs.
+> For loyalty/points redemption, check if the connector provides a custom API endpoint
+> and implement as a custom payment method type.
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -39,7 +44,7 @@ Reward is a payment method category in Grace-UCS that represents cash-based or p
 
 ## Reward Payment Method Variants
 
-From `backend/domain_types/src/payment_method_data.rs`:
+From `connector-service/backend/domain_types/src/payment_method_data.rs`:
 
 ```rust
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
@@ -50,7 +55,7 @@ pub enum PaymentMethodData<T: PaymentMethodDataTypes> {
 }
 ```
 
-From `backend/common_enums/src/enums.rs`:
+From `connector-service/backend/common_enums/src/enums.rs`:
 
 ```rust
 #[derive(...)]
@@ -139,7 +144,7 @@ The following connectors have Reward listed in their match arms but return `NotI
 
 ### CashToCode Implementation (Reference Implementation)
 
-**File**: `backend/connector-integration/src/connectors/cashtocode/transformers.rs`
+**File**: `connector-service/backend/connector-integration/src/connectors/cashtocode/transformers.rs`
 
 #### 1. Request Structure
 
@@ -450,6 +455,8 @@ mod tests {
         let router_data = create_test_router_data(
             common_enums::PaymentMethodType::ClassicReward
         );
+        // TODO: Test should pass the wrapper struct, not &router_data directly.
+        // Use {ConnectorName}RouterData::from(router_data) or the appropriate wrapper.
         let connector_req = CashtocodePaymentsRequest::try_from(&router_data);
         assert!(connector_req.is_ok());
     }
@@ -460,6 +467,8 @@ mod tests {
         let router_data = create_test_router_data(
             common_enums::PaymentMethodType::Evoucher
         );
+        // TODO: Test should pass the wrapper struct, not &router_data directly.
+        // Use {ConnectorName}RouterData::from(router_data) or the appropriate wrapper.
         let connector_req = CashtocodePaymentsRequest::try_from(&router_data);
         assert!(connector_req.is_ok());
     }
@@ -506,6 +515,10 @@ mod tests {
 ### Integration Test Pattern
 
 ```rust
+// WARNING: These test method signatures may not match ConnectorIntegrationV2.
+// Verify against the actual trait definition in your codebase.
+// See test.rs.template for the correct test structure.
+
 #[cfg(test)]
 mod integration_tests {
     use super::*;
@@ -656,9 +669,9 @@ RedirectForm::from((response_data.pay_url, Method::Get))
 
 ## Cross-References
 
-- [pattern_authorize.md](./pattern_authorize.md) - Generic authorize flow patterns
-- [utility_functions_reference.md](./utility_functions_reference.md) - Common utility functions
-- Connector-specific implementations in `backend/connector-integration/src/connectors/`
+- [pattern_authorize.md](../../pattern_authorize.md) - Generic authorize flow patterns
+- [utility_functions_reference.md](../../../utility_functions_reference.md) - Common utility functions
+- Connector-specific implementations in `connector-service/backend/connector-integration/src/connectors/`
 
 ---
 

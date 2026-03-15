@@ -96,7 +96,7 @@ Bank Transfer is a payment method where customers transfer funds directly from t
 ### Rust Enum Definition
 
 ```rust
-// From backend/domain_types/src/payment_method_data.rs
+// From connector-service/backend/domain_types/src/payment_method_data.rs
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BankTransferData {
     AchBankTransfer,
@@ -110,9 +110,14 @@ pub enum BankTransferData {
     CimbVaBankTransfer,
     DanamonVaBankTransfer,
     MandiriVaBankTransfer,
-    Pix { pix_key: Option<String>, pix_key_type: Option<String> },
+    // TODO(C-10): Verify IndonesianBankTransfer variant exists in actual source; add if present
+    // IndonesianBankTransfer { ... },
+    Pix {
+        pix_key: Option<Secret<String>>,
+        // TODO(C-11): Verify additional Pix fields (e.g. cpf, cnpj) from actual source
+    },
     Pse,
-    LocalBankTransfer { bank_name: Option<String> },
+    LocalBankTransfer { bank_code: Option<String> },
     InstantBankTransfer,
     InstantBankTransferFinland,
     InstantBankTransferPoland,
@@ -135,7 +140,7 @@ pub enum BankTransferData {
 #### Adyen Bank Transfer Request (Indonesian VA)
 
 ```rust
-// From backend/connector-integration/src/connectors/adyen/transformers.rs:1580-1618
+// From connector-service/backend/connector-integration/src/connectors/adyen/transformers.rs:1580-1618
 
 impl<T: PaymentMethodDataTypes + std::fmt::Debug + Sync + Send + 'static + Serialize>
     TryFrom<(
@@ -236,7 +241,7 @@ pub struct DokuBankData {
 #### Stripe Bank Transfer Request
 
 ```rust
-// From backend/connector-integration/src/connectors/stripe/transformers.rs:1354-1430
+// From connector-service/backend/connector-integration/src/connectors/stripe/transformers.rs:1354-1430
 
 PaymentMethodData::BankTransfer(bank_transfer_data) => match bank_transfer_data.deref() {
     payment_method_data::BankTransferData::AchBankTransfer {} => Ok((
@@ -324,7 +329,7 @@ confirm=true
 #### Trustpay Multi-Method Pattern
 
 ```rust
-// From backend/connector-integration/src/connectors/trustpay/transformers.rs:1447-1473
+// From connector-service/backend/connector-integration/src/connectors/trustpay/transformers.rs:1447-1473
 
 match item.router_data.request.payment_method_data {
     PaymentMethodData::Card(ref ccard) => Ok(get_card_request_data(
@@ -376,7 +381,7 @@ Rare for Bank Transfer - most implementations require async confirmation via web
 4. Webhook confirms payment completion
 
 ```rust
-// From backend/connector-integration/src/connectors/stripe/transformers.rs:2804-2895
+// From connector-service/backend/connector-integration/src/connectors/stripe/transformers.rs:2804-2895
 
 fn get_next_action_response(
     next_action_response: Option<StripeNextActionResponse>,
@@ -526,7 +531,7 @@ impl_api_integration! {
     response_format: Json,
 }
 
-impl ConnectorIntegration<Authorize, PaymentFlowData, PaymentsAuthorizeData, PaymentsResponseData>
+impl ConnectorIntegrationV2<Authorize, PaymentFlowData, PaymentsAuthorizeData, PaymentsResponseData>
     for MyConnector
 {
     fn get_url(
@@ -553,7 +558,7 @@ impl ConnectorIntegration<Authorize, PaymentFlowData, PaymentsAuthorizeData, Pay
         Ok(RequestContent::Json(Box::new(connector_req)))
     }
 
-    fn handle_response(
+    fn handle_response_v2(
         &self,
         data: &RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData, PaymentsResponseData>,
         event_builder: Option<&mut ConnectorEvent>,
@@ -567,7 +572,7 @@ impl ConnectorIntegration<Authorize, PaymentFlowData, PaymentsAuthorizeData, Pay
         event_builder.map(|i| i.set_response_body(&response));
         RouterDataV2::try_from(ResponseRouterData {
             response,
-            data: data.clone(),
+            router_data: data.clone(),
             http_code: res.status_code,
         })
     }
@@ -579,7 +584,7 @@ impl ConnectorIntegration<Authorize, PaymentFlowData, PaymentsAuthorizeData, Pay
 For connectors requiring custom handling:
 
 ```rust
-impl ConnectorIntegration<Authorize, PaymentFlowData, PaymentsAuthorizeData, PaymentsResponseData>
+impl ConnectorIntegrationV2<Authorize, PaymentFlowData, PaymentsAuthorizeData, PaymentsResponseData>
     for MyConnector
 {
     fn get_headers(
@@ -661,7 +666,7 @@ impl ConnectorIntegration<Authorize, PaymentFlowData, PaymentsAuthorizeData, Pay
         ))
     }
 
-    fn handle_response(
+    fn handle_response_v2(
         &self,
         data: &RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData, PaymentsResponseData>,
         event_builder: Option<&mut ConnectorEvent>,
@@ -676,7 +681,7 @@ impl ConnectorIntegration<Authorize, PaymentFlowData, PaymentsAuthorizeData, Pay
 
         RouterDataV2::try_from(ResponseRouterData {
             response,
-            data: data.clone(),
+            router_data: data.clone(),
             http_code: res.status_code,
         })
     }
@@ -846,7 +851,7 @@ match event.event_type {
 ### Psync Implementation for Bank Transfer
 
 ```rust
-impl ConnectorIntegration<PSync, PaymentFlowData, PaymentsSyncData, PaymentsResponseData>
+impl ConnectorIntegrationV2<PSync, PaymentFlowData, PaymentsSyncData, PaymentsResponseData>
     for MyConnector
 {
     fn get_url(
@@ -878,7 +883,7 @@ impl ConnectorIntegration<PSync, PaymentFlowData, PaymentsSyncData, PaymentsResp
         ))
     }
 
-    fn handle_response(
+    fn handle_response_v2(
         &self,
         data: &RouterDataV2<PSync, PaymentFlowData, PaymentsSyncData, PaymentsResponseData>,
         event_builder: Option<&mut ConnectorEvent>,
@@ -893,7 +898,7 @@ impl ConnectorIntegration<PSync, PaymentFlowData, PaymentsSyncData, PaymentsResp
 
         RouterDataV2::try_from(ResponseRouterData {
             response,
-            data: data.clone(),
+            router_data: data.clone(),
             http_code: res.status_code,
         })
     }
@@ -1140,8 +1145,8 @@ mod tests {
 
 ## Cross-References
 
-- [Pattern: Authorize Flow](pattern_authorize.md) - General authorize flow patterns
-- [Pattern: Webhook Handling](pattern_webhook.md) - Webhook processing patterns
-- [Pattern: Psync Flow](pattern_psync.md) - Status polling patterns
-- [Pattern: Amount Handling](pattern_amount.md) - Amount conversion patterns
-- [Connector Guide](../connector-integration-guide.md) - General connector implementation
+- [Pattern: Authorize Flow](../../pattern_authorize.md) - General authorize flow patterns
+- [Pattern: Webhook Handling](../../pattern_IncomingWebhook_flow.md) - Webhook processing patterns
+- [Pattern: Psync Flow](../../pattern_psync.md) - Status polling patterns
+- <!-- TODO: amount_patterns.md not yet created -->
+- [Connector Guide](../../../connector_integration_guide.md) - General connector implementation

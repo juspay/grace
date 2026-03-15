@@ -561,8 +561,14 @@ impl From<{ConnectorName}CaptureStatus> for common_enums::AttemptStatus {
             {ConnectorName}CaptureStatus::Pending
             | {ConnectorName}CaptureStatus::Processing => Self::Pending,
 
+            // TODO: Cancelled → Voided may be copied from void pattern.
+            // Verify per connector whether a "Cancelled" capture should map to Voided
+            // or to Failure (e.g., if the capture was rejected, not voided).
             {ConnectorName}CaptureStatus::Cancelled => Self::Voided,
-            {ConnectorName}CaptureStatus::PartiallyRefunded => Self::PartialCharged,
+            // IMPORTANT: Do NOT confuse partial refund with partial capture.
+            // PartiallyRefunded → Charged (payment was captured, partial refund applied — payment state is still Charged)
+            // PartialCapture → PartialCharged (only part of the authorized amount was captured)
+            {ConnectorName}CaptureStatus::PartiallyRefunded => Self::Charged,
         }
     }
 }

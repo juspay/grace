@@ -21,6 +21,9 @@ First, review the technical specification:
 <project_rules>
 1. **UCS Architecture**: All plans must use UCS-specific patterns (RouterDataV2, ConnectorIntegrationV2, domain-types)
 2. **gRPC-First**: Focus on gRPC integration, not REST APIs
+
+> **Clarification**: "gRPC-First" means the connector service is accessed internally via gRPC.
+> The connector itself makes outbound REST/HTTP calls to external payment APIs.
 3. **Resumable Planning**: Plans must accommodate continuing from any implementation state
 4. **Complete Coverage**: Address ALL payment methods and flows the connector supports
 5. **Modular Implementation**: Break down into manageable, independent modules
@@ -192,6 +195,10 @@ impl ConnectorCommon for {{ConnectorName}} {
     }
 }
 ```
+
+> **Note**: The code example above is a simplified reference. Current UCS implementations
+> use the macro-based pattern with `MinorUnit` amount conversion. See
+> `template-generation/macro_templates.md` for the current approach.
 
 #### Step 1.2: Authentication Implementation
 **Objective**: Implement connector-specific authentication

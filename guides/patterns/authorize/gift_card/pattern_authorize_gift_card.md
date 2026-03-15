@@ -41,7 +41,7 @@ Gift Card payments are prepaid payment methods where customers use stored value 
 ### Domain Types Definition
 
 ```rust
-// backend/domain_types/src/payment_method_data.rs
+// connector-service/backend/domain_types/src/payment_method_data.rs
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -63,7 +63,7 @@ pub struct GiftCardDetails {
 ### Proto Definition
 
 ```protobuf
-// backend/grpc-api-types/proto/payment_methods.proto
+// connector-service/backend/grpc-api-types/proto/payment_methods.proto
 
 // Givex - Gift card and loyalty program provider
 message Givex {
@@ -303,7 +303,7 @@ impl From<AdyenPaymentStatus> for common_enums::AttemptStatus {
 ### Full Connector Implementation (Adyen Pattern)
 
 ```rust
-// File: backend/connector-integration/src/connectors/{connector_name}.rs
+// File: connector-service/backend/connector-integration/src/connectors/{connector_name}.rs
 
 pub mod transformers;
 
@@ -485,7 +485,7 @@ macros::macro_connector_implementation!(
 ### Transformers Implementation
 
 ```rust
-// File: backend/connector-integration/src/connectors/{connector_name}/transformers.rs
+// File: connector-service/backend/connector-integration/src/connectors/{connector_name}/transformers.rs
 
 use domain_types::{
     payment_method_data::{GiftCardData, GiftCardDetails, PaymentMethodData},
@@ -587,6 +587,10 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + Sync + Send + 'static + Seria
 | Givex | Stripe | N/A | NotImplemented | N/A |
 | PaySafeCard | Stripe | N/A | NotImplemented | N/A |
 
+> **NOTE**: PaySafeCard is typically a redirect-based flow, not synchronous.
+> The customer is redirected to PaySafeCard's portal to enter their PIN.
+> Implement the redirect pattern from `pattern_authorize_bank_redirect.md` for PaySafeCard.
+
 ### Variant-Specific Handling
 
 ```rust
@@ -608,6 +612,22 @@ match gift_card_data {
     }
 }
 ```
+
+### Balance Check Implementation
+
+Some gift card providers require a balance inquiry before authorization:
+
+```rust
+// Pattern: Two-step gift card flow
+// Step 1: Check balance (optional, connector-dependent)
+// Step 2: Authorize payment
+
+// If the connector supports balance checks, implement via CreateSessionToken
+// or a custom pre-authorization step. See pattern_session_token.md for the flow pattern.
+```
+
+> **NOTE**: Balance checks are not part of the standard Authorize flow.
+> They typically use CreateSessionToken or a custom connector endpoint.
 
 ## Common Pitfalls
 
@@ -809,12 +829,12 @@ mod integration_tests {
 
 ## Related Patterns
 
-- [pattern_authorize.md](./pattern_authorize.md) - General authorize flow patterns
-- [pattern_refund.md](./pattern_refund.md) - Refund flow patterns for Gift Card refunds
-- [utility_functions_reference.md](../utility_functions_reference.md) - Common utility functions
+- [pattern_authorize.md](../../pattern_authorize.md) - General authorize flow patterns
+- [pattern_refund.md](../../pattern_refund.md) - Refund flow patterns for Gift Card refunds
+- [utility_functions_reference.md](../../../utility_functions_reference.md) - Common utility functions
 
 ## Cross-References
 
-- [Adyen Connector](/backend/connector-integration/src/connectors/adyen/transformers.rs:1394) - Full Gift Card implementation reference
-- [Payment Method Data](/backend/domain_types/src/payment_method_data.rs:308) - GiftCardData enum definition
-- [Proto Definitions](/backend/grpc-api-types/proto/payment_methods.proto:1220) - Givex and PaySafeCard proto messages
+- [Adyen Connector](/connector-service/backend/connector-integration/src/connectors/adyen/transformers.rs:1394) - Full Gift Card implementation reference
+- [Payment Method Data](/connector-service/backend/domain_types/src/payment_method_data.rs:308) - GiftCardData enum definition
+- [Proto Definitions](/connector-service/backend/grpc-api-types/proto/payment_methods.proto:1220) - Givex and PaySafeCard proto messages

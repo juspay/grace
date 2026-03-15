@@ -1,5 +1,11 @@
 # Dsync Flow Pattern for Connector Implementation
 
+> **WARNING: Framework Support Status**
+> The Dsync (Dispute Sync) flow may not have full framework support in the current codebase version.
+> `DsyncRequestData` and related types should be verified against your codebase before implementation.
+> If these types do not exist, implement dispute sync via the `PSync` flow with dispute-aware status mapping,
+> or implement custom polling via the dispute management endpoints.
+
 **🎯 GENERIC PATTERN FILE FOR ANY NEW CONNECTOR**
 
 This document provides comprehensive, reusable patterns for implementing the Dsync (Dispute Sync) flow in **ANY** payment connector within the UCS (Universal Connector Service) system. These patterns are derived from the dispute flow architecture and can be consumed by AI to generate consistent, production-ready Dsync flow code for any payment gateway.
@@ -114,14 +120,19 @@ The Dsync flow uses these core UCS types:
 #[derive(Debug, Clone)]
 pub struct Dsync;
 
-// From domain_types::connector_types
+// NOTE: Verify DisputeFlowData fields against your codebase version.
+// Key fields typically include:
+// - dispute_id: String
+// - connector_dispute_id: Option<String>
+// - defense_reason_code: Option<String>
+// - dispute_stage: DisputeStage
+// - dispute_status: DisputeStatus
+// Fields like connector_meta_data and test_mode may NOT be on DisputeFlowData.
 pub struct DisputeFlowData {
     pub dispute_id: Option<String>,
     pub connector_dispute_id: String,
     pub connectors: Connectors,
     pub defense_reason_code: Option<String>,
-    pub connector_meta_data: Option<SecretSerdeValue>,
-    pub test_mode: Option<bool>,
 }
 
 // Note: Dsync uses the same data types as other dispute flows
@@ -310,10 +321,12 @@ macros::macro_connector_implementation!(
 );
 
 // Add Source Verification stub for Dsync flow
+// NOTE: SourceVerification trait takes NO type parameters.
+// It is NOT generic over flow, request, or response types.
 use interfaces::verification::SourceVerification;
 
 impl<T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::marker::Send + 'static + Serialize>
-    SourceVerification<Dsync, DisputeFlowData, DsyncRequestData, DisputeResponseData>
+    SourceVerification
     for {ConnectorName}<T>
 {
     // Stub implementation - will be replaced in Phase 10

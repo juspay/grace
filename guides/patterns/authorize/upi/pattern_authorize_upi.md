@@ -43,7 +43,7 @@ UPI (Unified Payments Interface) is India's real-time payment system that enable
 ### Rust Type Definitions
 
 ```rust
-// From backend/domain_types/src/payment_method_data.rs
+// From connector-service/backend/domain_types/src/payment_method_data.rs
 
 #[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -147,7 +147,7 @@ pub enum UpiSource {
 ### Implementation Template
 
 ```rust
-// File: backend/connector-integration/src/connectors/{connector_name}.rs
+// File: connector-service/backend/connector-integration/src/connectors/{connector_name}.rs
 
 pub mod transformers;
 
@@ -336,7 +336,7 @@ macros::macro_connector_implementation!(
 ### Transformers Implementation
 
 ```rust
-// File: backend/connector-integration/src/connectors/{connector_name}/transformers.rs
+// File: connector-service/backend/connector-integration/src/connectors/{connector_name}/transformers.rs
 
 use domain_types::{
     connector_flow::Authorize,
@@ -469,6 +469,9 @@ impl Default for {ConnectorName}ErrorResponse {
 // Request Transformation
 // ============================================================================
 
+// TODO [H-30]: Generic parameter `T` is unused in the struct body. Either add a
+// `_marker: PhantomData<T>` field or remove `T` entirely and make `amount`/`router_data`
+// concrete types. Leaving unused generics causes a compile error in Rust.
 pub struct {ConnectorName}RouterData<T> {
     pub amount: MinorUnit,
     pub router_data: T,
@@ -541,6 +544,7 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + Sync + Send + 'static + Seria
             customer_email: router_data
                 .resource_common_data
                 .get_billing_email()
+                .ok()
                 .map(|e| e.peek().to_string())
                 .unwrap_or_default(),
             customer_contact: router_data
@@ -586,8 +590,8 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + Sync + Send + 'static + Seria
                 },
                 response: Err(ErrorResponse {
                     code: error_code,
-                    message: response.error_description.unwrap_or_default(),
-                    reason: response.error_description.clone(),
+                    message: response.error_description.clone().unwrap_or_default(),
+                    reason: response.error_description,
                     status_code: item.http_code,
                     attempt_status: Some(common_enums::AttemptStatus::Failure),
                     connector_transaction_id: Some(response.id.clone()),
@@ -1119,7 +1123,7 @@ mod tests {
         let router_data = create_test_router_data();
         let response_router_data = ResponseRouterData {
             response,
-            data: router_data,
+            router_data: router_data,
             http_code: 200,
         };
 

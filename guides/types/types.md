@@ -58,7 +58,6 @@ use domain_types::{
     
     // Router data and auth
     router_data::{ConnectorSpecificConfig, ErrorResponse},
-    router_data_v2::RouterDataV2,
     router_response_types::Response,
     
     // Utility types
@@ -93,7 +92,7 @@ use common_utils::{
 };
 
 // Masking utilities
-use hyperswitch_masking::{Mask, Maskable};
+use hyperswitch_masking::{Mask, Maskable, Secret};
 
 // Serialization
 use serde::{Serialize, Deserialize};
@@ -129,6 +128,22 @@ pub struct RouterDataV2<Flow, ResourceCommonData, FlowSpecificRequest, FlowSpeci
 | RSync | `RefundFlowData` | `RefundSyncData` | `RefundsResponseData` |
 | SetupMandate | `PaymentFlowData` | `SetupMandateRequestData<T>` | `PaymentsResponseData` |
 | RepeatPayment | `PaymentFlowData` | `RepeatPaymentData<T>` | `PaymentsResponseData` |
+
+### Additional Flows (add empty impls for unsupported flows)
+
+| Flow | FlowData | RequestData | ResponseData |
+|------|----------|-------------|--------------|
+| VoidPostCapture | PaymentFlowData | PaymentsCancelPostCaptureData<T> | PaymentsResponseData |
+| PaymentMethodToken | PaymentFlowData | PaymentMethodTokenizationData<T> | PaymentsResponseData |
+| IncrementalAuthorization | PaymentFlowData | PaymentsIncrementalAuthorizationData | PaymentsResponseData |
+| CreateOrder | PaymentFlowData | PaymentOrderCreateData | PaymentsResponseData |
+| CreateSessionToken | PaymentFlowData | PaymentSessionTokenData | PaymentsResponseData |
+| MandateRevoke | PaymentFlowData | MandateRevokeRequestData | MandateRevokeResponseData |
+| Accept (Dispute) | DisputeFlowData | AcceptDisputeRequestData | AcceptDisputeResponse |
+| SubmitEvidence | DisputeFlowData | SubmitEvidenceRequestData | SubmitEvidenceResponse |
+| DefendDispute | DisputeFlowData | DefendDisputeRequestData | DefendDisputeResponse |
+
+> NOTE: Verify exact type names against your codebase version as these may change.
 
 ### Full Router Data Type Examples
 

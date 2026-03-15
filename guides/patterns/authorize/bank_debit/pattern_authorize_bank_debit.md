@@ -59,6 +59,11 @@ pub enum BankDebitData {
         iban: Secret<String>,
         bank_account_holder_name: Option<Secret<String>>,
     },
+    // TODO(C-12): Add SepaGuaranteedBankDebit variant — exists in actual code but missing here
+    // SepaGuaranteedBankDebit {
+    //     iban: Secret<String>,
+    //     bank_account_holder_name: Option<Secret<String>>,
+    // },
     BecsBankDebit {
         account_number: Secret<String>,
         bsb_number: Secret<String>,
@@ -113,7 +118,8 @@ pub fn extract_bank_debit_data<T: PaymentMethodDataTypes>(
 ### Account Holder Name Extraction
 
 ```rust
-pub fn get_account_holder_name(
+// TODO(H-20): Add generic `<T: PaymentMethodDataTypes>` to match the function at line ~877
+pub fn get_account_holder_name<T: PaymentMethodDataTypes>(
     bank_debit_data: &BankDebitData,
     router_data: &RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>,
 ) -> Result<Secret<String>, ConnectorError> {
@@ -146,7 +152,7 @@ pub fn get_account_holder_name(
 - Mandate: Required for recurring payments
 
 ```rust
-// File: backend/connector-integration/src/connectors/adyen/transformers.rs
+// File: connector-service/backend/connector-integration/src/connectors/adyen/transformers.rs
 
 impl<T: PaymentMethodDataTypes + std::fmt::Debug + Sync + Send + 'static + Serialize>
     TryFrom<(
@@ -241,7 +247,7 @@ let billing_address = match bank_debit_data {
 - Special: Requires mandate_data for recurring payments
 
 ```rust
-// File: backend/connector-integration/src/connectors/stripe/transformers.rs
+// File: connector-service/backend/connector-integration/src/connectors/stripe/transformers.rs
 
 impl From<&payment_method_data::BankDebitData> for StripePaymentMethodType {
     fn from(bank_debit_data: &payment_method_data::BankDebitData) -> Self {
@@ -313,7 +319,7 @@ fn get_bank_debit_data(
 - Limited: SEPA only
 
 ```rust
-// File: backend/connector-integration/src/connectors/novalnet/transformers.rs
+// File: connector-service/backend/connector-integration/src/connectors/novalnet/transformers.rs
 
 PaymentMethodData::BankDebit(ref bank_debit_data) => {
     let payment_type = NovalNetPaymentTypes::try_from(
@@ -447,7 +453,7 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + Sync + Send + 'static + Seria
 ### Complete Bank Debit Connector Implementation
 
 ```rust
-// File: backend/connector-integration/src/connectors/{connector_name}.rs
+// File: connector-service/backend/connector-integration/src/connectors/{connector_name}.rs
 
 pub mod transformers;
 
@@ -648,7 +654,7 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::mark
 ### Transformers File Template
 
 ```rust
-// File: backend/connector-integration/src/connectors/{connector_name}/transformers.rs
+// File: connector-service/backend/connector-integration/src/connectors/{connector_name}/transformers.rs
 
 use common_utils::{ext_traits::OptionExt, pii, request::Method, types::MinorUnit};
 use domain_types::{
@@ -938,18 +944,21 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::mark
 }
 
 // Router Data Helper
-pub struct ConnectorNameRouterData<T> {
+// H-19: Use 2 generics to match the TryFrom usage at line ~785
+pub struct ConnectorNameRouterData<T, U> {
     pub amount: MinorUnit,
     pub router_data: T,
+    pub _marker: std::marker::PhantomData<U>,
 }
 
-impl<T> TryFrom<(MinorUnit, T)> for ConnectorNameRouterData<T> {
+impl<T, U> TryFrom<(MinorUnit, T)> for ConnectorNameRouterData<T, U> {
     type Error = error_stack::Report<ConnectorError>;
 
     fn try_from((amount, router_data): (MinorUnit, T)) -> Result<Self, Self::Error> {
         Ok(Self {
             amount,
             router_data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1264,13 +1273,13 @@ async fn test_bank_debit_mandate_creation() {
 
 ## Cross-References
 
-- [Pattern Authorize General](pattern_authorize.md) - Generic authorize flow patterns
-- [Amount Patterns](../amount_patterns.md) - Amount conversion patterns
-- [Auth Patterns](../auth_patterns.md) - Authentication patterns
-- [Utility Functions Reference](../utility_functions_reference.md) - Common helper functions
+- [Pattern Authorize General](../../pattern_authorize.md) - Generic authorize flow patterns
+- <!-- TODO: amount_patterns.md not yet created -->
+- <!-- TODO: auth_patterns.md not yet created -->
+- [Utility Functions Reference](../../../utility_functions_reference.md) - Common helper functions
 
 ## Connector-Specific References
 
-- **Adyen**: `backend/connector-integration/src/connectors/adyen/transformers.rs:1654-1696`
-- **Stripe**: `backend/connector-integration/src/connectors/stripe/transformers.rs:1204-1260`
-- **Novalnet**: `backend/connector-integration/src/connectors/novalnet/transformers.rs:467-527`
+- **Adyen**: `connector-service/backend/connector-integration/src/connectors/adyen/transformers.rs:1654-1696`
+- **Stripe**: `connector-service/backend/connector-integration/src/connectors/stripe/transformers.rs:1204-1260`
+- **Novalnet**: `connector-service/backend/connector-integration/src/connectors/novalnet/transformers.rs:467-527`

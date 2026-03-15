@@ -29,10 +29,10 @@ authorize/
 │   └── pattern_authorize_reward.md    # Reward/loyalty points
 ├── mobile_payment/
 │   └── pattern_authorize_mobile_payment.md # Mobile carrier billing
-├── format_specific/
+├── format_specific/             # NOTE [C-02]: This directory does not exist yet. Reserved for future use.
 │   └── (reserved for format-specific patterns: XML, Form-encoded, etc.)
 └── generic/
-    └── pattern_authorize.md           # Legacy generic authorize pattern (reference)
+    └── pattern_authorize.md           # NOTE [C-01]: This file does not exist. See ../pattern_authorize.md for the legacy generic pattern.
 ```
 
 ## 📋 Pattern Reference
@@ -50,7 +50,7 @@ authorize/
 | `crypto/` | `pattern_authorize_crypto.md` | Cryptocurrency | Coinbase, etc. |
 | `reward/` | `pattern_authorize_reward.md` | Loyalty points, rewards | Various |
 | `mobile_payment/` | `pattern_authorize_mobile_payment.md` | Carrier billing, mobile wallets | Various |
-| `generic/` | `pattern_authorize.md` | Legacy reference pattern | N/A |
+| `generic/` | `pattern_authorize.md` | Legacy reference pattern (**NOTE**: file does not exist here; see `../pattern_authorize.md`) | N/A |
 
 ## 🎯 Usage Guide
 
@@ -152,4 +152,4 @@ All authorize implementations should:
 
 ---
 
-**Note**: The `generic/pattern_authorize.md` file is kept for backward compatibility and reference. New implementations should use the specific payment method patterns in their respective directories.
+**Note**: The `generic/pattern_authorize.md` entry is kept for planned future use. It does not currently exist in this directory. For the legacy generic authorize pattern, see `../pattern_authorize.md`. New implementations should use the specific payment method patterns in their respective directories.

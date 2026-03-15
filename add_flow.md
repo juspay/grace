@@ -60,11 +60,13 @@ This workflow adds specific flows to an existing connector implementation.
 **IF CONNECTOR DOES NOT EXIST:**
 1. **DELEGATE TO**: Foundation Setup Subagent using add_connector.sh
    - Run: `./grace/add_connector.sh {connector_name} {base_url} --force -y`
+   - Extract `base_url` from `grace/references/{connector_name}/technical_specification.md`.
+   - If no tech spec exists, ask the user for the base URL.
    - **WAIT FOR COMPLETION**
    - Validate connector foundation created successfully
-2. **DELEGATE TO**: Connector Mod Subagent
-   - Add connector to `backend/connector-integration/src/connectors.rs` mod list
-   - **WAIT FOR COMPLETION**
+2. **VERIFY**: The `add_connector.sh` script automatically registers the connector in
+   `backend/connector-integration/src/connectors.rs`. Verify registration was successful.
+   If not, manually add the mod entry.
 3. **THEN PROCEED** to Phase 1
 
 **IF CONNECTOR EXISTS:**
@@ -121,11 +123,21 @@ Some flows have dependencies that must be implemented first:
 | PSync | Authorize |
 | Capture | Authorize |
 | Void | Authorize |
-| Refund | Authorize (needs captured payment) |
+| Refund | Authorize | <!-- Most gateways support refunding authorized payments directly -->
 | RSync | Refund |
 | SetupMandate | Authorize |
 | RepeatPayment | SetupMandate |
 | IncomingWebhook | PSync (for fallback polling) |
+| DSync | None (independent) |
+| AcceptDispute | DSync |
+| DefendDispute | DSync |
+| SubmitEvidence | DSync |
+| MandateRevoke | SetupMandate |
+| IncrementalAuthorization | Authorize |
+| SessionToken | None (independent) |
+| PaymentMethodToken | None (independent) |
+| CreateAccessToken | None (independent) |
+| CreateOrder | Authorize |
 
 ## MULTIPLE FLOW PARSING & DEPENDENCY RESOLUTION
 
@@ -157,51 +169,77 @@ Output: ["Capture", "Refund", "Void"]
 
 **CRITICAL**: Flows MUST be implemented in dependency order. Use this algorithm:
 
-```
-FLOW_DEPENDENCIES = {
+```python
+# Dependency Table
+dependencies = {
     "Authorize": [],
     "PSync": ["Authorize"],
     "Capture": ["Authorize"],
     "Void": ["Authorize"],
-    "Refund": ["Capture"],
+    "Refund": ["Authorize"],        # Changed: was Capture, but many gateways support auth-only refunds
     "RSync": ["Refund"],
     "SetupMandate": ["Authorize"],
     "RepeatPayment": ["SetupMandate"],
-    "IncomingWebhook": ["PSync"]
+    "IncomingWebhook": ["PSync"],
+    "DSync": [],                     # Independent — dispute sync has no payment flow dependency
+    "AcceptDispute": ["DSync"],
+    "DefendDispute": ["DSync"],
+    "SubmitEvidence": ["DSync"],
+    "MandateRevoke": ["SetupMandate"],
+    "IncrementalAuthorization": ["Authorize"],
+    "SessionToken": [],
+    "PaymentMethodToken": [],
+    "CreateAccessToken": [],
+    "CreateOrder": ["Authorize"],
 }
 
-function resolve_dependencies(requested_flows):
-    implemented = detect_current_flows()  # From connector analysis
-    ordered = []
-
+def resolve_with_dependencies(requested_flows: list, existing_flows: list) -> list:
+    """Resolve transitive dependencies and return flows in correct implementation order."""
+    needed = set()
+    
+    def add_with_deps(flow):
+        if flow in needed or flow in existing_flows:
+            return
+        # Recursively add prerequisites first
+        for dep in dependencies.get(flow, []):
+            add_with_deps(dep)
+        needed.add(flow)
+    
     for flow in requested_flows:
-        # Check if prerequisites are met
-        prereqs = FLOW_DEPENDENCIES[flow]
-        for prereq in prereqs:
-            if prereq not in implemented and prereq not in ordered:
-                # Add missing prerequisite first
-                if prereq in requested_flows:
-                    # Will be implemented as part of this batch
-                    pass
-                else:
-                    # Prerequisite not in request - ERROR
-                    report_missing_prerequisite(flow, prereq)
-                    return ERROR
-
-        if flow not in ordered:
-            ordered.append(flow)
-
+        add_with_deps(flow)
+    
+    # Topological sort: implement dependencies before dependents
+    ordered = []
+    visited = set()
+    
+    def topo_sort(flow):
+        if flow in visited or flow not in needed:
+            return
+        visited.add(flow)
+        for dep in dependencies.get(flow, []):
+            if dep in needed:
+                topo_sort(dep)
+        ordered.append(flow)
+    
+    for flow in needed:
+        topo_sort(flow)
+    # NOTE: When two flows share the same dependency depth, preserve the order
+    # in which they appeared in the user's original request list (stable sort).
     return ordered
 ```
 
 **Example Resolution:**
 ```
-Input:  ["RSync", "Refund"]
-Check:  RSync requires Refund
-        Refund requires Capture
-Result: ["Refund", "RSync"]  # Reordered, but Capture missing!
+Example 1: Input ["RSync"], existing ["Authorize"]
+  → Resolves: RSync needs Refund, Refund needs Authorize (exists)
+  → Output: ["Refund", "RSync"]
 
-Action: Report error - "Refund requires Capture which is not implemented"
+Example 2: Input ["Void", "RSync"], existing []
+  → Resolves full chain
+  → Output: ["Authorize", "Void", "Refund", "RSync"]
+
+Example 3: Input ["RepeatPayment"], existing ["Authorize"]
+  → Output: ["SetupMandate", "RepeatPayment"]
 ```
 
 ### Progress Tracking for Multiple Flows
@@ -214,21 +252,21 @@ Flows to implement: [Refund, RSync, Void] (3 flows)
 [1/3] Delegating to Flow Implementation Subagent for Refund...
       - Task(description="Implement Refund flow for {connector}", ...)
       - Subagent implements flow
-      - Subagent runs cargo build
+      - Subagent runs cargo check
       - Returns: "Refund flow COMPLETED"
       - Refund flow COMPLETED
 
 [2/3] Delegating to Flow Implementation Subagent for RSync...
       - Task(description="Implement RSync flow for {connector}", ...)
       - Subagent implements flow
-      - Subagent runs cargo build
+      - Subagent runs cargo check
       - Returns: "RSync flow COMPLETED"
       - RSync flow COMPLETED
 
 [3/3] Delegating to Flow Implementation Subagent for Void...
       - Task(description="Implement Void flow for {connector}", ...)
       - Subagent implements flow
-      - Subagent runs cargo build
+      - Subagent runs cargo check
       - Returns: "Void flow COMPLETED"
       - Void flow COMPLETED
 
@@ -357,11 +395,15 @@ You are a Flow Implementation Subagent responsible for implementing ONE specific
 
 #### STEP 2: Read Flow Pattern
 ```bash
-# Read corresponding pattern file: guides/patterns/{flow_name}/pattern_{flow_name}.md
+# Read corresponding pattern file: guides/patterns/pattern_{flow_name}.md
 # Study implementation patterns and examples
 # Understand UCS-specific requirements for this flow
 # Review code templates and best practices
 ```
+
+> **Note on file naming**: Pattern files use mixed casing conventions. Some are lowercase
+> (`pattern_psync.md`) while others use PascalCase (`pattern_IncomingWebhook_flow.md`).
+> Always verify the exact filename exists before referencing it.
 
 #### STEP 3: Read Available Utils & Enums
 ```bash
@@ -414,51 +456,48 @@ Read: template-generation/macro_templates.md
 
 #### STEP 7: Execute Implementation Plan - MACRO-BASED APPROACH
 
-## Step 7a: Scaffold Flow with add_connector.sh --add-flow
+##### Step 7a: Manually Add Flow Boilerplate
 
-Run the grace scaffold script to generate all boilerplate automatically:
+For each flow being added, perform these 5 operations manually:
 
-```bash
-./grace/add_connector.sh {connector_name} --add-flow {FlowName} -y
-```
+1. **Add the flow entry** to the `create_all_prerequisites!` api array in `connector.rs`
+2. **Remove the empty `ConnectorIntegrationV2` impl** for the flow (prevents duplicate impl errors)
+3. **Append a `macro_connector_implementation!` block** to `connector.rs` (see `template-generation/macro_templates.md`)
+4. **Add `{Name}{Flow}Request`/`{Name}{Flow}Response` imports** to the `use transformers::{...}` block in `connector.rs`
+5. **Append stub request/response structs and `TryFrom` impls** (with `todo!()`) to `transformers.rs`
 
-To add multiple flows at once:
-```bash
-./grace/add_connector.sh {connector_name} --add-flow Capture,Refund,RSync -y
-```
+Refer to the following grace rule files for exact patterns:
+- `template-generation/macro_templates.md` -- macro invocation patterns per flow
+- `guides/patterns/pattern_{flow}.md` -- flow-specific implementation patterns
 
-This script automatically performs 5 operations per flow:
-1. Adds the flow entry to the `create_all_prerequisites!` api array
-2. Removes the empty `ConnectorIntegrationV2` impl (prevents duplicate impl errors)
-3. Appends a `macro_connector_implementation!` block to connector.rs
-4. Adds `{Name}{Flow}Request`/`{Name}{Flow}Response` imports to the `use transformers::{...}` block
-5. Appends stub request/response structs and `TryFrom` impls (with `todo!()`) to transformers.rs
+**After completing the scaffold**, verify with `cargo check` that it compiles.
 
-**After the script completes**, verify with `cargo check` that the scaffold compiles.
-
-## Step 7b: Implement Transformer Logic
+##### Step 7b: Implement Transformer Logic
 
 Fill in the `todo!()` stubs generated in transformers.rs:
 1. **Request `TryFrom`**: Extract fields from `router_data` and map to connector API format
 2. **Response `TryFrom`**: Parse connector response and map status to `AttemptStatus`/`RefundStatus`
 3. **URL**: Update the `get_url` function in the `macro_connector_implementation!` block with the actual endpoint path from the tech spec
 
-## Part A: Create Request/Response Types in transformers.rs
+###### Part A: Create Request/Response Types in transformers.rs
 1. Open backend/connector-integration/src/connectors/{connector_name}/transformers.rs
 2. Define request struct:
 
+```rust
 #[derive(Debug, Serialize)]
 pub struct {ConnectorName}{FlowName}Request<T: PaymentMethodDataTypes + ...> {
-    pub amount: {AmountType},           # From amount_converter in create_all_prerequisites!
+    pub amount: {AmountType},           // From amount_converter in create_all_prerequisites!
     pub currency: String,
-    pub payment_method: {ConnectorName}PaymentMethod<T>,  # If flow needs payment method
+    pub payment_method: {ConnectorName}PaymentMethod<T>,  // If flow needs payment method
     // Add ONLY fields from API docs - DO NOT add fields "just in case"
     // CRITICAL: Remove any field that will always be None
     // CRITICAL: Don't use Option unless the field is truly optional per API spec
 }
+```
 
 3. Define response struct:
 
+```rust
 #[derive(Debug, Deserialize)]
 pub struct {ConnectorName}{FlowName}Response {
     pub id: String,
@@ -466,9 +505,11 @@ pub struct {ConnectorName}{FlowName}Response {
     // Add ONLY fields from API docs that you will actually use
     // Create enums for status fields instead of using String
 }
+```
 
 4. Implement request transformer:
 
+```rust
 impl<T: PaymentMethodDataTypes + ...> TryFrom<{ConnectorName}RouterData<RouterDataV2<{FlowName}, ...>, T>>
     for {ConnectorName}{FlowName}Request<T>
 {
@@ -486,9 +527,11 @@ impl<T: PaymentMethodDataTypes + ...> TryFrom<{ConnectorName}RouterData<RouterDa
         })
     }
 }
+```
 
 5. Implement response transformer:
 
+```rust
 impl<T: PaymentMethodDataTypes + ...> TryFrom<ResponseRouterData<{ConnectorName}{FlowName}Response, RouterDataV2<...>>>
     for RouterDataV2<{FlowName}, ...>
 {
@@ -502,10 +545,12 @@ impl<T: PaymentMethodDataTypes + ...> TryFrom<ResponseRouterData<{ConnectorName}
         Ok(Self { /* updated router_data */ })
     }
 }
+```
 
-## Part B: Add Status Mapping
+###### Part B: Add Status Mapping
 1. Create or update status mapping function:
 
+```rust
 fn map_{connector_name}_status_to_attempt_status(
     status: &{ConnectorName}Status,
 ) -> common_enums::AttemptStatus {
@@ -517,6 +562,7 @@ fn map_{connector_name}_status_to_attempt_status(
         // NEVER leave status variants unmapped
     }
 }
+```
 
 2. CRITICAL STATUS MAPPING RULES:
    - ALWAYS create a dedicated status enum (e.g., {ConnectorName}Status)
@@ -524,7 +570,7 @@ fn map_{connector_name}_status_to_attempt_status(
    - NEVER hardcode status values like AttemptStatus::Charged directly
    - Map status based on the actual response field, not assumptions
 
-## CRITICAL RULES:
+##### CRITICAL RULES:
 - NEVER manually implement ConnectorIntegrationV2 - ALWAYS use macros
 - ALWAYS add flow to create_all_prerequisites! before using macro_connector_implementation!
 - Flow name MUST match exactly in both macros
@@ -535,7 +581,7 @@ fn map_{connector_name}_status_to_attempt_status(
 - GET endpoints: omit curl_request parameter in macro
 - POST/PUT endpoints: always include curl_request parameter
 
-## CRITICAL CODE QUALITY RULES:
+##### CRITICAL CODE QUALITY RULES:
 - **Field Usage**: Remove all fields hardcoded to None - if always None, delete the field
 - **Optional Fields**: Don't use Option unless the field is truly optional per API spec
 - **Status Mapping**: NEVER hardcode status - always derive from connector response
@@ -543,19 +589,19 @@ fn map_{connector_name}_status_to_attempt_status(
 - **Validation**: Only validate what's required by connector API, add comments explaining why
 - **Struct Cleanliness**: Only include fields actually used by the connector API
 
-#### STEP 8: Cargo Build and Debug
+#### STEP 8: Cargo Check and Debug
 ```bash
-# Execute: cargo build
+# Execute: cargo check
 # If compilation errors, analyze and fix immediately
 # Ensure all UCS conventions are followed
 # Verify no syntax or type errors
-# MUST achieve successful build
+# MUST achieve successful check
 ```
 
 #### STEP 9: Flow Completion Confirmation
 ```bash
 # Report: "{FlowName} Flow Implementation COMPLETED for {ConnectorName}"
-# Confirm: Cargo build successful for this flow
+# Confirm: Cargo check successful for this flow
 # Document: What was implemented in this flow
 # Document: Integration points with existing code
 # Ready: For next flow implementation
@@ -564,6 +610,11 @@ fn map_{connector_name}_status_to_attempt_status(
 ## PHASE 4: QUALITY GUARDIAN SUBAGENT
 
 Same specification as in [integrate_connector.md](integrate_connector.md) - see that file for complete details.
+
+<!-- CONTROLLER NOTE: When spawning the Quality Guardian subagent, embed the full
+     quality review specification from integrate_connector.md inline in the prompt.
+     The subagent cannot read external files, so all review criteria, scoring
+     formulas, and feedback ID conventions must be included in the task description. -->
 
 Key differences for flow addition:
 - Review only the NEWLY ADDED flows

@@ -103,7 +103,7 @@ If resuming partial implementation:
 #### Step 1.2: Create/Update Technical Specification
 ```bash
 # For new implementation:
-# Use: grace-ucs/connector_integration/template/tech_spec.md //chnage
+# Use: grace-ucs/connector_integration/template/tech_spec.md
 
 # For continuing implementation:
 # AI will update existing spec with missing components
@@ -124,6 +124,8 @@ If resuming partial implementation:
 ```rust
 // File: backend/connector-integration/src/connectors/connector_name.rs
 
+// NOTE: The create_all_prerequisites! macro generates `ConnectorName<T>` (generic struct),
+// not `ConnectorName;` (unit struct). Do not declare the struct manually.
 #[derive(Debug, Clone)]
 pub struct ConnectorName;
 
@@ -181,7 +183,7 @@ impl TryFrom<&ConnectorSpecificConfig> for ConnectorNameAuthType {
 > - **Psync Flow**: `guides/patterns/pattern_psync.md`
 > - **Rsync Flow**: `guides/patterns/pattern_rsync.md`
 > - **SetupMandate Flow**: `guides/patterns/pattern_setup_mandate.md`
-> - **RepeatPayment Flow**: `guides/patterns/repeat_payment_flow_patterns.md`
+> - **RepeatPayment Flow**: `guides/patterns/pattern_repeat_payment_flow.md`
 
 ## 🔄 Resuming Partial Implementation
 

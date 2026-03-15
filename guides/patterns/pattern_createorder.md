@@ -187,6 +187,10 @@ pub struct CustomerDetails {
 
 #### Standard CreateOrder Response Structure
 
+> **Important:** `session_token: Option<SessionToken>` in the response is critical
+> for wallet flows (Apple Pay, Google Pay). If the connector returns a session token,
+> it MUST be extracted and returned in the response data.
+
 ```rust
 #[derive(Debug, Deserialize)]
 pub struct ConnectorOrderResponse {
@@ -263,7 +267,7 @@ let amount = item.connector.amount_converter
         item.router_data.request.amount,  // MinorUnit
         item.router_data.request.currency,
     )
-    .map_err(|e| ConnectorError::RequestEncodingFailedWithReason(format!("Amount conversion failed: {e}")))?;
+    .change_context(ConnectorError::RequestEncodingFailedWithReason("Amount conversion failed".to_string()))?;
 
 // Or manual conversion
 let amount_i64 = item.request.amount.get_amount_as_i64();

@@ -743,7 +743,8 @@ mod tests {
 
 - [pattern_defend_dispute.md](./pattern_defend_dispute.md) - Defending disputes with evidence
 - [pattern_submit_evidence.md](./pattern_submit_evidence.md) - Submitting evidence for disputes
-- [pattern_webhook.md](./pattern_webhook.md) - Handling dispute webhooks
+<!-- pattern_webhook.md does not exist. Correct reference: -->
+- [Webhook Pattern](./pattern_IncomingWebhook_flow.md) - Handling dispute webhooks
 
 ## Example: Complete Adyen Implementation Reference
 

@@ -46,7 +46,7 @@ BNPL (Buy Now Pay Later) is a payment method that allows customers to purchase g
 
 ## Supported BNPL Variants
 
-Based on `backend/domain_types/src/payment_method_data.rs`:
+Based on `connector-service/backend/domain_types/src/payment_method_data.rs`:
 
 | Variant | Description | Common Connectors |
 |---------|-------------|-------------------|
@@ -67,14 +67,9 @@ Based on `backend/domain_types/src/payment_method_data.rs`:
 
 | Connector | Klarna | Affirm | Afterpay | Alma | Atome | PayBright | Walley |
 |-----------|--------|--------|----------|------|-------|-----------|--------|
-| **Adyen** | | | | | | | |
-| **Stripe** | | | | | | | |
-| **MultiSafepay** | | | | | | | |
-
-**Legend**:
--  = Fully Supported
--  = Partially Supported (SDK only)
--  = Not Supported
+| **Adyen** | Supported (Y) | Supported (Y) | Supported (Y) | Supported (Y) | Supported (Y) | Supported (Y) | Supported (Y) |
+| **Stripe** | Supported (Y) | Supported (Y) | Supported (Y) | Not Supported (N) | Not Supported (N) | Not Supported (N) | Not Supported (N) |
+| **MultiSafepay** | Partial (SDK only) | Not Supported (N) | Not Supported (N) | Not Supported (N) | Not Supported (N) | Not Supported (N) | Not Supported (N) |
 
 ### Request Format Summary
 
@@ -100,7 +95,7 @@ Applies to: **Adyen**, **MultiSafepay**
 #### Main Connector File Structure
 
 ```rust
-// backend/connector-integration/src/connectors/{connector_name}.rs
+// connector-service/backend/connector-integration/src/connectors/{connector_name}.rs
 
 pub mod transformers;
 
@@ -151,7 +146,7 @@ macros::create_all_prerequisites!(
 #### Transformers Implementation
 
 ```rust
-// backend/connector-integration/src/connectors/{connector_name}/transformers.rs
+// connector-service/backend/connector-integration/src/connectors/{connector_name}/transformers.rs
 
 use domain_types::payment_method_data::{PayLaterData, PaymentMethodData};
 
@@ -298,6 +293,32 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + Sync + Send + 'static + Seria
     }
 }
 ```
+
+### Line Items Construction
+
+BNPL providers require detailed line item data. Construct line items from `OrderDetailsWithAmount`:
+
+```rust
+// Extract line items from order_details in the request
+let line_items: Vec<{ConnectorName}LineItem> = item
+    .router_data
+    .request
+    .order_details
+    .as_ref()
+    .map(|details| {
+        details.iter().map(|item| {
+            {ConnectorName}LineItem {
+                name: item.product_name.clone(),
+                quantity: item.quantity,
+                unit_price: item.amount, // TODO: Verify amount conversion
+                // TODO: Add tax_amount, discount, product_url per connector API
+            }
+        }).collect()
+    })
+    .unwrap_or_default();
+```
+
+> **IMPORTANT**: Line items are often mandatory for BNPL approvals. Missing or incorrect line items will cause payment rejection.
 
 ---
 
@@ -786,11 +807,11 @@ async fn test_bnpl_authorize_flow() {
 
 ## Cross-References
 
-- [pattern_authorize.md](./pattern_authorize.md) - Generic authorize flow patterns
-- [utility_functions_reference.md](./utility_functions_reference.md) - Helper functions for address/phone formatting
+- [pattern_authorize.md](../../pattern_authorize.md) - Generic authorize flow patterns
+- [utility_functions_reference.md](../../../utility_functions_reference.md) - Helper functions for address/phone formatting
 - Connector-specific implementation guides:
-  - [Adyen Implementation](../connectors/adyen.md)
-  - [Stripe Implementation](../connectors/stripe.md)
+  - <!-- TODO: connector reference docs not yet created -->
+  - <!-- TODO: connector reference docs not yet created -->
 
 ---
 

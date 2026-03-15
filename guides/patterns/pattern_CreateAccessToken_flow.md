@@ -196,7 +196,17 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + Sync + Send + 'static + Seria
     type Error = error_stack::Report<errors::ConnectorError>;
 
     fn try_from(
-        item: VoltRouterData<...>,
+        // Before: VoltRouterData<...> (won't compile — `...` is not valid Rust)
+        // After: VoltRouterData<T> where T is the flow-specific type
+        item: VoltRouterData<
+            RouterDataV2<
+                CreateAccessToken,
+                PaymentFlowData,
+                AccessTokenRequestData,
+                AccessTokenResponseData,
+            >,
+            T,
+        >,
     ) -> Result<Self, Self::Error> {
         Self::try_from(&item.router_data.connector_config)
     }
@@ -213,6 +223,11 @@ pub struct VoltAuthUpdateResponse {
 }
 
 // Response conversion to domain type
+// WARNING: This TryFrom impl is generic over ALL flows (F) and request types (T).
+// This means it applies to every flow, which may not be appropriate.
+// For flow-specific access token handling, use concrete types instead of generics.
+// Consider: impl TryFrom<ResponseRouterData<VoltAuthUpdateResponse, Self>>
+//     for RouterDataV2<CreateAccessToken, PaymentFlowData, AccessTokenRequestData, AccessTokenResponseData>
 impl<F, T> TryFrom<ResponseRouterData<VoltAuthUpdateResponse, Self>>
     for RouterDataV2<F, PaymentFlowData, T, AccessTokenResponseData>
 {
@@ -494,6 +509,9 @@ mod tests {
 
 2. **Create Auth Type Struct**: Define a struct to hold parsed credentials
    ```rust
+   // WARNING: ConnectorSpecificConfig may shadow a framework type.
+   // Rename to {ConnectorName}Config or {ConnectorName}AccessTokenConfig
+   // to avoid name collisions with the framework's ConnectorSpecificConfig.
    pub struct ConnectorSpecificConfig {
        pub client_id: Secret<String>,
        pub client_secret: Secret<String>,
@@ -560,7 +578,8 @@ pub access_token: String,
 - [OAuth 2.0 Specification](https://tools.ietf.org/html/rfc6749)
 - [Pattern: Authorize Flow](./pattern_authorize.md)
 - [Pattern: PSync Flow](./pattern_psync.md)
-- [Grace-UCS Architecture](./ucs-architecture.md)
+<!-- NOTE: ucs-architecture.md does not exist.
+     For UCS V2 architecture overview, see the project README.md or codegen.md -->
 
 ## Full Implementation Examples
 

@@ -32,7 +32,7 @@ The reason for this design:
 
 **ALLOWED TOOLS** (Controller only):
 - `Task` - For delegating work to subagents
-- `TaskOutput` - For retrieving results from background subagents
+- `TaskOutput` - For retrieving results from subagents when needed
 
 **FORBIDDEN TOOLS** (Do not use directly):
 - `Read` - Subagent should read files
@@ -69,7 +69,7 @@ This workflow is designed for NEW CONNECTOR INTEGRATIONS ONLY where:
 ### PHASE 2: FOUNDATION SETUP (Subagent Delegation)
 1. **DELEGATE TO**: Foundation Setup Subagent
 2. **WAIT FOR**: Foundation Setup completion confirmation
-3. **VALIDATE**: Cargo build success before proceeding
+3. **VALIDATE**: Cargo check success before proceeding
 
 ### PHASE 2.5: MACRO PATTERN REFERENCE STUDY
 1. **MANDATORY**: Read macro pattern guides before implementation
@@ -101,9 +101,37 @@ Execute flows in EXACT sequence - each must complete before next begins.
 5. **DELEGATE TO**: RSync Flow Subagent → **WAIT FOR COMPLETION**
 6. **DELEGATE TO**: Void Flow Subagent → **WAIT FOR COMPLETION**
 
+### PHASE 3.5: EXTENDED FLOWS (Conditional - based on tech spec)
+Review the tech spec to determine which additional flows the connector supports.
+Implement applicable flows in this order:
+1. **IF webhooks supported**: DELEGATE TO IncomingWebhook Flow Subagent → **WAIT FOR COMPLETION**
+2. **IF disputes supported**: DELEGATE TO DSync Flow Subagent → **WAIT FOR COMPLETION**
+3. **IF recurring supported**: DELEGATE TO SetupMandate Flow Subagent → **WAIT FOR COMPLETION**
+4. **IF recurring supported**: DELEGATE TO RepeatPayment Flow Subagent → **WAIT FOR COMPLETION**
+5. **IF incremental auth needed**: DELEGATE TO IncrementalAuthorization Flow Subagent → **WAIT FOR COMPLETION**
+
+Pattern files for extended flows:
+- `guides/patterns/pattern_IncomingWebhook_flow.md`
+- `guides/patterns/pattern_dsync.md`
+- `guides/patterns/pattern_setup_mandate.md`
+- `guides/patterns/pattern_repeat_payment_flow.md`
+- `guides/patterns/pattern_IncrementalAuthorization_flow.md`
+- `guides/patterns/pattern_accept_dispute.md`
+- `guides/patterns/pattern_defend_dispute.md`
+- `guides/patterns/pattern_submit_evidence.md`
+- `guides/patterns/pattern_void_pc.md`
+- `guides/patterns/pattern_createorder.md`
+- `guides/patterns/pattern_session_token.md`
+- `guides/patterns/pattern_payment_method_token.md`
+- `guides/patterns/pattern_CreateAccessToken_flow.md`
+- `guides/patterns/pattern_mandate_revoke.md`
+
+Skip any flow not mentioned in the tech spec.
+
 ### PHASE 4: FINAL VALIDATION AND QUALITY REVIEW
 1. **MANDATORY**: Execute final cargo build
 2. **MANDATORY**: Validate all flows compile successfully
+   - **TIMEOUT GUIDANCE**: If `cargo build` exceeds 10 minutes, kill the process and retry. Persistent timeouts may indicate circular dependencies or macro expansion issues — escalate to the user.
 3. **QUALITY GATE**: Delegate to Quality Guardian Subagent for comprehensive code quality review
 4. **WAIT FOR**: Quality review completion and approval
 5. **MANDATORY**: Generate completion report
@@ -118,11 +146,11 @@ When user requests: "integrate {ConnectorName} using grace/integrate_connector.m
 # MODEL-INDEPENDENT RULE: Applies to ALL models (kimi-latest, glm-latest, opus, sonnet, haiku etc.)
 #
 # For EACH phase, you MUST use the Task tool:
-# Task(description="...", prompt="...", subagent_type="general-purpose")
+# Task(description="...", prompt="...", subagent_type="general")
 #
 # ALLOWED TOOLS (Controller only):
 #   - Task (delegate to subagents)
-#   - TaskOutput (retrieve results)
+#   - TaskOutput (retrieve results — Note: Task results are returned inline; use Task tool only)
 #
 # FORBIDDEN TOOLS (Do NOT use directly - let subagents use them):
 #   - Read (subagent reads files)
@@ -179,9 +207,20 @@ You are the Foundation Setup Subagent. Your ONLY responsibility is to establish 
 ```
 
 #### STEP 3.5: Register ConnectorSpecificConfig Variant
+
+> **Note**: The `add_connector.sh` script handles all 6 registrations below automatically.
+> You only need to **verify** the auth pattern matches your connector. If the connector
+> does not use HeaderKey authentication, manually update the variant fields and
+> `ForeignTryFrom` match arm.
+
 ```bash
-# The add_connector.sh script does NOT handle ConnectorSpecificConfig registration.
-# You MUST manually add the new connector to ALL 6 registration points in the codebase.
+# The add_connector.sh script handles ConnectorSpecificConfig registration automatically
+# using a default HeaderKey { api_key } auth pattern. If your connector uses a different
+# auth pattern (BodyKey, SignatureKey, etc.), you MUST manually update the variant and
+# ForeignTryFrom match arm after the script runs.
+#
+# The script registers the connector in ALL 6 locations listed below.
+# Review each one to ensure the auth fields match your connector's requirements.
 # ALL edits are in backend/domain_types/src/router_data.rs UNLESS otherwise noted.
 
 # 1. ADD ENUM VARIANT to ConnectorSpecificConfig enum (~line 200-668):
@@ -230,11 +269,15 @@ You are the Foundation Setup Subagent. Your ONLY responsibility is to establish 
 #    to the vector of all connector variants.
 ```
 
-#### STEP 4: Cargo Build Validation
+#### STEP 4: Cargo Check Validation
+
+> **Note**: Use `cargo check` for intermediate validation (faster, no binary output).
+> Reserve `cargo build` for final Phase 4 validation only.
+
 ```bash
-# Execute: cargo build
-# If build fails, analyze errors and fix using UCS conventions
-# MUST achieve successful build before completion
+# Execute: cargo check
+# If check fails, analyze errors and fix using UCS conventions
+# MUST achieve successful check before completion
 ```
 
 #### STEP 5: UCS Convention Validation
@@ -245,22 +288,17 @@ You are the Foundation Setup Subagent. Your ONLY responsibility is to establish 
 - Verify ConnectorSpecificConfig variant registered in all 6 locations
 - Verify auth TryFrom uses ConnectorSpecificConfig (NOT ConnectorAuthType)
 
-#### STEP 6: URLs Storage
-```bash
-# Execute: ./extract_source_urls_simple.sh
-```
-
-#### STEP 7: Completion Confirmation
+#### STEP 6: Completion Confirmation
 ```bash
 # Report: "Foundation Setup COMPLETED"
 # Provide: List of files created/modified
-# Confirm: Cargo build successful
+# Confirm: Cargo check successful
 # Ready: For flow implementation phase
 ```
 
 ### ERROR HANDLING
 - If add_connector.sh fails: Analyze error, fix prerequisites, retry
-- If cargo build fails: Analyze compilation errors, fix using UCS patterns, retry
+- If cargo check fails: Analyze compilation errors, fix using UCS patterns, retry
 - If convention validation fails: Fix code to match UCS requirements
 - **NEVER PROCEED** to next phase until all steps complete successfully
 
@@ -352,8 +390,17 @@ Read: template-generation/macro_templates.md
                     RefundsData (for Refund)
                     RefundSyncData (for RSync)
    - {ResponseData}: PaymentsResponseData (for payment flows)
-                     RefundsResponseData (for refund flows)
-                     DisputeResponseData (for dispute flows)
+                      RefundsResponseData (for refund flows)
+                      DisputeResponseData (for dispute flows)
+
+### NON-JSON API HANDLING
+
+Not all connectors use JSON. For non-standard API formats:
+
+- **Form URL-Encoded**: In `macro_connector_implementation!`, use `curl_request: FormUrlEncoded(RequestType)` instead of `Json(RequestType)`. Change `common_get_content_type()` to return `"application/x-www-form-urlencoded"`.
+- **XML/SOAP**: Do NOT use the macro's `curl_request` parameter. Instead, implement `get_request_body` in `other_functions` to manually serialize XML. Use a crate like `quick-xml` for serialization.
+- **Multipart Form Data**: Use `curl_request: FormData` and implement custom multipart body construction in `other_functions`.
+- **Content-Type**: Always ensure `common_get_content_type()` matches the actual request format. The default `"application/json"` in `build_headers` member function must be updated for non-JSON connectors.
 
 ## Part B: Implement Flow with macro_connector_implementation!
 1. Add macro invocation AFTER the create_all_prerequisites! block:
@@ -486,19 +533,19 @@ fn map_{connector_name}_status_to_attempt_status(
 - **Struct Cleanliness**: Only include fields actually used by the connector API
 ```
 
-#### STEP 6: Cargo Build and Debug
+#### STEP 6: Cargo Check and Debug
 ```bash
-# Execute: cargo build
+# Execute: cargo check
 # If compilation errors, analyze and fix immediately
 # Ensure all UCS conventions are followed
 # Verify no syntax or type errors
-# MUST achieve successful build
+# MUST achieve successful check
 ```
 
 #### STEP 7: Flow Completion Confirmation
 ```bash
 # Report: "{FlowName} Flow Implementation COMPLETED"
-# Confirm: Cargo build successful for this flow
+# Confirm: Cargo check successful for this flow
 # Document: What was implemented in this flow
 # Ready: For next flow implementation
 ```
@@ -579,12 +626,18 @@ fn map_{connector_name}_status_to_attempt_status(
 - **Pattern File**: guides/patterns/pattern_void.md
 - **Primary Responsibility**: Payment cancellation implementation
 - **Key Implementation**: ConnectorIntegrationV2<Void, PaymentFlowData, PaymentVoidData, PaymentsResponseData>
+   - **Note**: For void-after-capture scenarios, also consult `guides/patterns/pattern_void_pc.md`
 
 # ============================================================================
 # QUALITY GUARDIAN SUBAGENT SPECIFICATION
 # ============================================================================
 
 ## QUALITY GUARDIAN SUBAGENT RESPONSIBILITIES
+
+> **Important for Controller**: When delegating to the Quality Guardian subagent, you MUST
+> embed the quality review criteria, scoring formula, and checklist directly in the Task
+> prompt. Subagents cannot read this file — they only see what you include in the prompt.
+> Copy the scoring formula and key review criteria from the sections below into the prompt.
 
 You are the Quality Guardian Subagent. Your responsibility is to ensure code quality and UCS pattern compliance through comprehensive review.
 
@@ -736,7 +789,7 @@ warning_count = [count of WARNING issues]
 suggestion_count = [count of SUGGESTION issues]
 
 # Calculate quality score
-quality_score = 100 - (critical_count × 20) - (warning_count × 5) - (suggestion_count × 1)
+quality_score = 100 - (critical_count × 20) - (warning_count × 5) - (min(suggestion_count, 10) × 0.5)
 
 # Determine status
 IF quality_score < 60:
@@ -1007,7 +1060,7 @@ Default severity assignments:
 
 ### Calculation
 ```
-quality_score = 100 - (critical_count × 20) - (warning_count × 5) - (suggestion_count × 1)
+quality_score = 100 - (critical_count × 20) - (warning_count × 5) - (min(suggestion_count, 10) × 0.5)
 ```
 
 ### Thresholds
@@ -1024,14 +1077,14 @@ quality_score = 100 - (critical_count × 20) - (warning_count × 5) - (suggestio
 Example 1: Clean implementation
 - Critical: 0 × 20 = 0
 - Warning: 1 × 5 = 5
-- Suggestion: 3 × 1 = 3
-Score: 100 - 0 - 5 - 3 = 92 (Good)
+- Suggestion: min(3, 10) × 0.5 = 1.5
+Score: 100 - 0 - 5 - 1.5 = 93.5 (Good)
 
 Example 2: Issues found
 - Critical: 2 × 20 = 40
 - Warning: 3 × 5 = 15
-- Suggestion: 5 × 1 = 5
-Score: 100 - 40 - 15 - 5 = 40 (Poor - BLOCK)
+- Suggestion: min(5, 10) × 0.5 = 2.5
+Score: 100 - 40 - 15 - 2.5 = 42.5 (Poor - BLOCK)
 ```
 
 # ============================================================================
@@ -1041,7 +1094,7 @@ Score: 100 - 40 - 15 - 5 = 40 (Poor - BLOCK)
 ## MANDATORY ERROR HANDLING RULES
 
 ### COMPILATION ERROR RESOLUTION
-- **When cargo build fails**: Analyze error message completely
+- **When cargo check fails**: Analyze error message completely
 - **UCS Convention Fixes**: Ensure RouterDataV2, ConnectorIntegrationV2, domain_types usage
 - **Type Error Fixes**: Verify generic types and trait implementations
 - **Import Error Fixes**: Use correct domain_types imports
@@ -1082,6 +1135,15 @@ Score: 100 - 40 - 15 - 5 = 40 (Poor - BLOCK)
 - **Script Failures**: Analyze error, fix prerequisites, retry once
 - **Pattern Violations**: Fix UCS compliance issues, retry build
 - **Critical Failures**: If unable to resolve after retries, escalate with detailed error report
+
+### PER-FLOW FAILURE RECOVERY
+
+If a flow implementation fails after maximum retries:
+1. **Revert partial changes**: Undo any file modifications made by the failed flow's subagent
+2. **Do NOT proceed**: Do not attempt subsequent flows — dependencies may be broken
+3. **Document failure**: Record which flow failed, the error, and what was attempted
+4. **Escalate to user**: Report the failure with full context and ask how to proceed
+5. **If user approves skip**: Mark the flow as skipped and continue with next independent flow
 
 # ============================================================================
 # CODE CLEANLINESS AND FIELD USAGE RULES
@@ -1253,7 +1315,7 @@ Before finalizing any request/response struct, verify:
 ### GATE 2: FOUNDATION COMPLETION
 - add_connector.sh executed successfully
 - All template files created correctly
-- cargo build passes without errors
+- cargo check passes without errors
 - UCS conventions validated
 - **GATE FAILURE**: Cannot proceed to flow implementation
 
@@ -1262,7 +1324,7 @@ Before finalizing any request/response struct, verify:
 - Implementation plan generated
 - ConnectorIntegrationV2 trait implemented
 - Request/response transformers created
-- cargo build passes for this flow
+- cargo check passes for this flow
 - **GATE FAILURE**: Cannot proceed to next flow
 
 ### GATE 4: FINAL VALIDATION
@@ -1308,51 +1370,11 @@ Before finalizing any request/response struct, verify:
 
 ## MODEL-INDEPENDENT TOOL USAGE POLICY
 
-**THIS SECTION APPLIES TO ALL MODELS - NO EXCEPTIONS**
-
-Whether you are running on kimi-latest, glm-latest, opus, sonnet, haiku, or any other model, the following
-rules are MANDATORY and NON-NEGOTIABLE:
-
-### CONTROLLER TOOL PERMISSIONS
-
-**ALLOWED TOOLS** (Use these yourself):
-- `Task` - For delegating work to subagents
-- `TaskOutput` - For retrieving results from background subagents
-
-**FORBIDDEN TOOLS** (Do NOT use - subagents must use these):
-- `Read` - Subagent should read files
-- `Write` - Subagent should write files
-- `Edit` - Subagent should edit files
-- `Glob` - Subagent should find files
-- `Grep` - Subagent should search content
-- `Bash` - Subagent should execute commands
-- `WebSearch` - Subagent should do web searches
-- `WebFetch` - Subagent should fetch web content
-- `NotebookEdit` - Subagent should edit notebooks
-- `AskUserQuestion` - Subagent should ask user questions
-- `SlashCommand` - Subagent should execute slash commands
-- `Skill` - Subagent should invoke skills
-- `ExitPlanMode` - Subagent should exit plan mode
-- `EnterPlanMode` - Subagent should enter plan mode
-- `TodoWrite` - Subagent should manage todos
-- `KillShell` - Subagent should kill shells
-- `Any other tool` - Subagent should use it
-
-### WHY THIS RESTRICTION EXISTS
-
-1. **Consistency**: Same workflow across all models
-2. **Scalability**: More capable models can still benefit from the workflow
-3. **Separation of Concerns**: Clear distinction between controller and implementer
-4. **Auditability**: Easier to track who did what
-5. **Debugging**: Issues are isolated to specific subagents
-
-### WHAT HAPPENS IF YOU VIOLATE THIS
-
-If you use a forbidden tool directly:
-- You are violating the workflow design
-- The workflow becomes model-dependent
-- Benefits of the subagent architecture are lost
-- The implementation may not follow UCS patterns correctly
+> **Note:** The full delegation policy and tool permissions are defined above in the
+> [MODEL-INDEPENDENT EXECUTION POLICY](#model-independent-execution-policy) and
+> [TOOL USAGE RESTRICTIONS](#tool-usage-restrictions) sections. Those rules apply
+> unconditionally to ALL models — do not duplicate them here. Refer back to those
+> sections for the canonical list of allowed/forbidden tools and rationale.
 
 ## MANDATORY EXECUTION PRINCIPLES
 
@@ -1369,7 +1391,7 @@ If you use a forbidden tool directly:
 - **ESCALATE** if subagent fails after retries
 
 ### 3. BUILD VALIDATION REQUIREMENTS
-- **SUBAGENT MUST** execute cargo build after each major step
+- **SUBAGENT MUST** execute cargo check after each major step
 - **SUBAGENT MUST** resolve all compilation errors immediately
 - **NEVER** proceed with build failures
 - **DOCUMENT** build success in progress tracking
@@ -1406,7 +1428,7 @@ PHASE 1: TECH SPEC VALIDATION
 PHASE 2: FOUNDATION SETUP
 [DELEGATING] To Foundation Setup Subagent...
 [COMPLETED] Foundation Setup Subagent reported completion
-[VALIDATED] Cargo build successful
+[VALIDATED] Cargo check successful
 
 PHASE 2.5: MACRO PATTERN REFERENCE STUDY
 [COMPLETED] Read guides/patterns/macro_patterns_reference.md
@@ -1434,14 +1456,14 @@ PHASE 4: FINAL VALIDATION AND QUALITY REVIEW
 [QUALITY GATE] Delegating to Quality Guardian Subagent...
 [REVIEWING] Comprehensive code quality analysis across all flows...
 [QUALITY REVIEW COMPLETED]
-    Overall Quality Score: 91/100 - PASS (Excellent)
+    Overall Quality Score: 86.5/100 - PASS (Good)
     Critical Issues: 0
     Warnings: 2 (minor code style improvements)
     Suggestions: 7 (documentation enhancements)
     Decision: APPROVED
 [ALL QUALITY GATES PASSED]
 
-WORKFLOW COMPLETED: Stripe connector fully implemented with high quality (Score: 91/100)
+WORKFLOW COMPLETED: Stripe connector fully implemented with high quality (Score: 86.5/100)
 ```
 
 ## FAILURE HANDLING EXAMPLES:
@@ -1480,7 +1502,7 @@ Developer fixes critical issues...
 
 [RE-RUNNING] Quality review after fixes...
 [QUALITY REVIEW COMPLETED]
-    Overall Quality Score: 88/100 - PASS
+    Overall Quality Score: 87.5/100 - PASS
     Critical Issues: 0
     Warnings: 2
     Suggestions: 5
@@ -1513,10 +1535,9 @@ Upon activation, REGARDLESS of which model you are running on:
 Do NOT read files yourself. Do NOT execute commands yourself. Do NOT implement code yourself.
 
 Instead, immediately begin with:
-1. Initialize timeline tracker: `timeline = SimpleTimeline(connector_name="{connector_name}")`
-2. DELEGATE to Cypress Validation Subagent for Phase 0
-3. Wait for subagent completion before proceeding to next phase
-4. Follow the deterministic sequence exactly as specified
+1. DELEGATE to Tech Spec Validation Subagent for Phase 1
+2. Wait for subagent completion before proceeding to next phase
+3. Follow the deterministic sequence exactly as specified
 
 ## FINAL REMINDERS
 

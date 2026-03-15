@@ -166,6 +166,8 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
         event_builder.map(|i| i.set_response_body(&response));
         router_env::logger::info!(connector_response=?response);
 
+        // NOTE: ResponseRouterData takes 2 type params: <ResponseType, RouterDataType>.
+        // The type params are inferred here from the struct fields.
         RouterDataV2::try_from(ResponseRouterData {
             response,
             data: data.clone(),
@@ -184,14 +186,16 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
     }
 }
 
+// ⚠️ CHOOSE ONE: Either the manual `ConnectorIntegrationV2` impl above OR the
+// `macro_connector_implementation!` macro below — NOT both. Using both will cause
+// a duplicate impl compilation error. The manual impl gives full control; the macro
+// reduces boilerplate. Delete whichever you do not use.
+
 // Source verification for security (optional but recommended)
+// NOTE: SourceVerification trait takes NO type parameters.
+// It is implemented on the connector type directly.
 impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
-    interfaces::verification::SourceVerification<
-        RSync,
-        RefundFlowData,
-        RefundSyncData,
-        RefundsResponseData,
-    > for {ConnectorName}<T>
+    interfaces::verification::SourceVerification for {ConnectorName}<T>
 {
 }
 
@@ -250,6 +254,12 @@ pub enum {ConnectorName}RefundStatus {
     Success,
     Pending,
     Failed,
+    // TODO: Add TransactionFailure if the connector distinguishes between
+    // a refund that failed (retryable) vs a transaction-level failure (terminal).
+    // TransactionFailure,
+    // TODO: Add ManualReview if the connector has a state where refunds are
+    // held for manual review/approval before processing.
+    // ManualReview,
     // Add connector-specific statuses
 }
 
@@ -275,18 +285,23 @@ impl From<{ConnectorName}RefundStatus> for common_enums::RefundStatus {
             {ConnectorName}RefundStatus::Success => Self::Success,
             {ConnectorName}RefundStatus::Pending => Self::Pending,
             {ConnectorName}RefundStatus::Failed => Self::Failure,
+            // TODO: Uncomment when adding TransactionFailure / ManualReview variants above.
+            // {ConnectorName}RefundStatus::TransactionFailure => Self::TransactionFailure,
+            // {ConnectorName}RefundStatus::ManualReview => Self::ManualReview,
         }
     }
 }
 
 // Response transformation
-impl TryFrom<ResponseRouterData<RSync, {ConnectorName}RefundSyncResponse, RefundSyncData, RefundsResponseData>>
+// NOTE: ResponseRouterData has 2 type params: <ResponseType, RouterDataType>.
+// The full RouterDataV2 type is the second param (RouterDataType).
+impl TryFrom<ResponseRouterData<{ConnectorName}RefundSyncResponse, RouterDataV2<RSync, RefundFlowData, RefundSyncData, RefundsResponseData>>>
     for RouterDataV2<RSync, RefundFlowData, RefundSyncData, RefundsResponseData>
 {
     type Error = error_stack::Report<errors::ConnectorError>;
 
     fn try_from(
-        item: ResponseRouterData<RSync, {ConnectorName}RefundSyncResponse, RefundSyncData, RefundsResponseData>,
+        item: ResponseRouterData<{ConnectorName}RefundSyncResponse, RouterDataV2<RSync, RefundFlowData, RefundSyncData, RefundsResponseData>>,
     ) -> Result<Self, Self::Error> {
         Ok(Self {
             response: Ok(RefundsResponseData {

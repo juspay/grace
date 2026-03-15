@@ -391,6 +391,8 @@ impl TryFrom<&ConnectorSpecificConfig> for {ConnectorName}AuthType {
 // =============================================================================
 // PATTERN 1: DEDICATED MANDATE CANCEL ENDPOINT
 // =============================================================================
+// <!-- ==================== OPTION A: Pattern 1 ==================== -->
+// <!-- Use this for connectors with explicit revoke/cancel endpoints -->
 
 #[derive(Debug, Serialize)]
 pub struct {ConnectorName}RevokeMandateRequest {
@@ -402,13 +404,19 @@ pub struct {ConnectorName}RevokeMandateRequest {
 // =============================================================================
 // PATTERN 2: GENERIC ENDPOINT WITH OPERATION FLAG (Noon-style)
 // =============================================================================
+// <!-- ==================== OPTION B: Pattern 2 ==================== -->
+// <!-- Use this for connectors that revoke via status update / operation flag -->
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct {ConnectorName}RevokeMandateRequest {
+pub struct {ConnectorName}RevokeMandateRequestAlt {
     pub api_operation: {ConnectorName}ApiOperations,
     pub subscription: {ConnectorName}SubscriptionObject,
 }
+
+// <!-- ==================== CHOOSE ONE PATTERN ABOVE ==================== -->
+// IMPORTANT: Only ONE of the above structs should be used in your implementation.
+// Rename the chosen struct to {ConnectorName}RevokeMandateRequest and delete the other.
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -426,6 +434,9 @@ pub struct {ConnectorName}SubscriptionObject {
 // RESPONSE STRUCTURES
 // =============================================================================
 
+// <!-- ==================== OPTION A: Pattern 1 Response ==================== -->
+// <!-- Use this for connectors with simple status responses -->
+
 // Pattern 1: Simple status response
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -442,10 +453,13 @@ pub enum {ConnectorName}RevokeStatus {
     Failed,
 }
 
+// <!-- ==================== OPTION B: Pattern 2 Response ==================== -->
+// <!-- Use this for connectors with nested responses (Noon-style) -->
+
 // Pattern 2: Nested response (Noon-style)
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct {ConnectorName}RevokeMandateResponse {
+pub struct {ConnectorName}RevokeMandateResponseAlt {
     pub result: {ConnectorName}RevokeMandateResult,
 }
 
@@ -458,13 +472,17 @@ pub struct {ConnectorName}RevokeMandateResult {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct {ConnectorName}CancelSubscriptionObject {
-    pub status: {ConnectorName}RevokeStatus,
+    pub status: {ConnectorName}RevokeStatusAlt,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub enum {ConnectorName}RevokeStatus {
+pub enum {ConnectorName}RevokeStatusAlt {
     Cancelled,
 }
+
+// <!-- ==================== CHOOSE ONE RESPONSE PATTERN ABOVE ==================== -->
+// IMPORTANT: Only ONE response struct should be used. Rename the chosen struct
+// to {ConnectorName}RevokeMandateResponse and delete the other.
 
 // Error Response Structure
 #[derive(Debug, Deserialize)]
@@ -479,6 +497,7 @@ pub struct {ConnectorName}ErrorResponse {
 // REQUEST TRANSFORMATION IMPLEMENTATIONS
 // =============================================================================
 
+// <!-- ==================== OPTION A: Pattern 1 Request Transformation ==================== -->
 // Pattern 1: Simple request with optional fields
 impl TryFrom<&RouterDataV2<MandateRevoke, PaymentFlowData, MandateRevokeRequestData, MandateRevokeResponseData>>
     for {ConnectorName}RevokeMandateRequest
@@ -488,6 +507,10 @@ impl TryFrom<&RouterDataV2<MandateRevoke, PaymentFlowData, MandateRevokeRequestD
     fn try_from(
         router_data: &RouterDataV2<MandateRevoke, PaymentFlowData, MandateRevokeRequestData, MandateRevokeResponseData>,
     ) -> Result<Self, Self::Error> {
+        // Idempotency: Multiple revoke calls for the same mandate MUST be safe.
+        // Check if the mandate is already revoked before making the API call:
+        // if current_status == MandateStatus::Revoked { return Ok(already_revoked_response); }
+        // TODO: Add idempotency check based on connector's behavior.
         Ok(Self {
             reason: None,  // Optional cancellation reason
             cancellation_policy: None,
@@ -495,15 +518,20 @@ impl TryFrom<&RouterDataV2<MandateRevoke, PaymentFlowData, MandateRevokeRequestD
     }
 }
 
+// <!-- ==================== OPTION B: Pattern 2 Request Transformation ==================== -->
 // Pattern 2: Operation-based request (Noon-style)
 impl TryFrom<&RouterDataV2<MandateRevoke, PaymentFlowData, MandateRevokeRequestData, MandateRevokeResponseData>>
-    for {ConnectorName}RevokeMandateRequest
+    for {ConnectorName}RevokeMandateRequestAlt
 {
     type Error = error_stack::Report<ConnectorError>;
 
     fn try_from(
         router_data: &RouterDataV2<MandateRevoke, PaymentFlowData, MandateRevokeRequestData, MandateRevokeResponseData>,
     ) -> Result<Self, Self::Error> {
+        // Idempotency: Multiple revoke calls for the same mandate MUST be safe.
+        // Check if the mandate is already revoked before making the API call:
+        // if current_status == MandateStatus::Revoked { return Ok(already_revoked_response); }
+        // TODO: Add idempotency check based on connector's behavior.
         Ok(Self {
             api_operation: {ConnectorName}ApiOperations::CancelSubscription,
             subscription: {ConnectorName}SubscriptionObject {
@@ -513,10 +541,13 @@ impl TryFrom<&RouterDataV2<MandateRevoke, PaymentFlowData, MandateRevokeRequestD
     }
 }
 
+// <!-- ==================== CHOOSE ONE PATTERN ABOVE ==================== -->
+
 // =============================================================================
 // RESPONSE TRANSFORMATION IMPLEMENTATION
 // =============================================================================
 
+// <!-- ==================== OPTION A: Pattern 1 Response Transformation ==================== -->
 // Pattern 1: Simple response
 impl TryFrom<ResponseRouterData<{ConnectorName}RevokeMandateResponse, Self>>
     for RouterDataV2<MandateRevoke, PaymentFlowData, MandateRevokeRequestData, MandateRevokeResponseData>
@@ -545,17 +576,18 @@ impl TryFrom<ResponseRouterData<{ConnectorName}RevokeMandateResponse, Self>>
     }
 }
 
+// <!-- ==================== OPTION B: Pattern 2 Response Transformation ==================== -->
 // Pattern 2: Nested response (Noon-style)
-impl TryFrom<ResponseRouterData<{ConnectorName}RevokeMandateResponse, Self>>
+impl TryFrom<ResponseRouterData<{ConnectorName}RevokeMandateResponseAlt, Self>>
     for RouterDataV2<MandateRevoke, PaymentFlowData, MandateRevokeRequestData, MandateRevokeResponseData>
 {
     type Error = error_stack::Report<ConnectorError>;
 
     fn try_from(
-        item: ResponseRouterData<{ConnectorName}RevokeMandateResponse, Self>,
+        item: ResponseRouterData<{ConnectorName}RevokeMandateResponseAlt, Self>,
     ) -> Result<Self, Self::Error> {
         match item.response.result.subscription.status {
-            {ConnectorName}RevokeStatus::Cancelled => Ok(Self {
+            {ConnectorName}RevokeStatusAlt::Cancelled => Ok(Self {
                 response: Ok(MandateRevokeResponseData {
                     mandate_status: common_enums::MandateStatus::Revoked,
                     status_code: item.http_code,
@@ -565,6 +597,8 @@ impl TryFrom<ResponseRouterData<{ConnectorName}RevokeMandateResponse, Self>>
         }
     }
 }
+
+// <!-- ==================== CHOOSE ONE PATTERN ABOVE ==================== -->
 
 // Helper struct for router data transformation
 pub struct {ConnectorName}RouterData<T, U> {
@@ -896,7 +930,13 @@ impl TryFrom<ResponseRouterData<{ConnectorName}RevokeMandateResponse, Self>>
 
 1. **Use Appropriate Pattern**: Choose the URL pattern that matches your connector's API design
 2. **Simple Response Handling**: MandateRevoke responses are typically simple - just map success to `Revoked`
-3. **Idempotency**: Handle cases where mandate is already revoked (some connectors return error)
+3. **Idempotency**: Handle cases where mandate is already revoked. Multiple revoke calls for the same mandate MUST be safe. Before making the API call, check if the mandate is already revoked:
+   ```rust
+   // Idempotency: Multiple revoke calls for the same mandate MUST be safe.
+   // Check if the mandate is already revoked before making the API call:
+   // if current_status == MandateStatus::Revoked { return Ok(already_revoked_response); }
+   ```
+   Some connectors return an error for already-revoked mandates — map these to a success response rather than propagating the error.
 4. **Error Context**: Provide meaningful error messages for mandate-specific failures
 5. **Status Mapping**: Always map successful cancellation to `MandateStatus::Revoked`
 6. **Empty Trait for Unsupported**: If connector doesn't support mandate revocation, use empty trait impl

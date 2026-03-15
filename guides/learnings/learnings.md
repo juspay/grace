@@ -1,5 +1,8 @@
 # UCS Connector Implementation Learnings & User Feedback
 
+> **Note:** This file is a template awaiting population from completed connector integrations.
+> As connectors are integrated using Grace, learnings should be documented here following the structure below.
+
 This file captures lessons learned from UCS connector implementations and user feedback to continuously improve AI-generated code quality.
 
 ## 📚 Implementation Learnings

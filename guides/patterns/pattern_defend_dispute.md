@@ -476,7 +476,12 @@ impl<T, U> TryFrom<(T, U)> for {ConnectorName}RouterData<T, U> {
 pub struct DisputeDefendData {
     pub dispute_id: String,                    // Internal dispute ID
     pub connector_dispute_id: String,          // Connector's dispute ID
+    // TODO: If the connector doesn't require defense_reason_code,
+    // use String::new() or a default value. Verify whether this field
+    // is truly required by the framework or can be Option<String>.
     pub defense_reason_code: String,           // Reason for defending
+    // NOTE: integrity_object is used for cryptographic verification of dispute evidence.
+    // Not all connectors require this. Check if your connector's dispute API uses integrity verification.
     pub integrity_object: Option<DefendDisputeIntegrityObject>,
 }
 ```

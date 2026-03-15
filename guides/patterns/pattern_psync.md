@@ -437,9 +437,18 @@ impl From<{ConnectorName}PaymentStatus> for common_enums::AttemptStatus {
             {ConnectorName}PaymentStatus::Cancelled
             | {ConnectorName}PaymentStatus::Voided => Self::Voided,
             
-            {ConnectorName}PaymentStatus::Refunded => Self::Charged, // Successful refund
+            // NOTE: Refunded → Charged is intentionally correct for PSync.
+            // In PSync, we track the *payment* status, not the refund status.
+            // A refunded payment was successfully charged first — the refund lifecycle
+            // is tracked separately via RSync. If your connector returns a terminal
+            // "Refunded" status that means the payment is no longer chargeable, consider
+            // mapping to `Voided` instead, but this is rare.
+            {ConnectorName}PaymentStatus::Refunded => Self::Charged,
             
             // Unknown/default
+            // TODO: Mapping Unknown → Pending may mask genuinely unrecognized statuses.
+            // Consider logging a warning or returning an error for Unknown statuses
+            // so they surface during integration testing rather than silently proceeding.
             {ConnectorName}PaymentStatus::Unknown => Self::Pending,
         }
     }

@@ -72,6 +72,9 @@ You, as the controller, must provide all necessary context including the pattern
    - Run: `./grace/add_connector.sh {connector_name} {base_url} --force -y`
    - **WAIT FOR COMPLETION**
    - Validate connector foundation created successfully
+   <!-- NOTE: add_connector.sh auto-registers the connector in supportedconnectors.toml
+        and ConnectorSpecificConfig. This is consistent with add_flow.md Phase 0.
+        Do NOT manually re-register what the script already handles. -->
 2. **DELEGATE TO**: Connector Mod Subagent
    - Add connector to `backend/connector-integration/src/connectors.rs` mod list
    - **WAIT FOR COMPLETION**
@@ -158,7 +161,7 @@ add {Category}:{type1},{type2} and {Category2}:{type3} to {connector_name} using
 add Wallet:Apple Pay,Google Pay and Card:Credit,Debit to Stripe using grace/add_pm.md
 add Wallet:PayPal and BankTransfer:SEPA,ACH to Wise using grace/add_pm.md
 add UPI:Collect,Intent to PhonePe using grace/add_pm.md
-add Wallet:Apple Pay,Google Pay and Card:Credit,Debit and BankTransferACH to Stripe using grace/add_pm.md
+add Wallet:Apple Pay,Google Pay and Card:Credit,Debit and BankTransfer:ACH to Stripe using grace/add_pm.md
 ```
 
 ## PAYMENT METHOD SPECIFICATION SYNTAX
@@ -200,7 +203,7 @@ Use these exact category names with the prefix syntax:
 | `Crypto` | Bitcoin, Ethereum | `authorize/crypto/` |
 | `GiftCard` | Generic Gift Card | `authorize/gift_card/` |
 | `MobilePayment` | Carrier Billing | `authorize/mobile_payment/` |
-| `Reward` | Loyalty Points | `authorize/reward/` |
+| `Reward` | Cash-to-code voucher systems (e.g., CashToCode, Evoucher) | `authorize/reward/` |
 
 ### Payment Method Name to Category Mapping
 
@@ -235,23 +238,27 @@ Use this mapping for auto-detection when category prefix is not provided:
 function detect_category(payment_method_name):
     normalized = lowercase(payment_method_name).replace(" ", "")
 
-    if normalized in ["applepay", "apple pay", "googlepay", "google pay", "paypal", "wechatpay", "wechat pay", "alipay", "ali pay"]:
+    # Note: After normalization (lowercase + remove spaces), match against spaceless forms
+    # e.g., "applepay" not "apple pay"
+    if normalized in ["applepay", "googlepay", "paypal", "wechatpay", "alipay"]:
         return "Wallet"
-    else if normalized in ["card", "creditcard", "credit card", "debitcard", "debit card"]:
+    else if normalized in ["card", "creditcard", "debitcard"]:
         return "Card"
-    else if normalized in ["sepa", "ach", "wire", "wiretransfer", "banktransfer", "bank transfer"]:
+    else if normalized in ["sepa", "ach", "wire", "wiretransfer", "banktransfer"]:
         return "BankTransfer"
-    else if normalized in ["sepadebit", "sepa debit", "achdebit", "ach debit", "bacs", "bacsdebit"]:
+    else if normalized in ["sepadebit", "achdebit", "bacs", "bacsdebit"]:
         return "BankDebit"
     else if normalized in ["ideal", "sofort", "giropay", "eps", "przelewy24"]:
         return "BankRedirect"
-    else if normalized in ["upi", "upicollect", "upi collect", "upiintent", "upi intent"]:
+    else if normalized in ["upi", "upicollect", "upiintent"]:
         return "UPI"
     else if normalized in ["klarna", "afterpay", "affirm"]:
         return "BNPL"
     else:
-        # Ask user for clarification or default based on connector's tech spec
-        return detect_from_tech_spec(payment_method_name)
+        # Payment method category could not be auto-detected.
+        # Ask the user to specify the category using prefix syntax:
+        #   add {Category}:{type} to {connector}
+        return ask_user_for_category(payment_method_name)
 ```
 
 ### Parsing Algorithm
@@ -270,16 +277,16 @@ function detect_category(payment_method_name):
 
 | Payment Method | Pattern File | Typical Flows |
 |----------------|--------------|---------------|
-| Card | flows/authorize/card.md | All flows |
-| Wallet (Apple Pay, Google Pay) | flows/authorize/wallet.md | Authorize, Refund |
-| Bank Transfer | flows/authorize/bank_transfer.md | Authorize, Refund |
-| Bank Debit | flows/authorize/bank_debit.md | Authorize, Refund |
-| Bank Redirect | flows/authorize/bank_redirect.md | Authorize |
-| UPI | flows/authorize/upi.md | Authorize, Refund |
-| BNPL | flows/authorize/bnpl.md | Authorize, Refund |
-| Crypto | flows/authorize/crypto.md | Authorize |
-| Gift Card | flows/authorize/gift_card.md | Authorize |
-| Mobile Payment | flows/authorize/mobile_payment.md | Authorize, Refund |
+| Card | guides/patterns/authorize/card/pattern_authorize_card.md | All flows |
+| Wallet (Apple Pay, Google Pay) | guides/patterns/authorize/wallet/pattern_authorize_wallet.md | Authorize, Refund |
+| Bank Transfer | guides/patterns/authorize/bank_transfer/pattern_authorize_bank_transfer.md | Authorize, Refund |
+| Bank Debit | guides/patterns/authorize/bank_debit/pattern_authorize_bank_debit.md | Authorize, Refund |
+| Bank Redirect | guides/patterns/authorize/bank_redirect/pattern_authorize_bank_redirect.md | Authorize |
+| UPI | guides/patterns/authorize/upi/pattern_authorize_upi.md | Authorize, Refund |
+| BNPL | guides/patterns/authorize/bnpl/pattern_authorize_bnpl.md | Authorize, Refund |
+| Crypto | guides/patterns/authorize/crypto/pattern_authorize_crypto.md | Authorize |
+| Gift Card | guides/patterns/authorize/gift_card/pattern_authorize_gift_card.md | Authorize |
+| Mobile Payment | guides/patterns/authorize/mobile_payment/pattern_authorize_mobile_payment.md | Authorize, Refund |
 
 ## MULTIPLE PAYMENT METHOD PARSING & BATCH IMPLEMENTATION
 
@@ -560,8 +567,8 @@ You are a Payment Method Implementation Subagent responsible for adding ONE spec
 
 #### STEP 3: Read Flow Pattern
 ```bash
-# Read the flow pattern: guides/patterns/{flow_name}/pattern_{flow_name}.md
-# Example: guides/patterns/refund/pattern_refund.md
+# Read the flow pattern: guides/patterns/pattern_{flow_name}.md
+# Example: guides/patterns/pattern_refund.md
 # Understand how flows are structured
 # Identify where payment method handling occurs
 ```
@@ -586,6 +593,33 @@ You are a Payment Method Implementation Subagent responsible for adding ONE spec
 # 3. What request/response types are needed
 # 4. Any PM-specific transformers needed
 ```
+
+## SECURITY REQUIREMENTS FOR PAYMENT METHOD DATA
+
+**MANDATORY for all payment method implementations:**
+
+1. **Secret Wrappers**: All PCI-sensitive fields MUST use `Secret<String>`:
+   - Card number → `Secret<String>` with `CardNumber` validation
+   - CVV/CVC → `Secret<String>`
+   - Expiry date → `Secret<String>` if sent as a combined field
+   - Bank account numbers → `Secret<String>`
+   - Wallet tokens → `Secret<String>`
+
+2. **Masking**: Use `Maskable<String>` for fields that appear in logs/headers:
+   - API keys in headers → `Maskable<String>`
+   - Never log raw card numbers, CVV, or bank account details
+
+3. **No Logging**: NEVER include PCI-sensitive data in:
+   - Error messages or error response structs
+   - Debug/trace log statements
+   - Connector event payloads
+
+4. **Expose Carefully**: When accessing `Secret` values, use `.expose()` only at the
+   point of serialization. Add a `// SECURITY: exposing for API request serialization`
+   comment at each `.expose()` call site.
+
+5. **Reference**: See `connector_checklist.md` Section 12 (Security Review) for the
+   complete checklist.
 
 #### STEP 6: Implement Payment Method in Authorize Flow
 
@@ -755,6 +789,12 @@ impl TryFrom<...> for {ConnectorName}RefundRequest {
 #### STEP 8: Add Tests for New Payment Method
 1. Add unit tests for payment method transformers
 2. Add integration test cases for the new PM
+
+> **Note**: Test data construction requires the UCS test harness which provides
+> `ConnectorActions` trait implementations. Refer to existing connector tests in
+> `backend/connector-integration/src/connectors/` for examples of mock `RouterDataV2`
+> construction and test fixture patterns. At minimum, verify your payment method
+> data transformation produces valid connector API request bodies.
 
 ```rust
 #[cfg(test)]

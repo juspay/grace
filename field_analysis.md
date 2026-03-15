@@ -380,8 +380,26 @@ Fields requiring clarification:
 - Connector Output Files: [List relevant files checked]
 - Additional Documentation: [Any other docs referenced]
 ```
-### STEP 9 : UPDATE THE TECHSPEC WITH THE SEQUENCE OF API CALLS 
- Find the generathed tech spec and update the tech spec with the sequence of api calls. 
+### STEP 9: Update the Tech Spec with API Call Sequence
+
+**Action:** Find the generated tech spec and update it with the sequence of API calls identified in this analysis.
+
+**Process:**
+1. Open the generated tech spec at `references/{connector_name}/technical_specification.md`
+2. Locate the API Endpoints section
+3. Add/update the API call sequence for each flow based on the dependency analysis from Steps 5-6
+4. Ensure prerequisite API calls are documented in the correct order
+
+**Output Format:**
+```
+Updated Tech Spec Sections:
+- Flow: [Flow Name]
+  API Call Sequence:
+  1. [Prerequisite API Call 1] → provides [fields]
+  2. [Prerequisite API Call 2] → provides [fields]
+  3. [Final API Call] → uses [fields from above]
+```
+
 ---
 
 ## Detailed Analysis Guidelines
@@ -430,7 +448,7 @@ Fields requiring clarification:
    - "Use the [field] from the [API] response..."
 
 **Search Locations:**
-- `/mnt/user-data/uploads/output/[connector-name]/` - Response schemas
+- `references/{connector-name}/` - Scraped API documentation and response schemas
 - Technical specification sections on prerequisites
 - API flow diagrams
 - Authentication sections
@@ -524,7 +542,7 @@ Source: Merchant account settings / connector configuration
 Before finalizing analysis, verify:
 
 - [ ] Checked technical specification for all flows
-- [ ] Reviewed connector output files in `/mnt/user-data/uploads/output/[connector]/`
+- [ ] Reviewed connector reference files in `references/{connector-name}/`
 - [ ] Searched for all CreateXXX, TokenizeXXX, AuthXXX APIs
 - [ ] Identified all authentication/authorization mechanisms
 - [ ] Mapped all ID and token fields to their source APIs
@@ -540,9 +558,8 @@ Before finalizing analysis, verify:
 Generate the following files:
 
 ```
-/mnt/user-data/outputs/
-├── [ConnectorName]_Field_Dependency_Analysis/
-│   ├── 00_MASTER_SUMMARY.md
+grace/references/{ConnectorName}_Field_Dependency_Analysis/
+├── 00_MASTER_SUMMARY.md
 │   ├── 01_[FlowName]_Analysis.md
 │   ├── 02_[FlowName]_Analysis.md
 │   ├── ...
@@ -734,9 +751,9 @@ When completing analysis, ensure:
 
 ---
 
-## Integration with Claude Code
+## Integration with AI Coding Agents
 
-This rule set is designed to be consumed by Claude Code to:
+This rule set is designed to be consumed by AI coding agents (e.g., Claude, Cursor, OpenCode) to:
 
 1. **Systematically analyze** technical specifications
 2. **Generate comprehensive** field dependency mappings
@@ -744,7 +761,7 @@ This rule set is designed to be consumed by Claude Code to:
 4. **Prepare targeted questions** for users
 5. **Create reusable documentation** for connector implementations
 
-**Usage in Claude Code:**
+**Usage with AI Coding Agents:**
 ```bash
 # Read technical specification
 # Apply this rule set step by step

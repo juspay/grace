@@ -1,5 +1,7 @@
 # Grace Workflow Selection Guide
 
+> **Note**: All file paths in this document are relative to the Grace project root directory.
+
 This guide helps you choose the right Grace workflow controller for your UCS connector task.
 
 ## Quick Decision Tree
@@ -28,6 +30,24 @@ What do you need to do?
 > **Note**: Always use explicit form with full path to the workflow file to avoid ambiguity.
 
 ## Workflow Controllers
+
+### 0. `codegen.md` - Main Orchestrator
+
+**When to Use:**
+- Starting a brand new connector integration from scratch
+- Need the full end-to-end pipeline (scrape docs -> tech spec -> scaffold -> implement)
+
+**What It Does:**
+- Orchestrates the complete pipeline
+- Delegates to `integrate_connector.md` for the implementation phase
+
+**Trigger Commands:**
+```bash
+Read grace/codegen.md. Integrate {ConnectorName}.
+Read grace/codegen.md. Integrate {ConnectorName} using: {url1}, {url2}
+```
+
+---
 
 ### 1. `integrate_connector.md` - New Connector Integration
 
@@ -110,7 +130,7 @@ add Capture and Void flows to Adyen using grace/add_flow.md
 
 **Pattern Files:**
 
-- `guides/patterns/{flow_name}/pattern_{flow_name}.md`
+- `guides/patterns/pattern_{flow_name}.md`
 
 ---
 
@@ -274,7 +294,7 @@ integrate MyConnector using grace/integrate_connector.md
 fix error handling in Stripe Refund flow
 ```
 
-Or manually edit using patterns from `guides/flows/refund/`
+Or manually edit using patterns from `guides/patterns/` (e.g., `pattern_refund.md`)
 
 ---
 
@@ -294,26 +314,26 @@ Or manually edit using patterns from `guides/flows/refund/`
 ### Flow Patterns
 
 ```
-guides/flows/{flow_name}/pattern_{flow_name}.md
+guides/patterns/pattern_{flow_name}.md
 ```
 
 Examples:
 
-- `flows/authorize/pattern_authorize.md`
-- `flows/capture/pattern_capture.md`
-- `flows/refund/pattern_refund.md`
+- `guides/patterns/pattern_authorize.md`
+- `guides/patterns/pattern_capture.md`
+- `guides/patterns/pattern_refund.md`
 
 ### Payment Method Patterns
 
 ```
-guides/flows/authorize/{payment_method}.md
+guides/patterns/authorize/{payment_method}/pattern_authorize_{payment_method}.md
 ```
 
 Examples:
 
-- `flows/authorize/card.md`
-- `flows/authorize/wallet.md`
-- `flows/authorize/bank_transfer.md`
+- `guides/patterns/authorize/card/pattern_authorize_card.md`
+- `guides/patterns/authorize/wallet/pattern_authorize_wallet.md`
+- `guides/patterns/authorize/bank_transfer/pattern_authorize_bank_transfer.md`
 
 ## Tips for Best Results
 
@@ -346,6 +366,5 @@ Examples:
 ## Related Documentation
 
 - [Patterns README](./patterns/README.md) - Pattern overview
-- [Flows README](./flows/README.md) - Flow patterns index
 - [Connector Integration Guide](./connector_integration_guide.md) - Step-by-step integration
 - [Quality Guide](./quality/README.md) - Code quality standards

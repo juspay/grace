@@ -496,12 +496,13 @@ pub fn extract_mandate_id(
     mandate_reference: &MandateReferenceId,
 ) -> CustomResult<String, errors::ConnectorError> {
     match mandate_reference {
-        MandateReferenceId::ConnectorMandateId(ref) => {
-            ref.get_connector_mandate_id().ok_or(/* error */)
+        // NOTE: `ref` is a reserved keyword in Rust. Use `mandate_ref` instead.
+        MandateReferenceId::ConnectorMandateId(mandate_ref) => {
+            mandate_ref.get_connector_mandate_id().ok_or(/* error */)
         }
-        MandateReferenceId::NetworkMandateId(ref) => {
+        MandateReferenceId::NetworkMandateId(network_ref) => {
             // Implement network mandate support if applicable
-            Ok(ref.network_transaction_id.clone())
+            Ok(network_ref.network_transaction_id.clone())
         }
         MandateReferenceId::NetworkTokenWithNTI(_) => {
             Err(/* NotImplemented error */)
@@ -546,6 +547,38 @@ trait GetCaptureMethod {
 impl GetCaptureMethod for RepeatPaymentData {
     fn get_capture_method(&self) -> Option<common_enums::CaptureMethod> {
         self.capture_method
+    }
+}
+```
+
+---
+
+## MIT/CIT Distinction
+
+For repeat (merchant-initiated) payments, you MUST:
+1. Set `payment_initiator: "merchant"` (or equivalent connector field)
+2. Include the `network_txn_id` from the initial CIT authorization
+3. Include the stored credential indicator per Visa/Mastercard CoF framework
+4. Do NOT require CVV for MIT transactions
+
+<!-- TODO: Add Visa/Mastercard Credential-on-File (CoF) framework guidance -->
+
+### Example: Setting MIT indicators
+
+```rust
+// In RepeatPayment request transformation
+fn build_recurring_fields(
+    router_data: &RouterDataV2<RepeatPayment, PaymentFlowData, RepeatPaymentData, PaymentsResponseData>,
+) -> RecurringFields {
+    RecurringFields {
+        // Indicates this is a merchant-initiated transaction
+        payment_initiator: PaymentInitiator::Merchant,
+        // network_txn_id from the original CIT authorization response
+        network_transaction_id: router_data.request.network_txn_id.clone(),
+        // Stored credential indicator (required for Visa/Mastercard CoF)
+        stored_credential_indicator: StoredCredentialIndicator::Used,
+        // CVV must NOT be required for MIT
+        // cvc: None,
     }
 }
 ```
@@ -732,9 +765,9 @@ pub enum MandateReferenceId {
 
 ### C. Related Documentation
 
-- [SetupMandate Flow Patterns] - For initial mandate setup
-- [Authorize Flow Patterns] - For standard payment authorization
-- [Connector Integration Guide] - General connector implementation guide
+- [SetupMandate Flow Patterns](./pattern_setup_mandate.md) - For initial mandate setup
+- [Authorize Flow Patterns](./pattern_authorize_card.md) - For standard payment authorization
+- [Connector Integration Guide](../connector_integration_guide.md) - General connector implementation guide
 
 ---
 

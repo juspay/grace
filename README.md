@@ -25,6 +25,9 @@ Grace is a collection of structured markdown rules and guides that AI coding age
 | [add_pm.md](add_pm.md) | Add a payment method to an existing connector |
 | [connector_checklist.md](connector_checklist.md) | Post-implementation validation |
 | [field_analysis.md](field_analysis.md) | API field dependency analysis |
+| [guides/workflow_selection.md](guides/workflow_selection.md) | Workflow selection guide |
+| [guides/feedback.md](guides/feedback.md) | Quality feedback database |
+| [guides/quality/quality_review_template.md](guides/quality/quality_review_template.md) | Quality review template |
 
 ## Quick Example
 
@@ -53,7 +56,8 @@ grace/
 ├── connector_checklist.md      # Validation checklist
 ├── add_connector.sh            # Foundation scaffold script
 ├── guides/                     # Implementation guides & patterns
-├── connector_integration/      # Templates
+│   └── quality/                # Quality review tools
+├── connector_integration/      # Tech spec templates
 ├── template-generation/        # Rust code templates
 └── references/                 # Connector tech specs (gitignored)
 ```

@@ -637,18 +637,23 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::mark
 }
 
 // Helper struct for router data transformation
-pub struct {ConnectorName}RouterData<T> {
+// NOTE: This struct takes 2 generic parameters: T = the RouterDataV2 type,
+// U = the PaymentMethodDataTypes marker type. The TryFrom impls above use
+// {ConnectorName}RouterData<RouterDataV2<...>, T> where T is the PMD type.
+pub struct {ConnectorName}RouterData<T, U> {
     pub amount: {AmountType},
     pub router_data: T,
+    pub _marker: std::marker::PhantomData<U>,
 }
 
-impl<T> TryFrom<({AmountType}, T)> for {ConnectorName}RouterData<T> {
+impl<T, U> TryFrom<({AmountType}, T)> for {ConnectorName}RouterData<T, U> {
     type Error = error_stack::Report<ConnectorError>;
 
     fn try_from((amount, router_data): ({AmountType}, T)) -> Result<Self, Self::Error> {
         Ok(Self {
             amount,
             router_data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -969,7 +974,10 @@ mod tests {
         ));
     }
 
-    fn create_test_token_router_data() -> RouterDataV2<PaymentMethodToken, PaymentFlowData, PaymentMethodTokenizationData, PaymentMethodTokenResponse> {
+    fn create_test_token_router_data() -> RouterDataV2<PaymentMethodToken, PaymentFlowData, PaymentMethodTokenizationData<T>, PaymentMethodTokenResponse> {
+        // TODO: Add generic type parameter <T> — this function must be generic
+        // or use a concrete type that implements PaymentMethodDataTypes.
+        // Example: fn create_test_token_router_data<T: PaymentMethodDataTypes + ...>() -> ...
         // Create test router data structure with card payment method
         // ... implementation
     }
@@ -1207,5 +1215,5 @@ By following these patterns, you can implement a production-ready PaymentMethodT
 
 - [pattern_authorize.md](./pattern_authorize.md) - Authorization flow using tokens
 - [pattern_setup_mandate.md](./pattern_setup_mandate.md) - Mandate setup patterns
-- [repeat_payment_flow_patterns.md](./repeat_payment_flow_patterns.md) - Using tokens for repeat payments
+- [pattern_repeat_payment_flow.md](./pattern_repeat_payment_flow.md) - Using tokens for repeat payments
 - [../connector_integration_guide.md](../connector_integration_guide.md) - Complete UCS integration process

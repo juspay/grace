@@ -224,16 +224,25 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::mark
         let auth = transformers::{ConnectorName}AuthType::try_from(auth_type)
             .change_context(errors::ConnectorError::FailedToObtainAuthType)?;
         
-        // Choose appropriate auth header format based on connector
+        // Choose ONE of the following auth header patterns based on your connector:
+
+        // Option 1: Bearer token authentication
         Ok(vec![(
             headers::AUTHORIZATION.to_string(),
-            // Choose one of the following patterns:
-            format!("Bearer {}", auth.api_key.peek()).into_masked(), // Bearer token
-            // OR
-            format!("Basic {}", auth.generate_basic_auth()).into_masked(), // Basic auth
-            // OR
-            auth.api_key.into_masked(), // Direct API key
+            format!("Bearer {}", auth.api_key.peek()).into_masked(),
         )])
+
+        // Option 2: Basic auth (base64-encoded credentials)
+        // Ok(vec![(
+        //     headers::AUTHORIZATION.to_string(),
+        //     format!("Basic {}", auth.generate_basic_auth()).into_masked(),
+        // )])
+
+        // Option 3: Direct API key (no prefix)
+        // Ok(vec![(
+        //     headers::AUTHORIZATION.to_string(),
+        //     auth.api_key.into_masked(),
+        // )])
     }
 
     fn build_error_response(
@@ -360,7 +369,8 @@ pub struct {ConnectorName}AuthType {
 impl {ConnectorName}AuthType {
     pub fn generate_basic_auth(&self) -> String {
         // Implement basic auth generation if needed
-        base64::encode(format!("{}:{}", 
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", 
             self.api_key.peek(), 
             self.api_secret.as_ref().map(|s| s.peek()).unwrap_or("")
         ))
@@ -557,6 +567,11 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::mark
 }
 
 // Helper struct for router data transformation
+// NOTE: This struct is defined with a single generic <T> representing the full
+// RouterDataV2<Flow, ResourceData, RequestData, ResponseData> type. When used in
+// TryFrom impls (e.g., lines above), T is instantiated with the full RouterDataV2 type
+// and a second generic may appear for PaymentMethodDataTypes — that second generic
+// belongs to the *impl block*, not to this struct. See TryFrom impl above for usage.
 pub struct {ConnectorName}RouterData<T> {
     pub amount: {AmountType},
     pub router_data: T,

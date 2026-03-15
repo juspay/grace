@@ -1,3 +1,8 @@
+> **Placeholder Convention Note:** This guide uses `{{ConnectorName}}` (PascalCase) and
+> `{{connector_name}}` (snake_case) as conceptual placeholders in examples. The actual
+> `.template` files use `{{CONNECTOR_NAME_PASCAL}}` and `{{CONNECTOR_NAME_SNAKE}}`.
+> Both conventions refer to the same substitution values.
+
 # Flow Implementation Using Macros - Quick Reference Guide
 
 This guide provides flow-specific macro implementation patterns. Use this alongside individual flow pattern files.
@@ -43,7 +48,9 @@ macros::macro_connector_implementation!(
             self.build_headers(req)
         }
         fn get_url(&self, req: &RouterDataV2<...>) -> CustomResult<String, ...> {
-            Ok(format!("{}/endpoint", self.connector_base_url(req)))
+            Ok(format!("{}/endpoint", self.connector_base_url_payments(req)))
+            // NOTE: Use connector_base_url_payments(req) for payment flows
+            // or connector_base_url_refunds(req) for refund flows
         }
     }
 );
@@ -604,7 +611,7 @@ After implementing a flow with macros, verify:
 ## See Also
 
 - **[macro_patterns_reference.md](./macro_patterns_reference.md)** - Complete macro reference
-- **[macro_templates.md](../template-generation/macro_templates.md)** - Code generation templates
+- **[macro_templates.md](../../template-generation/macro_templates.md)** - Code generation templates
 - **Individual pattern files** - Flow-specific implementation details
   - pattern_authorize.md
   - pattern_psync.md

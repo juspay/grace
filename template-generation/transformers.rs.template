@@ -54,25 +54,58 @@ impl TryFrom<&ConnectorSpecificConfig> for {{CONNECTOR_NAME_PASCAL}}AuthType {
 // ERROR RESPONSE
 // =============================================================================
 // TODO: Update to match connector's actual error response format.
+// Many connectors return additional fields (e.g., "type", "param", "detail").
+// Add #[serde(default)] so missing fields don't cause deserialization failures.
+// TODO: Handle the case where the connector returns an empty or unparseable error response.
+// With all Option<String> fields and #[serde(default)], an empty JSON object `{}` will
+// deserialize successfully but produce an ErrorResponse with all empty strings (via
+// .unwrap_or_default()). Consider providing a meaningful fallback message like
+// "Unknown error" or using the HTTP status code to generate a descriptive error.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct {{CONNECTOR_NAME_PASCAL}}ErrorResponse {
     pub code: Option<String>,
     pub message: Option<String>,
 }
+// TODO: Customize this error response struct to match the connector's ACTUAL error format.
+// Common patterns:
+//   Nested errors:  { "error": { "type": "...", "message": "..." } }
+//     → Use a wrapper struct with #[serde(rename = "error")] or #[serde(flatten)]
+//   Stripe-style:   { "error": { "code": "...", "message": "...", "type": "..." } }
+//   Adyen-style:    { "status": 403, "errorCode": "...", "message": "..." }
+//   PayPal-style:   { "name": "...", "details": [...], "message": "..." }
+// The flat {code, message} struct above is a starting point — it will NOT deserialize
+// most real connector error responses correctly without modification.
 
 // =============================================================================
 // PAYMENT STATUS MAPPING
 // =============================================================================
 // TODO: Update variants and serde renames to match connector's actual status values.
 #[derive(Debug, Deserialize, Serialize, Clone)]
+// TODO: IMPORTANT — Verify the connector's actual status value casing.
+// Common conventions: "UPPERCASE", "PascalCase", "snake_case", "lowercase"
+// Most payment connectors use UPPERCASE or PascalCase for status values.
+// Using the wrong rename_all will cause silent deserialization failures.
 #[serde(rename_all = "lowercase")]
 pub enum {{CONNECTOR_NAME_PASCAL}}PaymentStatus {
     Succeeded,
     Failed,
     Pending,
     Processing,
+    // TODO: Uncomment and rename variants to match connector's actual status values.
+    Authorized,  // Payment authorized but not yet captured
+    Cancelled,   // Payment was cancelled before capture
+    Expired,     // Payment authorization has expired
+    RequiresAction, // Payment requires additional customer action (e.g., 3DS)
+    // TODO: Add any other connector-specific statuses below.
 }
 
+// CRITICAL: Customize status mapping per flow type.
+// For Authorize-only flow: Succeeded → AttemptStatus::Authorized
+// For Capture flow: Succeeded → AttemptStatus::Charged
+// For PSync: Map based on the connector's actual payment lifecycle
+// The default below assumes a SALE (auth+capture) flow.
+// If the connector supports separate auth/capture, you MUST change this.
 impl From<&{{CONNECTOR_NAME_PASCAL}}PaymentStatus> for AttemptStatus {
     fn from(status: &{{CONNECTOR_NAME_PASCAL}}PaymentStatus) -> Self {
         match status {
@@ -80,6 +113,10 @@ impl From<&{{CONNECTOR_NAME_PASCAL}}PaymentStatus> for AttemptStatus {
             {{CONNECTOR_NAME_PASCAL}}PaymentStatus::Failed => Self::Failure,
             {{CONNECTOR_NAME_PASCAL}}PaymentStatus::Pending => Self::Pending,
             {{CONNECTOR_NAME_PASCAL}}PaymentStatus::Processing => Self::Pending,
+            {{CONNECTOR_NAME_PASCAL}}PaymentStatus::Authorized => Self::Authorized,
+            {{CONNECTOR_NAME_PASCAL}}PaymentStatus::Cancelled => Self::Voided,
+            {{CONNECTOR_NAME_PASCAL}}PaymentStatus::Expired => Self::Failure,
+            {{CONNECTOR_NAME_PASCAL}}PaymentStatus::RequiresAction => Self::AuthenticationPending,
         }
     }
 }
@@ -89,6 +126,14 @@ impl From<&{{CONNECTOR_NAME_PASCAL}}PaymentStatus> for AttemptStatus {
 // =============================================================================
 
 // TODO: Update fields to match connector's payment creation request body.
+// Common fields that most connectors require:
+//   - card_number / payment_token / payment_method details
+//   - description / statement_descriptor
+//   - customer_email / customer_id
+//   - return_url / callback_url (for 3DS / redirects)
+//   - capture_method (if connector distinguishes auth-only vs sale)
+//   - metadata / order_id / reference
+//   - billing_address / shipping_address
 #[derive(Debug, Serialize)]
 pub struct {{CONNECTOR_NAME_PASCAL}}AuthorizeRequest {
     pub amount: MinorUnit,
@@ -121,8 +166,11 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
         // Access payment data: item.router_data.request
         // Access common data: item.router_data.resource_common_data
         // Access auth: item.router_data.connector_config (use {{CONNECTOR_NAME_PASCAL}}AuthType::try_from)
+        // TODO: Use `item.amount` instead of `item.router_data.request.minor_amount`
+        // to respect the amount converter declared in create_all_prerequisites!
+        // Direct field access bypasses MinorUnit/StringMinorUnit/FloatMajorUnit conversion.
         Ok(Self {
-            amount: item.router_data.request.minor_amount,
+            amount: item.amount,
             currency: item.router_data.request.currency,
         })
     }

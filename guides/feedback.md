@@ -21,7 +21,7 @@
 
 ```
 Quality Score Calculation:
-= 100 - (Critical Issues × 20) - (Warning Issues × 5) - (Suggestion Issues × 1)
+= 100 - (Critical Issues × 20) - (Warning Issues × 5) - (min(Suggestion Issues, 10) × 0.5)
 
 Thresholds:
 - 95-100: Excellent ✨ - Auto-pass
@@ -41,7 +41,7 @@ Thresholds:
 |----------|-------|-----------------|
 | 🚨 Critical | [N] | -[N × 20] |
 | ⚠️ Warning | [N] | -[N × 5] |
-| 💡 Suggestion | [N] | -[N × 1] |
+| 💡 Suggestion | [N] | -[min(N, 10) × 0.5] |
 
 ---
 
@@ -49,7 +49,7 @@ Thresholds:
 
 #### CRITICAL-[N]: [Issue Title]
 
-**Feedback ID:** FB-XXX (if exists in database)
+**Feedback ID:** [Semantic ID, e.g., UCS-XXX, ANTI-XXX, SEC-XXX] (if exists in feedback.md)
 **Category:** UCS_PATTERN_VIOLATION | RUST_BEST_PRACTICE | SECURITY | etc.
 **Location:** `file_path:line_number`
 
@@ -75,7 +75,7 @@ Thresholds:
 
 **References:**
 - See: guides/patterns/pattern_[flow].md
-- See: feedback.md#FB-XXX
+- See: feedback.md (reference by semantic ID)
 - Related: [Other feedback entries]
 
 **Auto-Fix Available:** Yes | No
@@ -87,7 +87,7 @@ Thresholds:
 
 #### WARNING-[N]: [Issue Title]
 
-**Feedback ID:** FB-XXX (if exists in database)
+**Feedback ID:** [Semantic ID, e.g., UCS-XXX, ANTI-XXX, SEC-XXX] (if exists in feedback.md)
 **Category:** CODE_QUALITY | CONNECTOR_PATTERN | PERFORMANCE | etc.
 **Location:** `file_path:line_number`
 
@@ -202,7 +202,7 @@ Thresholds:
 
 **New Patterns Identified:**
 - [ ] Add to feedback.md: [Pattern description]
-- [ ] Update frequency for: FB-XXX
+- [ ] Update frequency for: [relevant semantic ID]
 
 **Lessons Learned:**
 [Any new insights from this review]
@@ -479,7 +479,7 @@ The UCS Connector Code Quality Feedback Database is a **living knowledge base** 
 - Refactoring opportunities
 - Learning opportunities
 
-**Score Impact:** -1 point per issue
+**Score Impact:** -0.5 per issue (max 10 counted)
 
 **Examples:**
 - Better variable names
@@ -516,11 +516,11 @@ The UCS Connector Code Quality Feedback Database is a **living knowledge base** 
 When you discover a new pattern, issue, or best practice, add it to the appropriate section using this template:
 
 ```markdown
-### FB-[ID]: [Brief Descriptive Title]
+### [PREFIX]-[ID]: [Brief Descriptive Title]
 
 **Metadata:**
 ```yaml
-id: FB-XXX
+id: [PREFIX]-[ID]
 category: [CATEGORY_NAME]
 severity: CRITICAL | WARNING | SUGGESTION | INFO
 connector: [connector_name] | general
@@ -568,7 +568,7 @@ THEN suggest: "Replace RouterData with RouterDataV2"
 
 **Related Patterns:**
 - See: guides/patterns/pattern_[name].md#section
-- See: FB-XXX (related feedback entry)
+- See: [PREFIX]-[ID] (related feedback entry)
 - Reference: [external documentation link]
 
 **Lessons Learned:**
@@ -638,6 +638,9 @@ The old FB-XXX numbering system (FB-001 to FB-999) has been replaced by semantic
 
 **Template Example:**
 
+<!-- NOTE: FB-001 below is a LEGACY EXAMPLE entry using the deprecated FB-XXX format.
+     Active entries use semantic IDs (UCS-XXX, ANTI-XXX, SEC-XXX, etc.).
+     Do not create new entries using the FB-XXX format. -->
 ### FB-001: Use RouterDataV2, Never RouterData
 
 **Metadata:**
@@ -699,7 +702,7 @@ THEN suggest: "Replace RouterData with RouterDataV2 and add flow data parameter"
 
 **Related Patterns:**
 - See: guides/patterns/README.md#ucs-architecture
-- See: FB-002 (ConnectorIntegrationV2)
+- See: <!-- FB-002 placeholder removed — use UCS-005 in CONTRIBUTING_FEEDBACK.md -->
 
 **Prevention:**
 - Always use UCS templates as starting point
@@ -916,7 +919,7 @@ THEN suggest: "Replace primitive type with domain_types::MinorUnit"
 **Metadata:**
 ```yaml
 id: UCS-003
-category: CONNECTOR_PATTERN
+category: UCS_PATTERN_VIOLATION
 severity: CRITICAL
 connector: general
 flow: Authenticate
@@ -1007,8 +1010,8 @@ THEN suggest: "Split into PreAuthenticate (device data) and PostAuthenticate (ch
 ```
 
 **Related Patterns:**
-- See: FB-200 series (Flow-Specific Best Practices when populated)
-- See: guides/patterns/pattern_authenticate.md
+- See: FLOW-XXX entries (Flow-Specific Best Practices)
+<!-- NOTE: pattern_authenticate.md does not exist yet. Create it when the 3DS authentication pattern guide is written. -->
 - Reference: UCS 3DS state machine documentation
 
 **Lessons Learned:**
@@ -1029,7 +1032,7 @@ THEN suggest: "Split into PreAuthenticate (device data) and PostAuthenticate (ch
 **Metadata:**
 ```yaml
 id: UCS-004
-category: CONNECTOR_PATTERN
+category: UCS_PATTERN_VIOLATION
 severity: WARNING
 connector: general
 flow: All
@@ -2179,7 +2182,7 @@ id: ANTI-009
 category: CONNECTOR_PATTERN
 severity: CRITICAL
 connector: general
-flow: Authorize
+flow: All
 applicability: ALL_CONNECTORS
 date_added: 2025-10-14
 status: Active
@@ -2879,27 +2882,75 @@ THEN error: "CRITICAL - Direct memory manipulation not allowed. Use safe standar
 
 ---
 
+### SEC-003: Webhook Signature Verification Required
+
+**Metadata:**
+```yaml
+id: SEC-003
+title: Always verify webhook signatures
+category: SECURITY
+severity: CRITICAL
+flow: IncomingWebhook
+description: All incoming webhooks MUST have their signatures verified before processing. Failure to verify signatures allows attackers to forge webhook events, leading to fraudulent payment status updates.
+incorrect_pattern: Processing webhook body without verifying the signature header.
+correct_pattern: Extract signature from headers, compute HMAC-SHA256 (or connector-specific algorithm) of the raw body using the webhook secret, and compare. Reject the webhook if signatures don't match.
+auto_fixable: false
+frequency: 1
+source_pr: N/A
+source_connector: general
+reviewer: grace-review
+date_added: 2026-03-15
+```
+
+---
+
+<!-- NOTE: FLOW-001 is currently placed here in the Rust Best Practice Anti-Patterns section,
+     but it logically belongs in a dedicated "Flow-Specific Best Practices" section (Section 3).
+     Move it when that section is created. -->
+### FLOW-001: Zero-Decimal Currency Handling
+
+**Metadata:**
+```yaml
+id: FLOW-001
+title: Handle zero-decimal and three-decimal currencies correctly
+category: FLOW_BEST_PRACTICE
+severity: CRITICAL
+flow: Authorize, Capture, Refund
+description: Currencies like JPY, KRW (zero-decimal) and KWD, BHD, OMR (three-decimal) require different amount conversion than standard two-decimal currencies. Using the wrong multiplier causes charges of 100x or 0.001x the intended amount.
+incorrect_pattern: Assuming all currencies use cents (multiply by 100).
+correct_pattern: Use the UCS amount conversion framework (MinorUnit/StringMinorUnit) which handles currency-specific decimal places automatically. Never implement custom amount conversion.
+auto_fixable: false
+frequency: 1
+source_pr: N/A
+source_connector: general
+reviewer: grace-review
+date_added: 2026-03-15
+```
+
+---
+
 ---
 
 # 📈 APPENDIX: METRICS & TRACKING
 
 ## Feedback Statistics
 
-**Total Feedback Entries:** 17
+**Total Feedback Entries:** 19
 
 **By Category:**
-- UCS_PATTERN_VIOLATION: 2 (UCS-001, UCS-002)
-- CONNECTOR_PATTERN: 5 (UCS-003, UCS-004, ANTI-007, ANTI-008, ANTI-009)
+- UCS_PATTERN_VIOLATION: 4 (UCS-001, UCS-002, UCS-003, UCS-004)
+- CONNECTOR_PATTERN: 3 (ANTI-007, ANTI-008, ANTI-009)
 - CODE_QUALITY: 6 (ANTI-001, ANTI-002, ANTI-003, ANTI-004, ANTI-005, ANTI-006)
 - RUST_BEST_PRACTICE: 2 (ANTI-010, ANTI-011)
-- SECURITY: 2 (SEC-001, SEC-002)
+- SECURITY: 3 (SEC-001, SEC-002, SEC-003)
+- FLOW_BEST_PRACTICE: 1 (FLOW-001)
 - TESTING_GAP: 0
 - DOCUMENTATION: 0
 - PERFORMANCE: 0
 - SUCCESS_PATTERN: 0
 
 **By Severity:**
-- CRITICAL: 11 (UCS-001, UCS-002, UCS-003, ANTI-001, ANTI-002, ANTI-003, ANTI-007, ANTI-008, ANTI-009, SEC-001, SEC-002)
+- CRITICAL: 13 (UCS-001, UCS-002, UCS-003, ANTI-001, ANTI-002, ANTI-003, ANTI-007, ANTI-008, ANTI-009, SEC-001, SEC-002, SEC-003, FLOW-001)
 - WARNING: 6 (UCS-004, ANTI-004, ANTI-005, ANTI-006, ANTI-010, ANTI-011)
 - SUGGESTION: 0
 - INFO: 0
@@ -2912,7 +2963,8 @@ THEN error: "CRITICAL - Direct memory manipulation not allowed. Use safe standar
 - Section 5 (Common Anti-Patterns): 11 (ANTI-001 to ANTI-011)
 - Section 6 (Success Patterns): 0 (awaiting population)
 - Section 7 (Historical Archive): 0 (awaiting population)
-- Section 8 (Security Guidelines): 2 (SEC-001 to SEC-002)
+- Section 8 (Security Guidelines): 3 (SEC-001 to SEC-003)
+- Section 3 (Flow Best Practices): 1 (FLOW-001)
 
 **Most Frequent Issues:**
 All entries have frequency: 1 (first occurrence from worldpay connector review)
@@ -2924,12 +2976,13 @@ All entries have frequency: 1 (first occurrence from worldpay connector review)
 - Date Added: 2025-10-14
 
 **Coverage:**
-- Total IDs assigned: 17
+- Total IDs assigned: 19
 - ID ranges used:
   - UCS-001 to UCS-004 (UCS-Specific Guidelines)
   - ANTI-001 to ANTI-011 (Common Anti-Patterns)
-  - SEC-001 to SEC-002 (Security Guidelines)
-- FB-ID ranges available for future use:
+  - SEC-001 to SEC-003 (Security Guidelines)
+  - FLOW-001 (Flow Best Practices)
+- **DEPRECATED — Legacy FB-XXX Ranges** (new entries should use semantic prefixes like UCS-XXX, ANTI-XXX, SEC-XXX, FLOW-XXX as defined in the Feedback ID Numbering Convention section above):
   - FB-001 to FB-099 (Critical UCS Pattern Violations)
   - FB-104 to FB-199 (More UCS-Specific Guidelines)
   - FB-200 to FB-299 (Flow-Specific Best Practices)
@@ -2945,6 +2998,17 @@ All entries have frequency: 1 (first occurrence from worldpay connector review)
 
 ## Version History
 
+**v1.2.0** - 2026-03-15
+- Added SEC-003: Webhook Signature Verification Required
+- Added FLOW-001: Zero-Decimal Currency Handling
+- Fixed scoring formula: suggestions now use min(N, 10) × 0.5 (was N × 1)
+- Migrated embedded template from FB-XXX to semantic ID references
+- Fixed UCS-003 and UCS-004 category from CONNECTOR_PATTERN to UCS_PATTERN_VIOLATION
+- Fixed ANTI-009 flow from Authorize to All
+- Added legacy deprecation notice to FB-001 example entry
+- Updated "How to Add New Feedback" template to use semantic ID format
+- Updated statistics and metrics
+
 **v1.1.0** - 2025-10-14
 - Added 17 feedback entries from worldpay connector review
 - Populated Section 2: UCS-Specific Guidelines (UCS-001 to UCS-004)
@@ -2953,7 +3017,7 @@ All entries have frequency: 1 (first occurrence from worldpay connector review)
 - Updated statistics and metrics
 - Source: juspay/connector-service#216 (worldpay), reviewer: jarnura
 
-**v1.0.0** - 2024-MM-DD
+**v1.0.0** - 2024-01-01
 - Initial structure created
 - Quality review template defined
 - Category taxonomy established

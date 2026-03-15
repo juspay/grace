@@ -78,8 +78,27 @@ references/{connector_name}/05_webhooks.md
 
 Save all scraped markdown files to:
 ```
-grace/references/{connector_name}/
+references/{connector_name}/
 ```
+
+> **Note:** All paths are relative to the grace project root.
+
+---
+
+## Safety and Limits
+
+### URL Validation
+Before scraping any URL, verify:
+1. The URL uses `https://` (reject plain `http://` unless explicitly requested by the user)
+2. The URL points to a documentation domain, not an internal/private IP address
+3. Do NOT follow redirects to localhost, 127.0.0.1, 10.x.x.x, 172.16-31.x.x, or 192.168.x.x ranges (SSRF prevention)
+
+### Scraping Limits
+To avoid excessive resource usage:
+- **Maximum pages per connector:** 30 (ask user for confirmation if more are needed)
+- **Maximum total scraping time:** 10 minutes per connector
+- **Pause between navigations:** 2-3 seconds minimum
+- If you encounter rate limiting (HTTP 429), back off exponentially
 
 ---
 
@@ -173,15 +192,15 @@ Some API docs paginate their endpoint listings:
 
 **cURL Example:**
 curl -i -X POST \
-  -u USfdccsr1Z5iVbXDyYt7hjZZ:313636f3-fac2-45a7-bff7-a334b93e7bda \
+  -u US_EXAMPLE_USER_ID:00000000-0000-0000-0000-000000000000 \
   https://finix.sandbox-payments-api.com/authorizations \
   -H 'Content-Type: application/json' \
   -H 'Finix-Version: 2022-02-01' \
   -d '{
     "amount": 100,
     "currency": "USD",
-    "merchant": "MUsVtN9pH65nGw61H7Nv8Apo",
-    "source": "PIkxmtueemLD6dN9ZoWGHT44"
+    "merchant": "MU_EXAMPLE_MERCHANT_ID",
+    "source": "PI_EXAMPLE_INSTRUMENT_ID"
   }'
 
 **Response Codes:** 201, 400, 401, 402, 403, 404, 406, 422

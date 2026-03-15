@@ -197,7 +197,7 @@ impl<T: PaymentMethodDataTypes + std::fmt::Debug + Sync + Send + 'static + Seria
 
 #### Connector Examples
 
-**Stripe** (backend/connector-integration/src/connectors/stripe/transformers.rs):
+**Stripe** (connector-service/backend/connector-integration/src/connectors/stripe/transformers.rs):
 ```rust
 // Stripe handles Apple Pay with potential pre-decrypted data
 WalletData::ApplePay(applepay_data) => {
@@ -211,7 +211,7 @@ WalletData::GooglePay(gpay_data) => {
 }
 ```
 
-**Cybersource** (backend/connector-integration/src/connectors/cybersource/transformers.rs):
+**Cybersource** (connector-service/backend/connector-integration/src/connectors/cybersource/transformers.rs):
 ```rust
 // Cybersource handles Apple Pay with decrypted token
 WalletData::ApplePay(apple_pay_data) => {
@@ -334,7 +334,7 @@ impl<T> TryFrom<ResponseRouterData<ConnectorAuthResponse, Self>>
 
 #### Connector Examples
 
-**PayPal** (backend/connector-integration/src/connectors/paypal/transformers.rs):
+**PayPal** (connector-service/backend/connector-integration/src/connectors/paypal/transformers.rs):
 ```rust
 // PayPal supports both redirect and SDK flows
 WalletData::PaypalRedirect(_) => {
@@ -981,11 +981,117 @@ mod integration_tests {
 
 ---
 
+## Wiring into ConnectorIntegrationV2 (H-08)
+
+The wallet authorize flow must be wired into the connector's main implementation using the `macro_connector_implementation!` macro. Without this, the flow will not be invoked at runtime.
+
+```rust
+// In {connector_name}.rs — wire the Authorize flow via the macro
+macros::macro_connector_implementation!(
+    connector_default_implementations: [get_content_type, get_error_response_v2],
+    connector: {ConnectorName},
+    curl_request: Json({ConnectorName}AuthorizeRequest),
+    curl_response: {ConnectorName}AuthorizeResponse,
+    flow_name: Authorize,
+    resource_common_data: PaymentFlowData,
+    flow_request: PaymentsAuthorizeData<T>,
+    flow_response: PaymentsResponseData,
+    http_method: Post,
+    generic_type: T,
+    [PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::marker::Send + 'static + Serialize],
+    other_functions: {
+        fn get_headers(
+            &self,
+            req: &RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>,
+        ) -> CustomResult<Vec<(String, Maskable<String>)>, ConnectorError> {
+            self.build_headers(req)
+        }
+
+        fn get_url(
+            &self,
+            req: &RouterDataV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>,
+        ) -> CustomResult<String, ConnectorError> {
+            let base_url = self.connector_base_url_payments(req);
+            Ok(format!("{base_url}/v1/payments"))
+        }
+    }
+);
+```
+
+This macro generates the `ConnectorIntegrationV2<Authorize, PaymentFlowData, PaymentsAuthorizeData<T>, PaymentsResponseData>` trait implementation. Without it, the connector will not handle wallet authorize requests.
+
+---
+
+## Session Token Flow for Apple Pay / Google Pay (H-09)
+
+Apple Pay and Google Pay require a **session token** before the main authorize flow. The session token is fetched via the `CreateSessionToken` flow and provides wallet-specific session data (e.g., Apple Pay merchant session, Google Pay transaction info).
+
+### Session Token Flow
+
+1. **Client requests session token** → `CreateSessionToken` flow is invoked
+2. **Connector returns session data** → Client uses it to initialize Apple Pay / Google Pay SDK
+3. **Customer authorizes in wallet UI** → Client receives encrypted payment token
+4. **Client sends authorize request** → Standard `Authorize` flow with `WalletData::ApplePay` / `WalletData::GooglePay`
+
+### Implementation
+
+```rust
+// Implement the session token trait
+impl<T: PaymentMethodDataTypes + std::fmt::Debug + std::marker::Sync + std::marker::Send + 'static + Serialize>
+    connector_types::PaymentSessionTokenV2<T> for {ConnectorName}<T>
+{
+}
+
+// Session token request transformation
+impl<T: PaymentMethodDataTypes + std::fmt::Debug + Sync + Send + 'static + Serialize>
+    TryFrom<
+        {ConnectorName}RouterData<
+            RouterDataV2<CreateSessionToken, PaymentFlowData, SessionTokenRequestData<T>, SessionTokenResponseData>,
+            T,
+        >,
+    > for {ConnectorName}SessionTokenRequest
+{
+    type Error = error_stack::Report<ConnectorError>;
+
+    fn try_from(item: ...) -> Result<Self, Self::Error> {
+        // Build session token request (e.g., Apple Pay merchant validation URL)
+        Ok(Self { /* ... */ })
+    }
+}
+
+// Session token response transformation
+impl<T: PaymentMethodDataTypes + std::fmt::Debug + Sync + Send + 'static + Serialize>
+    TryFrom<
+        ResponseRouterData<
+            {ConnectorName}SessionTokenResponse,
+            RouterDataV2<CreateSessionToken, PaymentFlowData, SessionTokenRequestData<T>, SessionTokenResponseData>,
+        >,
+    > for RouterDataV2<CreateSessionToken, PaymentFlowData, SessionTokenRequestData<T>, SessionTokenResponseData>
+{
+    type Error = error_stack::Report<ConnectorError>;
+
+    fn try_from(item: ...) -> Result<Self, Self::Error> {
+        // Return session data for client-side SDK initialization
+        Ok(Self {
+            response: Ok(SessionTokenResponseData {
+                session_token: item.response.session_token,
+                // ... other session data
+            }),
+            ..item.router_data
+        })
+    }
+}
+```
+
+> **Note:** If the connector does not require a session token (e.g., it accepts encrypted tokens directly), the `CreateSessionToken` flow can be a no-op or return `NotImplemented`.
+
+---
+
 ## Cross-References
 
-- [pattern_authorize.md](./pattern_authorize.md) - Base authorize flow patterns
-- [payment_method_data.rs](../../../../backend/domain_types/src/payment_method_data.rs) - Wallet data structures
-- [utility_functions_reference.md](./utility_functions_reference.md) - Common utility functions
+- [pattern_authorize.md](../../pattern_authorize.md) - Base authorize flow patterns
+- [payment_method_data.rs](../../../../connector-service/backend/domain_types/src/payment_method_data.rs) - Wallet data structures
+- [utility_functions_reference.md](../../../utility_functions_reference.md) - Common utility functions
 
 ---
 
