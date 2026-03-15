@@ -1,16 +1,21 @@
-from .generate_queries import generate_queries
-from .search_and_verify_queries import search_and_verify_queries
-from .scrap_links_and_analyse_pages import scrap_links_and_analyse_pages
-from .techspec_generation import techspec_generation
-from .verify_content import verify_content
-from .markdown_generation import markdown_generation
-
+import input_node
+import analyse_pages
+import generate_queries
+import markdown_generation
+import scrap_links
+import search_queries
+import techspec_generation
+import verify_content
+import verify_links
 
 all = [
+    "input_node",
+    "analyse_pages",
     "generate_queries",
     "markdown_generation",
-    "search_and_verify_queries",
-    "scrap_links_and_analyse_pages",
+    "scrap_links",
+    "search_queries",
     "techspec_generation",
     "verify_content",
+    "verify_links",
 ]
