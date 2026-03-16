@@ -42,6 +42,7 @@ readonly ROUTER_DATA_FILE="$BACKEND_DIR/domain_types/src/router_data.rs"
 readonly CONFIG_FILE="$CONFIG_DIR/development.toml"
 readonly SANDBOX_CONFIG_FILE="$CONFIG_DIR/sandbox.toml"
 readonly PRODUCTION_CONFIG_FILE="$CONFIG_DIR/production.toml"
+readonly FIELD_PROBE_FILE="$BACKEND_DIR/field-probe/src/main.rs"
 
 # Template files
 readonly CONNECTOR_TEMPLATE="$TEMPLATE_DIR/connector.rs.template"
@@ -564,6 +565,7 @@ validate_environment() {
     validate_file_exists "$INTEGRATION_TYPES_FILE" "Integration types file"
     validate_file_exists "$CONNECTORS_MODULE_FILE" "Connectors module file"
     validate_file_exists "$PROTO_FILE" "Protocol buffer file"
+    validate_file_exists "$FIELD_PROBE_FILE" "Field probe file"
 
     # Check git status unless forced
     if [[ "$FORCE_MODE" == "false" ]] && command -v git >/dev/null 2>&1; then
@@ -861,6 +863,11 @@ update_domain_types() {
     sed -i.bak "/grpc_api_types::payments::Connector::Unspecified =>/ i\\
             grpc_api_types::payments::Connector::$NAME_PASCAL => Ok(Self::$NAME_PASCAL)," "$DOMAIN_TYPES_FILE"
 
+    # Add to gRPC Config -> ConnectorEnum mapping (ForeignTryFrom<Config> for ConnectorEnum)
+    # Insert after the last AuthType match arm (Authorizedotnet)
+    sed -i.bak "/AuthType::Authorizedotnet(_) => Ok(Self::Authorizedotnet),/ a\\
+            AuthType::${NAME_PASCAL}(_) => Ok(Self::${NAME_PASCAL})," "$DOMAIN_TYPES_FILE"
+
     rm -f "$DOMAIN_TYPES_FILE.bak"
 
     log_success "Updated domain types with $NAME_PASCAL"
@@ -887,9 +894,9 @@ update_router_data() {
         return 0
     fi
 
-    # 1. Add ConnectorSpecificAuth enum variant (default: HeaderKey with api_key)
+    # 1. Add ConnectorSpecificConfig enum variant (default: HeaderKey with api_key + base_url)
     #    Insert before the closing brace of the enum
-    sed -i.bak "/^pub enum ConnectorSpecificAuth {/,/^}/ s/^}/    $NAME_PASCAL {\n        api_key: Secret<String>,\n    },\n}/" "$ROUTER_DATA_FILE"
+    sed -i.bak "/^pub enum ConnectorSpecificConfig {/,/^}/ s/^}/    $NAME_PASCAL {\n        api_key: Secret<String>,\n        base_url: Option<String>,\n    },\n}/" "$ROUTER_DATA_FILE"
     rm -f "$ROUTER_DATA_FILE.bak"
 
     # 2. Add match arm in the ConnectorEnum match for ConnectorAuthType conversion
@@ -901,10 +908,23 @@ update_router_data() {
 \\            ConnectorEnum::$NAME_PASCAL => match auth {\\
                 ConnectorAuthType::HeaderKey { api_key } => Ok(Self::$NAME_PASCAL {\\
                     api_key: api_key.clone(),\\
+                    base_url: None,\\
                 }),\\
                 _ => Err(err().into()),\\
             },
     }" "$ROUTER_DATA_FILE"
+    rm -f "$ROUTER_DATA_FILE.bak"
+
+    # 3. Add to extract_base_url! macro (12 spaces indentation)
+    #    Insert after the Revolv3 entry in the extract_base_url! macro
+    sed -i.bak '/^            Revolv3 { api_key },$/a\
+\            '"$NAME_PASCAL"' { api_key },' "$ROUTER_DATA_FILE"
+    rm -f "$ROUTER_DATA_FILE.bak"
+
+    # 4. Add to connector_key! macro (16 spaces indentation)
+    #    Insert after the Revolv3 entry in the connector_key! macro
+    sed -i.bak '/^                Revolv3 { api_key },$/a\
+\                '"$NAME_PASCAL"' { api_key },' "$ROUTER_DATA_FILE"
     rm -f "$ROUTER_DATA_FILE.bak"
 
     log_success "Updated router_data.rs with $NAME_PASCAL auth variant and match arm"
@@ -913,33 +933,38 @@ update_router_data() {
 update_protobuf_auth() {
     log_step "Updating protobuf auth definitions"
 
-    # Check if auth message already exists
-    if grep -q "${NAME_PASCAL}Auth" "$PROTO_FILE" 2>/dev/null; then
-        log_warning "Skipping protobuf auth update - ${NAME_PASCAL}Auth already exists"
+    # Check if config message already exists
+    if grep -q "${NAME_PASCAL}Config" "$PROTO_FILE" 2>/dev/null; then
+        log_warning "Skipping protobuf auth update - ${NAME_PASCAL}Config already exists"
         return 0
     fi
 
-    # 1. Add auth message before the ConnectorAuth message
-    sed -i.bak "/^message ConnectorAuth {/i\\
-message ${NAME_PASCAL}Auth {\\
+    # 1. Add config message before the ConnectorSpecificConfig message
+    sed -i.bak "/^\/\/ ConnectorSpecificConfig message/i\\
+message ${NAME_PASCAL}Config {\\
   SecretString api_key = 1;\\
+  optional string base_url = 50;\\
 }\\
 " "$PROTO_FILE"
     rm -f "$PROTO_FILE.bak"
 
     # 2. Get the next oneof field number by finding the highest existing one
     local max_field_num
-    max_field_num=$(grep -E "Auth [a-z_]+ = [0-9]+;" "$PROTO_FILE" | \
+    max_field_num=$(grep -oE "Config [a-z_]+ = [0-9]+;" "$PROTO_FILE" | \
                     sed -E 's/.*= ([0-9]+);/\1/' | \
                     sort -n | tail -1)
     local next_field_num=$((max_field_num + 1))
 
-    # 3. Add oneof entry before the closing brace of ConnectorAuth
-    #    Insert after the last entry in the oneof
-    sed -i.bak "/^  oneof auth_type {/,/^  }/ s|^  }|    // $NAME_UPPER = $ENUM_ORDINAL\n    ${NAME_PASCAL}Auth $(echo "$NAME_SNAKE" | tr '[:upper:]' '[:lower:]') = $next_field_num;\n  }|" "$PROTO_FILE"
+    # Use the lowercase name for the oneof field
+    local name_lower
+    name_lower=$(echo "$NAME_SNAKE" | tr '[:upper:]' '[:lower:]')
+
+    # 3. Add oneof entry before the closing brace of ConnectorSpecificConfig
+    #    Insert after the last entry in the oneof config block
+    sed -i.bak "/^  oneof config {/,/^  }/ s|^  }|    // $NAME_UPPER = $ENUM_ORDINAL\n    ${NAME_PASCAL}Config $name_lower = $next_field_num;\n  }|" "$PROTO_FILE"
     rm -f "$PROTO_FILE.bak"
 
-    log_success "Updated protobuf with ${NAME_PASCAL}Auth message and oneof entry"
+    log_success "Updated protobuf with ${NAME_PASCAL}Config message and oneof entry"
 }
 
 update_router_data_grpc_auth() {
@@ -969,6 +994,7 @@ update_router_data_grpc_auth() {
         /}),/ a\\
 \\            AuthType::$NAME_PASCAL($name_lower) => Ok(Self::$NAME_PASCAL {\\
                 api_key: $name_lower.api_key.ok_or_else(err)?,\\
+                base_url: $name_lower.base_url,\\
             }),
     }" "$ROUTER_DATA_FILE"
     rm -f "$ROUTER_DATA_FILE.bak"
@@ -1037,6 +1063,28 @@ update_config() {
     update_config_file "$PRODUCTION_CONFIG_FILE" "production.toml"
 
     log_success "All configuration files updated"
+}
+
+update_field_probe() {
+    log_step "Updating field-probe (ConnectorEnum match arm)"
+
+    # Check if already exists
+    if grep -q "ConnectorEnum::$NAME_PASCAL =>" "$FIELD_PROBE_FILE" 2>/dev/null; then
+        log_warning "Skipping field-probe update - $NAME_PASCAL already exists"
+        return 0
+    fi
+
+    # Add match arm after the last entry (Finix) in the ConnectorEnum -> ConnectorSpecificConfig match
+    sed -i.bak "/ConnectorEnum::Finix => ConnectorSpecificConfig::Finix/,/},/ {
+        /},/ a\\
+\\        ConnectorEnum::$NAME_PASCAL => ConnectorSpecificConfig::$NAME_PASCAL {\\
+            api_key: k(),\\
+            base_url: None,\\
+        },
+    }" "$FIELD_PROBE_FILE"
+    rm -f "$FIELD_PROBE_FILE.bak"
+
+    log_success "Updated field-probe with $NAME_PASCAL match arm"
 }
 
 # =============================================================================
@@ -1245,6 +1293,7 @@ main() {
     update_connectors_module
     update_integration_types
     update_config
+    update_field_probe
 
     # Validate and finalize
     format_code
