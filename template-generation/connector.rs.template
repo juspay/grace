@@ -1,5 +1,4 @@
 pub mod transformers;
-mod test;
 
 // Note: Some imports below are used by macro-generated code that gets appended to this file.
 use super::macros;

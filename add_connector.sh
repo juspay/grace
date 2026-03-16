@@ -304,7 +304,6 @@ EOF
 # and field-probe (main.rs). Defaults to single api_key (HeaderKey) pattern.
 # For connectors requiring different auth, manually adjust after generation.
 
-readonly ROUTER_DATA_FILE="$BACKEND_DIR/domain_types/src/router_data.rs"
 readonly FIELD_PROBE_FILE="$BACKEND_DIR/field-probe/src/main.rs"
 
 register_connector_specific_config() {

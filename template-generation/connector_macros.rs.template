@@ -49,9 +49,7 @@ macros::create_all_prerequisites!(
             router_data: RouterDataV2<Refund, RefundFlowData, RefundsData, RefundsResponseData>,
         )
     ],
-    amount_converters: [
-        amount_converter: MinorUnit
-    ],
+    amount_converters: [],
     member_functions: {
         pub fn build_headers<F, FCD, Req, Res>(
             &self,

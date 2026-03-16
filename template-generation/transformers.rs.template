@@ -166,11 +166,11 @@ impl<T: PaymentMethodDataTypes + Debug + Sync + Send + 'static + Serialize>
         // Access payment data: item.router_data.request
         // Access common data: item.router_data.resource_common_data
         // Access auth: item.router_data.connector_config (use {{CONNECTOR_NAME_PASCAL}}AuthType::try_from)
-        // TODO: Use `item.amount` instead of `item.router_data.request.minor_amount`
-        // to respect the amount converter declared in create_all_prerequisites!
-        // Direct field access bypasses MinorUnit/StringMinorUnit/FloatMajorUnit conversion.
+        // If you need amount conversion (e.g. to FloatMajorUnit or StringMajorUnit),
+        // add an amount_converter to create_all_prerequisites! and use:
+        //   item.connector.amount_converter.convert(item.router_data.request.minor_amount, currency)
         Ok(Self {
-            amount: item.amount,
+            amount: item.router_data.request.minor_amount,
             currency: item.router_data.request.currency,
         })
     }
