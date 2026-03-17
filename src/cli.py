@@ -83,7 +83,8 @@ def techspec(connector, folder, urls, output, test_only, verbose, mock_server, e
             if urls:
                 click.echo(f"Docs URLs file: {urls}")
             # Use config for output directory if not specified
-            output_dir = output or None
+            config_instance = get_config()
+            output_dir = output or config_instance.getTechSpecConfig().output_dir
             # Execute the techspec workflow
             result = await run_techspec_workflow(
                 connector_name=connector,
