@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Grace CLI - Command line interface with research and techspec commands."""
+"""Grace CLI - Command line interface for technical specification generation."""
 
 import sys
 import asyncio
@@ -11,58 +11,39 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import workflow modules
-from .workflows import run_techspec_workflow, run_research_workflow
+from .workflows import run_techspec_workflow
 from .config import get_config
-from .scripts.searxng_setup import setup_docker, setup_local, check_docker
+
 
 @click.group()
 @click.version_option(version='1.0.0')
 def cli():
-    """ Grace CLI - Intelligent research and technical specification generator.\n
-        usage:\n
-        grace techspec [OPTIONS] [CONNECTOR]\n
-        options:\n
-            --output TEXT            Output directory for generated specs\n
-            --verbose                Enable verbose output\n
-            --mock-server or -m      Enable mock server\n
-        grace research [OPTIONS] [QUERY]\n
-        options:\n
-            --output TEXT            Output file path\n
-            --tech-spec              Generate technical specification\n
-            --format [markdown|json|text]  Output format\n
-            --depth INTEGER          Research depth (1-10)\n
-            --sources INTEGER        Number of sources to analyze\n
-            --verbose                Enable verbose output\n
+    """Grace CLI - Generate technical specifications with Firecrawl and PDF support.
+
+    Use 'grace techspec <connector>' to generate specs for a specific connector. 
+    Use -e flag for Claude Agent SDK enhancement and field analysis, and -m to enable mock server generation for testing. 
+    Use -f flag allows you to specify a folder with existing documentation.
     """
     pass
 
-
-@cli.command()
-@click.option('--local', '-l', is_flag=True, help='Use local installation instead of Docker')
-def setupsearch(local):
-    """Setup SearXNG search engine for Grace Research."""
-    if local:
-        setup_local()
-    elif check_docker():
-        setup_docker()
-    else:
-        setup_local()
-
 @cli.command()
 @click.argument('connector', required=False)
-@click.option('folder', '-f', help="the docs folder")
-@click.option('urls', '-u', help="the docs urls file")
+@click.option('folder', '-f', help="Path to docs folder")
+@click.option('urls', '-u', help="Path to URLs file")
 @click.option('--output', '-o', help='Output directory for generated specs')
 @click.option('--test-only', is_flag=True, help='Run in test mode without generating files')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
-@click.option('--mock-server', '-m', is_flag=True, help='Enable mock server for API interactions (for testing)')
-@click.option('--enhance', '-e', is_flag=True, help='Enable Claude Agent SDK enhancement and field analysis')
+@click.option('--mock-server', '-m', is_flag=True, help='Enable mock server for testing')
+@click.option('--enhance', '-e', is_flag=True, help='Enable Claude Agent SDK enhancement')
 def techspec(connector, folder, urls, output, test_only, verbose, mock_server, enhance):
-    # we will use the other flags in future for more customization don't remove them
-    """ -m flag to mock server and use --help for more details
-    -u pass the urls file for docs
-    -f pass the docs folder
-    -e enable Claude Agent SDK spec enhancement and field dependency analysis
+    """Generate technical specification for a connector.
+    
+    CONNECTOR: Name of the connector (e.g., gigadat)
+    
+    -u: Path to file containing URLs to scrape
+    -f: Path to folder with existing documentation
+    -e: Enable Claude Agent SDK enhancement and field analysis
+    -m: Enable mock server generation
     """
     async def run_techspec():
         """Async wrapper for techspec workflow."""
@@ -158,73 +139,6 @@ def techspec(connector, folder, urls, output, test_only, verbose, mock_server, e
 
     # Run the async workflow
     asyncio.run(run_techspec())
-
-@cli.command()
-@click.argument('query', required=False)
-@click.option('--output', '-o', help='Output file path')
-@click.option('--tech-spec', '-ts', is_flag=True, help='Generate technical specification')
-@click.option('--format', '-f', type=click.Choice(['markdown', 'json', 'text']),
-              help='Output format')
-@click.option('--depth', '-d', type=int, help='Research depth (1-10)')
-@click.option('--ai-browser', '-ai', is_flag=True, help='Enable AI assistance')
-@click.option('--sources', '-s', type=int, help='Number of sources to analyze')
-@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
-def research(query, output, tech_spec, format, depth, ai_browser, sources, verbose):
-    """Perform research on a given connector."""
-    while not query or query.strip() == "":
-        query = click.prompt("Enter your research query: ", type=str, default="", show_default=False)
-        if not query:
-            click.echo("Error: Research query is required", err=True)
-            continue
-
-    async def run_research():
-        """Async wrapper for research workflow."""
-        try:
-            if verbose:
-                click.echo(f"Starting research workflow...")
-                click.echo(f"Query: {query}")
-                if output:
-                    click.echo(f"Output file: {output}")
-                if tech_spec:
-                    click.echo("Technical specification generation: ENABLED")
-                if format:
-                    click.echo(f"Output format: {format}")
-                if depth:
-                    click.echo(f"Research depth: {depth}")
-                if sources:
-                    click.echo(f"Number of sources: {sources}")
-                if ai_browser:
-                    click.echo("AI assistance: ENABLED")
-                click.echo()
-
-            # Use config for output file if not specified
-            config_instance = get_config()
-            output_file = output or config_instance.getTechSpecConfig().output_dir
-
-            # Execute the research workflow 
-            result = await run_research_workflow(
-                connector_name=query,
-                output_dir=output_file,
-                tech_spec=tech_spec,
-                format=format,
-                depth=depth,
-                ai_browser=ai_browser,
-                sources=sources,
-                verbose=verbose
-            )
-            click.echo(f"Research result: {result}")
-        except Exception as e:
-            click.echo(f"Unexpected error: {str(e)}", err=True)
-            if verbose:
-                import traceback
-                click.echo(f"Traceback: {traceback.format_exc()}", err=True)
-            sys.exit(1)
-        
-
-    asyncio.run(run_research())
-
-
-
 
 def main():
     """Main entry point for Grace CLI."""
