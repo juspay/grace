@@ -8,7 +8,7 @@ from typing import Dict, Any
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from src.ai.ai_service import AIService
-from ...research.states.research_state import WorkflowState
+from ..states.techspec_state import TechspecWorkflowState as WorkflowState
 from src.config import get_config
 
 console = Console()

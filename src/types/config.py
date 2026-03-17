@@ -1,7 +1,6 @@
 from typing import Optional
 from dataclasses import dataclass
-from rich.console import Console
-console = Console()
+
 
 @dataclass
 class AIConfig:
@@ -30,7 +29,6 @@ class TechSpecConfig:
     temperature : float = 0.7
     max_tokens : int = 50000
     firecrawl_api_key: Optional[str] = None
-    use_playwright: bool = False
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -38,32 +36,6 @@ class TechSpecConfig:
             raise ValueError("Output directory must be specified")
         if not self.template_dir:
             raise ValueError("Template directory must be specified")
-        if not self.firecrawl_api_key:
-            console.print("[red]Firecrawl is not found, using playwright[/red]")
-            self.use_playwright = True  # Default to True if no API key
-
-@dataclass
-class ResearchConfig:
-    
-    # Search configuration
-    searchTool: str = "searxng"
-    baseURL: str = "https://localhost:32678"
-
-    formatType: str = "markdown"
-    depth: int = 5
-
-    with_ai_browser: bool = False
-    
-    
-    # Proxy configuration
-    proxy_url: Optional[str] = None
-    proxy_username: Optional[str] = None
-    proxy_password: Optional[str] = None
-
-    def __post_init__(self) -> None:
-        """Validate configuration after initialization."""
-        if self.searchTool not in ["searxng"]:
-            raise ValueError(f"Invalid search engine: {self.searchTool}")
 
 @dataclass
 class LogConfig:

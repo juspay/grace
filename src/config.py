@@ -5,14 +5,13 @@ from pathlib import Path
 import click
 from dotenv import load_dotenv
 from typing import Optional
-from .types.config import AIConfig, ResearchConfig, TechSpecConfig, LogConfig, ClaudeAgentConfig
+from .types.config import AIConfig, TechSpecConfig, LogConfig, ClaudeAgentConfig
 
 
 class Config:
     aiConfig: AIConfig
     techSpecConfig: TechSpecConfig
     logConfig: LogConfig
-    researchConfig: ResearchConfig
     claudeAgentConfig: ClaudeAgentConfig
 
 
@@ -83,23 +82,11 @@ class Config:
             temperature=float(os.getenv("TECHSPEC_TEMPERATURE", "0.7")),
             max_tokens=int(os.getenv("TECHSPEC_MAX_TOKENS", "32768")),
             firecrawl_api_key=os.getenv("FIRECRAWL_API_KEY"),
-            use_playwright=os.getenv("USE_PLAYWRIGHT", "true").lower() == "true",
         )
         self.logConfig = LogConfig(
             debug=os.getenv("DEBUG", "false").lower() == "true",
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             log_file=os.getenv("LOG_FILE", "grace.log"),
-        )
-
-        self.researchConfig = ResearchConfig(
-            searchTool=os.getenv("SEARCH_TOOL", "searxng"),
-            baseURL=os.getenv("SEARCH_BASE_URL", "https://localhost:32678"),
-            formatType=os.getenv("SEARCH_FORMAT_TYPE", "markdown"),
-            depth=int(os.getenv("SEARCH_DEPTH", "5")),
-            proxy_url=os.getenv("SEARCH_PROXY_URL"),
-            proxy_username=os.getenv("SEARCH_PROXY_USERNAME"),
-            proxy_password=os.getenv("SEARCH_PROXY_PASSWORD"),
-            with_ai_browser=os.getenv("WITH_AI_BROWSER", "true").lower() == "true",
         )
 
         # Claude Agent SDK config — defaults to AI_API_KEY + AI_BASE_URL if ANTHROPIC_API_KEY is not set
@@ -121,9 +108,6 @@ class Config:
     
     def getLogConfig(self) -> LogConfig:
         return self.logConfig
-
-    def getResearchConfig(self) -> ResearchConfig:
-        return self.researchConfig
 
     def getClaudeAgentConfig(self) -> ClaudeAgentConfig:
         return self.claudeAgentConfig

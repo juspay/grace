@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "grace-cli"
 version = "1.0.0"
-description = "Grace CLI - Intelligent research and technical specification generator"
+description = "Grace CLI - Technical specification generator with Firecrawl and PDF support"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Grace Team"}
 ]
-keywords = ["cli", "research", "techspec", "automation"]
+keywords = ["cli", "techspec", "automation", "firecrawl", "pdf"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -49,19 +49,13 @@ dependencies = [
     "flake8>=6.0.0",
     "types-pyyaml>=6.0.12",
     "types-requests>=2.32.0",
-    # browser automation
-    "playwright>=1.40.0",
-    "pillow>=10.0.0",
-    "beautifulsoup4>=4.12.0",
-    "lxml>=4.9.0",
-    "selenium>=4.15.0",
-    "requests-html>=0.10.0",
+    # Document processing (PDF, DOCX, Excel)
     "markdownify>=1.2.0",
     "pypdf2>=3.0.1",
     "python-docx>=1.2.0",
     "pandas>=2.3.3",
     "openpyxl>=3.1.5",
-    # Claude Agent SDK for spec enhancement
+    # Claude Agent SDK for spec enhancement (-e flag)
     "claude-agent-sdk>=0.1.30",
 ]
 
@@ -91,7 +85,7 @@ Repository = "https://github.com/juspay/grace"
 grace = "src.cli:main"
 
 [tool.setuptools]
-packages = ["src", "src.ai", "src.tools", "src.utils", "src.workflows", "src.types", "src.scripts"]
+packages = ["src", "src.ai", "src.tools", "src.utils", "src.workflows", "src.types"]
 include-package-data = true
 zip-safe = false
 
