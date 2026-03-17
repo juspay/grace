@@ -142,4 +142,4 @@ Per-connector results:
 
 | Agent | File | Purpose |
 |-------|------|---------|
-| Connector Agent | `2_connector.md` | Handles everything for one connector: links, tech spec, code, build, test, commit |
+| Connector Agent | `2_connector.md` | Handles everything for one connector: links, tech spec, code, build, test, commit, and PR |
