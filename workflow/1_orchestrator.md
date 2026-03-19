@@ -27,7 +27,7 @@ No URLs, no integration details — just names. The **Links Agent** (`2.1_links.
 ## RULES (read once, apply everywhere)
 
 1. **Working directory**: ALL commands (build, git, grpcurl, etc.) use the `connector-service` repo root. Never `cd`. The **only exception** is `grace` CLI commands — those MUST run from the `grace/` subdirectory with the virtualenv activated (`source .venv/bin/activate`).
-2. **Sequential only**: Process one connector fully before starting the next. Never run connectors in parallel.
+2. **HARD GUARDRAIL — STRICTLY SEQUENTIAL, NEVER PARALLEL**: You MUST process ONE connector at a time. Spawn ONE Task tool call per message. Wait for it to return. ONLY THEN spawn the next. NEVER send a single message with multiple Task tool calls for different connectors. NEVER say "let me process several in parallel to speed up." Parallel execution will corrupt the shared git branch — multiple agents committing, cherry-picking, and switching branches on `{BRANCH}` simultaneously causes merge conflicts, lost commits, and broken state. There is NO safe way to parallelize this. Sequential is not a suggestion — it is a hard architectural constraint.
 3. **No cargo test**: Testing is done exclusively via `grpcurl`. Never run `cargo test`. Never edit or create test files.
 4. **Build -> gRPC Test -> Validate -> Commit**: Never commit code that hasn't passed both `cargo build` AND `grpcurl` tests. This is a hard gate.
 5. **MANDATORY: Do NOT move to the next connector until grpcurl testing is fully complete for the current connector.** The grpcurl Authorize call with the appropriate payment method must either pass (SUCCESS) or exhaust all retry attempts (FAILED) before you proceed. No connector may be left in an untested state.
@@ -42,8 +42,8 @@ No URLs, no integration details — just names. The **Links Agent** (`2.1_links.
     - Do NOT spawn or invoke the Tech Spec Agent (`2.2_techspec.md`) — that is the Connector Agent's job
     - Do NOT spawn or invoke the Code Generation Agent (`2.3_codegen.md`) — that is the Connector Agent's job
     - Do NOT fetch documentation URLs, run `grace techspec`, run `cargo build`, run `grpcurl`, or write connector code
-    - Do NOT read `2.1_links.md`, `2.2_techspec.md`, or `2.3_codegen.md` to execute them yourself
-    - Your ONLY subagent is the **Connector Agent** (`2_connector.md`). You spawn ONE Connector Agent per connector. That agent handles everything internally.
+    - Do NOT read `2_connector.md`, `2.1_links.md`, `2.2_techspec.md`, `2.3_codegen.md`, or `2.4_pr.md` to execute them yourself or paste their contents into prompts
+    - Your ONLY subagent is the **Connector Agent** (`2_connector.md`). You spawn ONE Connector Agent per connector. That agent reads its own workflow file and handles everything internally.
 
 ---
 
@@ -81,7 +81,9 @@ For each connector in `CONNECTOR_LIST`, check if it has an entry in `creds.json`
 
 ---
 
-## STEP 2: FOR EACH CONNECTOR (one at a time, sequentially)
+## STEP 2: FOR EACH CONNECTOR (one at a time, sequentially — NEVER in parallel)
+
+**HARD GUARDRAIL — ONE TASK CALL PER MESSAGE**: You MUST send exactly ONE Task tool call per message. After sending it, WAIT for the result. Only after receiving the result may you send the next Task tool call in a NEW message. If you ever find yourself about to include multiple Task tool calls in a single message for different connectors — STOP. That is parallel execution and it WILL corrupt the git branch. It does not matter if you have processed 5, 10, or 20 connectors already — the rule is the same for connector #1 and connector #25.
 
 For every connector in `CONNECTOR_LIST`, invoke the **Connector Agent** defined in `2_connector.md`. The Connector Agent is the ONLY place where work happens — it handles **everything** for that connector: links discovery, tech spec generation, codegen, build, grpcurl testing, and committing. The orchestrator does NOTHING for a connector except invoke the subagent and wait.
 
@@ -93,29 +95,32 @@ Wait for the Connector Agent to finish and return its result before starting the
 
 ### HOW TO SPAWN THE CONNECTOR AGENT (MANDATORY — follow exactly)
 
-**Step A**: Use the Read tool to read the FULL contents of the file `grace/workflow/2_connector.md`. Store the entire text.
+Use the **Task tool** to spawn the subagent with a **minimal prompt** containing only the file reference and variables. The subagent will read the workflow file itself. **Send exactly ONE Task call in this message — no other Task calls for other connectors.**
 
-**Step B**: In that text, replace these variable placeholders with the actual values:
-- `{CONNECTOR}` → connector name from the JSON (exact casing)
-- `{FLOW}` → the payment flow being implemented
-- `{CONNECTORS_FILE}` → path to the connectors JSON file
-- `{BRANCH}` → the branch name
-
-**Step C**: Use the **Task tool** to spawn the subagent:
 ```
 Task(
   subagent_type="general",
   description="Implement {FLOW} for {CONNECTOR}",
-  prompt="<THE FULL VERBATIM CONTENTS OF grace/workflow/2_connector.md WITH VARIABLES REPLACED>"
+  prompt="Read and follow the workflow defined in grace/workflow/2_connector.md
+
+Variables:
+  CONNECTOR: <connector name, exact casing from JSON>
+  FLOW: <the payment flow>
+  CONNECTORS_FILE: <path to the connectors JSON file>
+  BRANCH: <the branch name>"
 )
 ```
 
-**CRITICAL**: The prompt MUST be the COMPLETE, VERBATIM contents of `2_connector.md` with variables substituted. Do NOT summarize, paraphrase, abbreviate, or rewrite the file. Do NOT write your own version of the instructions. Do NOT omit sections. The subagent must receive the EXACT guardrails, phase definitions, and examples written in that file. If you pass a summary or shortened version, the subagent will not follow the correct architecture and will do work it should be delegating.
+**Do NOT read `grace/workflow/2_connector.md` yourself.** Do NOT paste the file contents into the prompt. The subagent reads the file on its own.
+
+**WAIT** for the Task to return a result. Do NOT proceed to the next connector until you have received the result. The next connector's Task call goes in a SEPARATE, SUBSEQUENT message.
 
 Collect the result — the Connector Agent will return one of:
 - `SUCCESS` — connector implemented, built, tested, and committed
 - `FAILED` — connector could not be completed (with reason)
 - `SKIPPED` — connector was skipped (with reason)
+
+**Only after collecting this result may you proceed to the next connector. The next connector MUST be spawned in a new, separate message — never in the same message as the current connector's Task call.**
 
 ---
 
