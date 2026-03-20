@@ -1,105 +1,102 @@
-# Grace CLI
+# Grace 
 
-Intelligent research and technical specification generator using LangGraph workflows.
-
-## Features
-
-- **Techspec Workflow**: Automated connector code generation with validation and documentation
-- **LangGraph Integration**: State-based workflow orchestration with parallel processing
-- **Rich Output**: Multiple formats (Markdown, JSON, Text) with comprehensive metadata
-
-## Requirements
-
-- Python 3.9+ (Required for LangGraph compatibility)
-- uv or pip for package management
+AI-powered connector code generation and payment integration toolkit.
 
 ## Installation
 
-### Using uv (Recommended)
 ```bash
-# Install from source
 cd grace
-uv sync
-
-# Or install specific feature groups
-uv sync --extra dev --extra ai --extra scraping
-```
-
-### Using pip with uv
-```bash
-# Install in development mode
-uv pip install -e .
-
-# Or with optional dependencies
-uv pip install -e ".[dev,ai,scraping,nlp]"
+uv sync  # if uv not installed: pip install uv
+source .venv/bin/activate
 ```
 
 ## Quick Start
 
-### Techspec Workflow
+### 1. Generate Tech Spec
+
 ```bash
-# Generate connector for a payment processor
-source .venv/bin/activate # to use grace from outside folders as well
-# move the grace/.env.example to .env -> and update Techspec output path and API keys if needed
+# From local docs folder (PDF)
+grace techspec <connector-name> -f /path/to/api-docs -v
 
-grace techspec
+# Or from a URL
+grace techspec <connector-name> -e
 ```
 
-## LangGraph Workflow Architecture
+Output: `rulesbook/codegen/references/specs/<connector-name>.md`
 
-workflows use LangGraph for sophisticated state management and parallel processing:
+### 2. Run Code Generation
 
+Go back to the connector-service root folder (not `grace/`).
 
-### Techspec Workflow States
+Open `connector-service/` in your AI coding agent and run:
+
 ```
-API Analysis -> Schema Extract -> Code Generation
-                                       |
-Finalize Output <- Generate Docs <- Validate Code
+integrate <ConnectorName> using grace/rulesbook/codegen/.gracerules
 ```
 
-## Usage Examples
+The AI agent will run through these phases:
+1. **Foundation** → scaffolds files, auth, module registration
+2. **Authorize** → payment authorization flow
+3. **PSync** → payment status sync
+4. **Capture** → capture authorized payments
+5. **Refund** → full & partial refunds
+6. **RSync** → refund status sync
+7. **Void** → cancel authorized payments
+8. **Quality** → scores implementation (must be ≥ 60)
 
+### 3. Verify Build
 
-### Techspec Examples
 ```bash
-# Payment processor connector
-grace techspec adyen
-
-grace techspec shopify --verbose
+cargo build
 ```
 
-## Development
+### Other Commands
 
-### Setup
-```bash
-git clone <repository-url>
-cd grace
-uv sync --extra dev
+Add a missing flow:
+```
+add Refund flow to <Connector> using grace/rulesbook/codegen/.gracerules_add_flow
 ```
 
-
-### Code Formatting
-```bash
-uv run black src/
-uv run mypy src/
+Add payment methods:
+```
+add Wallet:Apple Pay,Google Pay and Card:Credit,Debit to <Connector> using grace/rulesbook/codegen/.gracerules_add_payment_method
 ```
 
-## Troubleshooting
+---
 
-### Dependency Resolution
-If you get Python version conflicts:
-```bash
-# Check Python version
-python --version  # Should be 3.9+
+## Orchestrator Workflow (Batch Processing)
 
-# Clear cache and reinstall
-uv cache clean
-uv sync
+For implementing a payment flow across multiple connectors in one run:
+
+```
+Implement {FLOW} for all connectors in {CONNECTORS_FILE}. Read grace/workflow/1_orchestrator.md and follow it exactly.
+Integration details: {CONNECTORS_FILE}
+Branch: {BRANCH}
 ```
 
-### Import Errors
-If LangGraph imports fail:
-```bash
-# Install core dependencies
-uv add langgraph langchain langchain-core
+**Example:**
 ```
+Implement GooglePay for all connectors in connectors.json. Read grace/workflow/1_orchestrator.md and follow it exactly.
+Integration details: connectors.json
+Branch: feat/google_pay_impl
+```
+
+### Workflow Architecture
+
+```
+workflow/
+├── 1_orchestrator.md      # Top-level orchestrator
+├── 2_connector.md         # Per-connector agent
+├── 2.1_links.md          # Links discovery
+├── 2.2_techspec.md       # Tech spec generation
+├── 2.3_codegen.md        # Code generation
+└── 2.4_pr.md             # PR creation
+```
+
+---
+
+
+
+---
+
+See [setup.md](setup.md) for detailed setup instructions, API key configuration, and advanced usage.
