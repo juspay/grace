@@ -39,7 +39,7 @@ dependencies = [
     # HTTP and async
     "httpx>=0.25.0",
     "requests>=2.31.0",
-    "aiohttp>=3.8.0",
+    "aiohttp>=3.14.0",
     # Text and data formats
     "PyYAML>=6.0",
     "toml>=0.10.2",
